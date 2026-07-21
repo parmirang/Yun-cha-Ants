@@ -34,6 +34,7 @@ body {
     "Pretendard", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
     "Segoe UI", Roboto, sans-serif;
   overscroll-behavior-y: none;
+  -webkit-font-smoothing: antialiased;
 }
 
 button {
@@ -64,24 +65,24 @@ button {
   color: var(--muted);
 }
 
-/* ── 엔트 ─────────────────────────────────────────── */
+/* ── 개미 ─────────────────────────────────────────── */
 
-.ent-stage {
+.ant-stage {
   position: relative;
   -webkit-tap-highlight-color: transparent;
 }
 
-.ent-stage:active .ent-sway {
+.ant-stage:active .ant-sway {
   transform: scale(0.94);
 }
 
-.ent-sway {
+.ant-sway {
   image-rendering: pixelated;
-  animation: ent-sway 3.2s ease-in-out infinite;
+  animation: ant-sway 3.2s ease-in-out infinite;
   transition: transform 0.1s ease;
 }
 
-@keyframes ent-sway {
+@keyframes ant-sway {
   0%,
   100% {
     transform: translateY(0) rotate(-1.2deg);
@@ -91,16 +92,16 @@ button {
   }
 }
 
-.ent-splash {
+.ant-splash {
   position: absolute;
   top: -0.5rem;
   left: 50%;
   font-size: 1.75rem;
-  animation: ent-splash 0.9s ease-out forwards;
+  animation: ant-splash 0.9s ease-out forwards;
   pointer-events: none;
 }
 
-@keyframes ent-splash {
+@keyframes ant-splash {
   0% {
     opacity: 1;
     transform: translate(-50%, 0) scale(0.6);
@@ -113,31 +114,31 @@ button {
 
 /* ── 발자국 ───────────────────────────────────────── */
 
-.ent-footprint {
+.ant-footprint {
   position: absolute;
-  /* 엔트 스프라이트의 발 높이. 캐릭터 크기(h-48)에 맞춰 잡았다. */
+  /* 개미 스프라이트의 발 높이. 캐릭터 크기(h-48)에 맞춰 잡았다. */
   top: 62%;
   width: 9px;
   height: 12px;
   border-radius: 2px;
   opacity: 0;
-  animation: ent-footprint 2.6s linear forwards;
+  animation: ant-footprint 2.6s linear forwards;
 }
 
-.ent-footprint[data-mood="profit"] {
+.ant-footprint[data-mood="profit"] {
   background: var(--up);
 }
 
-.ent-footprint[data-mood="loss"] {
+.ant-footprint[data-mood="loss"] {
   background: var(--down);
 }
 
-.ent-footprint[data-mood="even"] {
+.ant-footprint[data-mood="even"] {
   background: var(--muted);
 }
 
-/* 엔트는 제자리걸음이고, 발자국이 뒤(화면 아래)로 흘러 사라진다. */
-@keyframes ent-footprint {
+/* 개미는 제자리걸음이고, 발자국이 뒤(화면 아래)로 흘러 사라진다. */
+@keyframes ant-footprint {
   0% {
     opacity: 0.9;
     transform: translateY(0) scale(1);
@@ -149,9 +150,9 @@ button {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  .ent-sway,
-  .ent-footprint,
-  .ent-splash {
+  .ant-sway,
+  .ant-footprint,
+  .ant-splash {
     animation: none;
   }
 }

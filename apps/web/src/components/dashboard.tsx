@@ -12,10 +12,11 @@ import {
 import { useState } from "react";
 
 import { formatPercent, formatSignedWon, formatWon, parseNumericInput } from "@/lib/format";
+import { shareUrl } from "@/lib/share-url";
 import { useQuote } from "@/lib/use-quote";
 
 import { Countdown } from "./countdown";
-import { EntSprite } from "./ent-sprite";
+import { AntSprite } from "./ant-sprite";
 import { Footprints } from "./footprints";
 
 export function Dashboard({
@@ -50,16 +51,16 @@ export function Dashboard({
       <section className="relative my-6 flex flex-1 items-center justify-center">
         <Footprints mood={status.mood} />
         <button
-          className="ent-stage relative z-10"
+          className="ant-stage relative z-10"
           onClick={() => {
             setSplash((count) => count + 1);
             setWateringOpen(true);
           }}
-          aria-label={`엔트에게 물주기 (${averagingLabel})`}
+          aria-label={`개미에게 물주기 (${averagingLabel})`}
         >
-          <EntSprite stage={status.stage} className="ent-sway h-48 w-48" />
+          <AntSprite stage={status.stage} className="ant-sway h-48 w-48" />
           {splash > 0 && (
-            <span key={splash} className="ent-splash" aria-hidden>
+            <span key={splash} className="ant-splash" aria-hidden>
               💧
             </span>
           )}
@@ -91,7 +92,7 @@ export function Dashboard({
         </dl>
 
         <p className="text-xs text-[color:var(--muted)]">
-          엔트를 탭하면 {averagingLabel} 할 수 있어.
+          개미를 탭하면 {averagingLabel} 할 수 있어.
         </p>
       </section>
 
@@ -126,25 +127,29 @@ function StageMeter({ stage }: { stage: number }) {
   return (
     <section className="flex flex-col gap-1.5">
       <div className="flex justify-between text-xs text-[color:var(--muted)]">
-        <span>시듦</span>
+        <span>탈진</span>
         <span className="tabular-nums">
           {stage + 1} / {STAGE_COUNT} 단계
         </span>
-        <span>무성함</span>
+        <span>쌩쌩</span>
       </div>
       <div className="flex gap-[2px]" aria-hidden>
-        {Array.from({ length: STAGE_COUNT }, (_, index) => (
-          <span
-            key={index}
-            className="h-2 flex-1 rounded-[1px]"
-            style={{
-              background:
-                index <= stage
-                  ? `hsl(${26 + (index / (STAGE_COUNT - 1)) * 96}, 60%, 45%)`
-                  : "var(--line)",
-            }}
-          />
-        ))}
+        {Array.from({ length: STAGE_COUNT }, (_, index) => {
+          // 미터 색은 개미 껍질 색과 같은 축을 쓰되, 얇은 막대라 명도만 조금 올린다.
+          const t = index / (STAGE_COUNT - 1);
+          return (
+            <span
+              key={index}
+              className="h-2 flex-1 rounded-[1px]"
+              style={{
+                background:
+                  index <= stage
+                    ? `hsl(${Math.round(30 - t * 18)}, ${Math.round(8 + t * 54)}%, ${Math.round(41 + t * 13)}%)`
+                    : "var(--line)",
+              }}
+            />
+          );
+        })}
       </div>
     </section>
   );
@@ -170,7 +175,7 @@ function ShareButton({
       g: stage,
       m: mood === "loss" ? "l" : mood === "profit" ? "p" : "e",
     });
-    const url = `${window.location.origin}/s/${token}`;
+    const url = shareUrl(token);
 
     // 모바일에서는 공유 시트를, 데스크톱에서는 클립보드 복사로 떨어진다.
     if (navigator.share) {

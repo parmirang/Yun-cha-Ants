@@ -4,7 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 
 import { Countdown } from "@/components/countdown";
-import { EntSprite } from "@/components/ent-sprite";
+import { AntSprite } from "@/components/ant-sprite";
 
 interface PageProps {
   params: Promise<{ snapshot: string }>;
@@ -43,12 +43,12 @@ export default async function SharePage({ params }: PageProps) {
       data-mood={mood}
     >
       <Countdown seconds={snapshot.s} mood={mood} />
-      <EntSprite stage={snapshot.g} className="ent-sway h-40 w-40" />
+      <AntSprite stage={snapshot.g} className="ant-sway h-40 w-40" />
 
       <p className="text-sm text-[color:var(--muted)]">{snapshot.n}</p>
 
       <Link className="btn-primary w-full text-center" href="/">
-        나도 내 엔트 키우기
+        나도 내 개미 키우기
       </Link>
     </main>
   );

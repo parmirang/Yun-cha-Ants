@@ -1,4 +1,4 @@
-import type { Ticker } from "@yca/shared";
+import type { Ticker } from "./market.js";
 
 export interface MockTicker extends Ticker {
   /** 기준가 (원). 랜덤워크가 이 값 주변을 맴돈다. */

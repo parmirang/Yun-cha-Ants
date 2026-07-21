@@ -5,14 +5,13 @@ import {
   type Profile,
   type Ticker,
   hourlyWageFromAnnualSalary,
-  tickerListSchema,
 } from "@yca/shared";
 import { useEffect, useMemo, useState } from "react";
 
-import { apiBaseUrl } from "@/lib/api";
 import { formatWon, parseNumericInput } from "@/lib/format";
+import { searchTickers } from "@/lib/tickers";
 
-import { EntSprite } from "./ent-sprite";
+import { AntSprite } from "./ant-sprite";
 
 type Step = "salary" | "search" | "position";
 
@@ -31,7 +30,7 @@ export function Onboarding({
   return (
     <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-6 py-10">
       <header className="mb-8 flex flex-col items-center gap-3">
-        <EntSprite stage={38} className="h-20 w-20" />
+        <AntSprite stage={38} className="h-20 w-20" />
         <h1 className="text-2xl font-bold tracking-tight">영차Ants</h1>
         <p className="text-center text-sm text-[color:var(--muted)]">
           내 주식, 몇 시간 더 일하면 본전일까?
@@ -134,12 +133,7 @@ function SearchStep({
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       try {
-        const response = await fetch(
-          `${apiBaseUrl}/tickers?q=${encodeURIComponent(query)}`,
-          { signal: controller.signal },
-        );
-        const parsed = tickerListSchema.safeParse(await response.json());
-        if (parsed.success) setTickers(parsed.data.tickers);
+        setTickers(await searchTickers(query, controller.signal));
       } catch {
         // 취소되었거나 서버가 죽은 경우 — 목록을 그대로 둔다.
       }
@@ -251,7 +245,7 @@ function PositionStep({
           disabled={!valid}
           onClick={() => onSubmit(avgPrice, quantity)}
         >
-          내 엔트 보러가기
+          내 개미 보러가기
         </button>
       </div>
     </section>

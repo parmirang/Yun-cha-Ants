@@ -1,6 +1,6 @@
 import { ImageResponse } from "next/og";
 
-import { entDataUri } from "@/components/ent-sprite";
+import { antDataUri } from "@/components/ant-sprite";
 
 export const size = { width: 64, height: 64 };
 export const contentType = "image/png";
@@ -20,7 +20,7 @@ export default function Icon() {
         }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={entDataUri(42)} width={58} height={58} alt="" />
+        <img src={antDataUri(42)} width={58} height={58} alt="" />
       </div>
     ),
     size,

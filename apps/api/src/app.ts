@@ -1,8 +1,9 @@
 import cors from "@fastify/cors";
 import Fastify, { type FastifyInstance } from "fastify";
 
+import { MockMarket } from "@yca/shared";
+
 import { env } from "./env.js";
-import { MockMarket } from "./mock/market.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { marketRoutes } from "./routes/market.js";
 

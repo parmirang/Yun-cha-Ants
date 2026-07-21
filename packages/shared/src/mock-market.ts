@@ -1,6 +1,6 @@
-import type { Quote, Ticker } from "@yca/shared";
+import type { Quote, Ticker } from "./market.js";
 
-import { MOCK_TICKERS, type MockTicker } from "./tickers.js";
+import { MOCK_TICKERS, type MockTicker } from "./mock-tickers.js";
 
 interface MockState {
   ticker: MockTicker;
@@ -20,7 +20,8 @@ const TICK_INTERVAL_MS = 1_000;
 export class MockMarket {
   private readonly states = new Map<string, MockState>();
   private readonly listeners = new Set<() => void>();
-  private timer: NodeJS.Timeout | null = null;
+  // 브라우저(number)와 Node(Timeout) 양쪽에서 도는 엔진이라 반환 타입을 추론시킨다.
+  private timer: ReturnType<typeof setInterval> | null = null;
 
   constructor(tickers: MockTicker[] = MOCK_TICKERS) {
     for (const ticker of tickers) {
@@ -33,7 +34,8 @@ export class MockMarket {
   start(): void {
     if (this.timer) return;
     this.timer = setInterval(() => this.tick(), TICK_INTERVAL_MS);
-    this.timer.unref?.();
+    // Node에서만 있는 API — 목 시세가 프로세스 종료를 붙잡지 않도록.
+    (this.timer as { unref?: () => void }).unref?.();
   }
 
   stop(): void {

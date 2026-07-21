@@ -1,7 +1,7 @@
 import { decodeShareSnapshot, formatDuration } from "@yca/shared";
 import { ImageResponse } from "next/og";
 
-import { entDataUri } from "@/components/ent-sprite";
+import { antDataUri } from "@/components/ant-sprite";
 
 export const size = { width: 1200, height: 630 };
 export const contentType = "image/png";
@@ -71,7 +71,7 @@ export default async function Image({
         }}
       >
         {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={entDataUri(snapshot?.g ?? 25)} width={200} height={200} alt="" />
+        <img src={antDataUri(snapshot?.g ?? 25)} width={200} height={200} alt="" />
 
         <div
           style={{

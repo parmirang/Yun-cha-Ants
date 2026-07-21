@@ -14,7 +14,7 @@ const SPAWN_INTERVAL_MS = 520;
 const LIFETIME_MS = 2_600;
 
 /**
- * 엔트 뒤로 흘러가며 사라지는 발자국.
+ * 개미 뒤로 흘러가며 사라지는 발자국.
  * 국내 시장 관행대로 수익이면 빨강, 손실이면 파랑이다.
  */
 export function Footprints({ mood }: { mood: Mood }) {
@@ -42,9 +42,9 @@ export function Footprints({ mood }: { mood: Mood }) {
       {prints.map((print) => (
         <span
           key={print.id}
-          className="ent-footprint"
+          className="ant-footprint"
           data-mood={print.mood}
-          // 엔트의 두 발 바로 아래에서 태어나 뒤(화면 아래)로 흘러간다.
+          // 개미의 두 발 바로 아래에서 태어나 뒤(화면 아래)로 흘러간다.
           style={{ left: `calc(50% + ${print.side * 19}px)` }}
         />
       ))}

@@ -1,8 +1,7 @@
-import type { QuoteList, Ticker } from "@yca/shared";
+import type { MockMarket, QuoteList, Ticker } from "@yca/shared";
 import type { FastifyInstance } from "fastify";
 
 import { env } from "../env.js";
-import type { MockMarket } from "../mock/market.js";
 
 /**
  * SSE는 reply.raw.writeHead()로 헤더를 직접 쓰기 때문에 @fastify/cors가 붙여둔
