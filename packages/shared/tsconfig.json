@@ -1,6 +1,9 @@
 {
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
+    // shared는 브라우저와 Node 양쪽에서 돌아간다. DOM은 타입 선언만 쓰며
+    // (TextEncoder / btoa 등 양쪽에 다 있는 API) 런타임 의존성은 없다.
+    "lib": ["ES2022", "DOM"],
     "module": "NodeNext",
     "moduleResolution": "NodeNext",
     "noEmit": true

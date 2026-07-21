@@ -1,6 +1,15 @@
-# Yung-chaAnts
+# 영차Ants (Yung-chaAnts)
 
-Next.js 웹 + Fastify API + 공유 스키마로 구성된 pnpm 워크스페이스 모노레포.
+> 내 주식, 몇 시간 더 일하면 본전일까?
+
+평가손익을 내 시급으로 나눠 `HH:MM:SS`로 보여주는 모바일 웹.
+손익 상태는 픽셀아트 엔트의 상태(50단계)로 표현된다.
+
+- 연봉 → 시급 환산 (월 209시간 기준)
+- 종목 검색 → 평단가·수량 입력
+- 실시간 시세로 "얼마나 더 일해야 하는지" 카운트
+- 엔트를 탭해 물타기 / 불타기
+- 시급은 빼고 **시간만** 담은 링크 공유 (OG 카드 자동 생성)
 
 ## 요구 사항
 
@@ -17,17 +26,30 @@ pnpm dev
 ```
 
 - 웹: http://localhost:3000
-- API: http://localhost:4300 (`GET /health`)
+- API: http://localhost:4300
 
-첫 화면에 API 헬스체크 결과가 표시되면 web → api → 공유 스키마 배선이 정상이다.
+휴대폰 실기기로 볼 때는 같은 와이파이에서 `http://<맥의 LAN IP>:3000` 으로 접속하고,
+`apps/web/.env.local`의 `NEXT_PUBLIC_API_URL`도 같은 IP로 바꾼다.
+개발 모드 API는 모든 오리진을 허용하므로 별도 설정은 필요 없다.
 
 ## 워크스페이스
 
 | 경로 | 패키지 | 내용 |
 | --- | --- | --- |
 | `apps/web` | `@yca/web` | Next.js 15 App Router, React 19, Tailwind v4 |
-| `apps/api` | `@yca/api` | Fastify 5, TypeScript ESM |
-| `packages/shared` | `@yca/shared` | 웹/API가 공유하는 zod 스키마와 타입 |
+| `apps/api` | `@yca/api` | Fastify 5, 목 시세 엔진, SSE 스트림 |
+| `packages/shared` | `@yca/shared` | 시급·손익·단계 계산과 zod 스키마 |
+
+## API
+
+| 엔드포인트 | 설명 |
+| --- | --- |
+| `GET /health` | 헬스체크 |
+| `GET /tickers?q=` | 종목 검색 (목 데이터 20종목) |
+| `GET /quotes?symbols=a,b` | 현재 시세 |
+| `GET /quotes/stream?symbols=a,b` | 1초 간격 SSE 시세 스트림 |
+
+**시세는 아직 목 데이터다.** 랜덤워크로 생성되며 실제 시장과 무관하다.
 
 ## 스크립트
 
@@ -39,4 +61,4 @@ pnpm dev
 | `pnpm build` | 프로덕션 빌드 |
 | `pnpm clean` | 빌드 산출물과 node_modules 삭제 |
 
-자세한 개발 규칙은 [CLAUDE.md](CLAUDE.md) 참고.
+개발 규칙과 도메인 결정 사항은 [CLAUDE.md](CLAUDE.md) 참고.

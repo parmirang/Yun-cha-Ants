@@ -1,23 +1,157 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #14100c;
+  --bg: #14100c;
+  --surface: #1e1811;
+  --fg: #f3ece2;
+  --muted: #9c8f7e;
+  --line: #33291d;
+
+  /* 국내 시장 관행: 수익=빨강, 손실=파랑 */
+  --up: #ff5c5c;
+  --down: #5c9dff;
+  --mood-color: var(--fg);
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #14100c;
-    --foreground: #f5f0ea;
-  }
+[data-mood="profit"] {
+  --mood-color: var(--up);
+}
+
+[data-mood="loss"] {
+  --mood-color: var(--down);
 }
 
 @theme inline {
-  --color-background: var(--background);
-  --color-foreground: var(--foreground);
+  --color-background: var(--bg);
+  --color-foreground: var(--fg);
 }
 
+html,
 body {
-  background: var(--background);
-  color: var(--foreground);
+  background: var(--bg);
+  color: var(--fg);
+  font-family:
+    "Pretendard", -apple-system, BlinkMacSystemFont, "Apple SD Gothic Neo",
+    "Segoe UI", Roboto, sans-serif;
+  overscroll-behavior-y: none;
+}
+
+button {
+  cursor: pointer;
+}
+
+/* ── 버튼 ─────────────────────────────────────────── */
+
+.btn-primary {
+  border-radius: 0.75rem;
+  background: var(--fg);
+  color: var(--bg);
+  padding: 0.875rem 1rem;
+  font-weight: 700;
+  transition: opacity 0.15s ease;
+}
+
+.btn-primary:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+.btn-ghost {
+  border-radius: 0.75rem;
+  border: 1px solid var(--line);
+  padding: 0.875rem 1rem;
+  font-weight: 600;
+  color: var(--muted);
+}
+
+/* ── 엔트 ─────────────────────────────────────────── */
+
+.ent-stage {
+  position: relative;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.ent-stage:active .ent-sway {
+  transform: scale(0.94);
+}
+
+.ent-sway {
+  image-rendering: pixelated;
+  animation: ent-sway 3.2s ease-in-out infinite;
+  transition: transform 0.1s ease;
+}
+
+@keyframes ent-sway {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-1.2deg);
+  }
+  50% {
+    transform: translateY(-4px) rotate(1.2deg);
+  }
+}
+
+.ent-splash {
+  position: absolute;
+  top: -0.5rem;
+  left: 50%;
+  font-size: 1.75rem;
+  animation: ent-splash 0.9s ease-out forwards;
+  pointer-events: none;
+}
+
+@keyframes ent-splash {
+  0% {
+    opacity: 1;
+    transform: translate(-50%, 0) scale(0.6);
+  }
+  100% {
+    opacity: 0;
+    transform: translate(-50%, 2.5rem) scale(1.3);
+  }
+}
+
+/* ── 발자국 ───────────────────────────────────────── */
+
+.ent-footprint {
+  position: absolute;
+  /* 엔트 스프라이트의 발 높이. 캐릭터 크기(h-48)에 맞춰 잡았다. */
+  top: 62%;
+  width: 9px;
+  height: 12px;
+  border-radius: 2px;
+  opacity: 0;
+  animation: ent-footprint 2.6s linear forwards;
+}
+
+.ent-footprint[data-mood="profit"] {
+  background: var(--up);
+}
+
+.ent-footprint[data-mood="loss"] {
+  background: var(--down);
+}
+
+.ent-footprint[data-mood="even"] {
+  background: var(--muted);
+}
+
+/* 엔트는 제자리걸음이고, 발자국이 뒤(화면 아래)로 흘러 사라진다. */
+@keyframes ent-footprint {
+  0% {
+    opacity: 0.9;
+    transform: translateY(0) scale(1);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(150px) scale(0.7);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ent-sway,
+  .ent-footprint,
+  .ent-splash {
+    animation: none;
+  }
 }
