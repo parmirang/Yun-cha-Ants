@@ -1,0 +1,21 @@
+{
+  "name": "yung-chaants",
+  "version": "0.1.0",
+  "private": true,
+  "packageManager": "pnpm@10.33.2",
+  "engines": {
+    "node": ">=20"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": ["esbuild", "sharp"]
+  },
+  "scripts": {
+    "dev": "pnpm --filter @yca/shared build && pnpm --parallel -r dev",
+    "dev:web": "pnpm --filter @yca/shared build && pnpm --filter @yca/web dev",
+    "dev:api": "pnpm --filter @yca/shared build && pnpm --filter @yca/api dev",
+    "build": "pnpm --filter @yca/shared build && pnpm --filter \"./apps/*\" build",
+    "start": "pnpm --parallel --filter \"./apps/*\" start",
+    "typecheck": "pnpm --filter @yca/shared build && pnpm -r typecheck",
+    "clean": "rm -rf node_modules apps/*/node_modules packages/*/node_modules packages/shared/dist apps/web/.next apps/api/dist"
+  }
+}
