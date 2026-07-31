@@ -103,7 +103,12 @@ export async function loadKrxTickers(
     log(`최근 ${MAX_LOOKBACK_DAYS}일 안에서 개장일을 못 찾았다. 목 종목으로 시작한다.`);
     return null;
   } catch (error) {
-    log(`KRX 호출 실패 — 목 종목으로 시작한다: ${String(error)}`);
+    // 키 길이를 함께 남긴다 — 같은 키가 로컬에서 되는데 배포에서 401이면,
+    // 값이 깨진 건지(길이가 다름) 호출 지점이 거부된 건지(길이가 같음)를 이걸로 가른다.
+    // 키 자체는 절대 찍지 않는다.
+    log(
+      `KRX 호출 실패 — 목 종목으로 시작한다: ${String(error)} (인증키 ${env.krxAuthKey?.length ?? 0}자)`,
+    );
     return null;
   }
 }
@@ -116,7 +121,13 @@ async function fetchDay(path: string, basDd: string): Promise<KrxRow[]> {
   });
 
   if (!response.ok) {
-    throw new Error(`${path} ${basDd} → HTTP ${response.status}`);
+    // 상태코드만으로는 이유를 모른다 — 미신청 서비스인지, 키가 거부된 건지는
+    // 본문에만 적혀 온다. 로그 한 줄에 얹을 만큼만 잘라 붙인다.
+    const detail = (await response.text().catch(() => ""))
+      .replace(/\s+/g, " ")
+      .trim()
+      .slice(0, 200);
+    throw new Error(`${path} ${basDd} → HTTP ${response.status}${detail ? ` — ${detail}` : ""}`);
   }
 
   const body = (await response.json()) as KrxResponse;
