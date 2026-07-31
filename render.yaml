@@ -1,0 +1,25 @@
+# Render Blueprint — Fastify API만 올린다. 웹(Next.js)은 Vercel에 따로 붙인다.
+#
+# rootDir을 apps/api로 잡으면 안 된다. Render는 rootDir 바깥 파일을 빌드에서
+# 못 보는데, @yca/api는 workspace:*로 packages/shared에 의존한다.
+# 저장소 루트에서 빌드하고 --filter로 대상만 고른다.
+#
+# packages/shared/dist는 gitignore라 새 클론에는 없다. 반드시 shared를 먼저 빌드한다.
+services:
+  - type: web
+    name: yung-chaants-api
+    runtime: node
+    plan: free
+    region: singapore
+    buildCommand: pnpm install --frozen-lockfile && pnpm --filter @yca/shared build && pnpm --filter @yca/api build
+    startCommand: pnpm --filter @yca/api start
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      # Vercel 도메인. 쉼표로 여러 개. 개발 모드가 아니면 이 목록만 CORS를 통과한다.
+      - key: WEB_ORIGIN
+        sync: false
+      # KRX Data Marketplace 인증키. 없으면 MOCK_TICKERS 20종목으로 조용히 떨어진다.
+      - key: KRX_AUTH_KEY
+        sync: false
