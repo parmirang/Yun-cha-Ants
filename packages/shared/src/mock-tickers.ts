@@ -5,11 +5,16 @@ export interface MockTicker extends Ticker {
   basePrice: number;
   /** 틱당 변동성 (표준편차 비율) */
   volatility: number;
+  /**
+   * 실제 전일 종가 (원). KRX에서 받아온 종목은 이 값이 채워지고,
+   * 비어 있으면 MockMarket이 기준가 언저리에서 하나 지어낸다.
+   */
+  previousClose?: number;
 }
 
 /**
- * 실제 시세 연동 전까지 쓰는 목 종목.
- * 실제 API를 붙일 때는 이 파일과 market.ts만 갈아끼우면 된다.
+ * KRX 인증키가 없을 때 쓰는 대체 종목.
+ * 키가 있으면 apps/api의 krx.ts가 실제 전 종목으로 이 자리를 채운다.
  */
 export const MOCK_TICKERS: MockTicker[] = [
   { symbol: "005930", name: "삼성전자", market: "KOSPI", basePrice: 74_800, volatility: 0.0012 },

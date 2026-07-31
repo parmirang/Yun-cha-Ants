@@ -4,6 +4,7 @@ import Fastify, { type FastifyInstance } from "fastify";
 import { MockMarket } from "@yca/shared";
 
 import { env } from "./env.js";
+import { loadKrxTickers } from "./krx.js";
 import { registerHealthRoutes } from "./routes/health.js";
 import { marketRoutes } from "./routes/market.js";
 
@@ -12,7 +13,11 @@ export async function buildApp(): Promise<FastifyInstance> {
     logger: env.nodeEnv === "development" ? { level: "info" } : true,
   });
 
-  const market = new MockMarket();
+  // 종목 마스터와 전일 종가는 KRX에서, 장중 현재가는 여전히 랜덤워크가 만든다
+  // (KRX OPEN API에는 실시간 시세가 없다). 기동 때 한 번만 받아오므로
+  // 종가가 바뀌면 서버를 다시 띄워야 한다.
+  const krxTickers = await loadKrxTickers((message) => app.log.info(message));
+  const market = krxTickers ? new MockMarket(krxTickers) : new MockMarket();
   market.start();
   app.addHook("onClose", async () => market.stop());
 

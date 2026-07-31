@@ -1,4 +1,5 @@
 @import "tailwindcss";
+@import "./galmuri.css";
 
 :root {
   --bg: #14100c;
@@ -67,19 +68,10 @@ button {
 
 /* ── 개미 ─────────────────────────────────────────── */
 
-.ant-stage {
-  position: relative;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.ant-stage:active .ant-sway {
-  transform: scale(0.94);
-}
-
+/* 공유 페이지처럼 무대 밖에 개미를 세워둘 때 쓴다. */
 .ant-sway {
   image-rendering: pixelated;
   animation: ant-sway 3.2s ease-in-out infinite;
-  transition: transform 0.1s ease;
 }
 
 @keyframes ant-sway {
@@ -92,67 +84,510 @@ button {
   }
 }
 
-.ant-splash {
+/* ── 장대봉 무대 ──────────────────────────────────── */
+
+.candle-stage {
+  position: relative;
+  overflow: hidden;
+  height: clamp(300px, 46vh, 420px);
+  border-radius: 1rem;
+  /* 카메라 프레임. 배경은 안쪽 .candle-world가 그린다 — 줌인으로 월드가 아래로
+     밀릴 때 위에 드러나는 얇은 띠가 하늘색으로 이어지도록 같은 톤을 깔아둔다. */
+  background: #0d1626;
+}
+
+/*
+ * 무대의 "월드" — 배경·날씨·바닥선·봉·개미가 한 몸으로 담긴다.
+ * 수익이 다 그려지면(data-zoom="in") 이 월드를 개미 쪽으로 밀어 넣어, 봉이 하늘로
+ * 뻗을 때 텅 비던 아래 절반(땅속)을 걷어낸다. 바닥선만 옮기지 않고 월드째 움직이는 건
+ * 하늘/땅 경계 그라데이션이 바닥선과 어긋나지 않게 하기 위해서다.
+ */
+.candle-world {
   position: absolute;
-  top: -0.5rem;
+  inset: 0;
+  transform-origin: 50% 50%;
+  transition: transform 0.7s cubic-bezier(0.22, 1, 0.36, 1);
+  /* 위는 하늘, 아래는 땅속 — 바닥선을 기준으로 배경이 갈린다. */
+  background: linear-gradient(
+    to bottom,
+    #0d1626 0%,
+    #131b28 49.9%,
+    #241a12 50.1%,
+    #150f0a 100%
+  );
+}
+
+/* 개미(바닥선)를 향해 밀어 넣으며 1.28배 당긴다 — 값만 바꾸면 줌 세기가 조절된다. */
+.candle-world[data-zoom="in"] {
+  transform: translateY(25%) scale(1.28);
+}
+
+/*
+ * 평단가 입력 화면처럼 무대가 남는 공간을 다 먹어야 할 때.
+ *
+ * 이 규칙은 레이어 밖에 있어서 Tailwind의 h-full로는 위 height를 못 이긴다 —
+ * 그래서 속성으로 연다. 또 `height: 100%`로는 안 된다: 부모가 flex-1일 뿐
+ * 높이가 정해져 있지 않아 퍼센트가 풀리지 않고 min-height로 주저앉는다.
+ * 부모를 flex 컬럼으로 두고 여기서 늘어나야 한다.
+ */
+.candle-stage[data-fill="yes"] {
+  height: auto;
+  flex: 1 1 0;
+  min-height: 240px;
+}
+
+.candle-ground {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  height: 2px;
+  background: #4a3722;
+  transform: translateY(-1px);
+}
+
+.candle-bar {
+  position: absolute;
   left: 50%;
-  font-size: 1.75rem;
-  animation: ant-splash 0.9s ease-out forwards;
+  translate: -50% 0;
+  border-radius: 2px;
+  background: var(--mood-color);
+  box-shadow: 0 0 24px -4px var(--mood-color);
+  animation: candle-appear 0.42s ease-out both;
+  transition:
+    height 0.65s cubic-bezier(0.22, 1, 0.36, 1),
+    width 0.65s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.candle-stage[data-mood="even"] .candle-bar {
+  background: var(--muted);
+  box-shadow: none;
+}
+
+@keyframes candle-appear {
+  from {
+    opacity: 0;
+    scale: 0.4;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+
+/*
+ * 가로 위치는 transform에서 `translateX(calc(-50% + Npx))`로 잡는다 —
+ * left:50%는 상자의 **왼쪽 모서리**를 가운데에 두므로, 고정 px로 당겨두면
+ * 개미가 커질 때마다 오른쪽으로 밀려 무대 밖으로 걸어 나간다.
+ */
+.candle-ant {
+  position: absolute;
+  left: 50%;
+  bottom: 50%;
+  transition: transform 1.45s linear;
+  -webkit-tap-highlight-color: transparent;
+}
+
+.candle-ant-sprite {
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+.candle-ant:active .candle-ant-sprite {
+  transform: scale(0.92);
+}
+
+/* ── 말풍선 ───────────────────────────────────────── */
+
+.speech-bubble {
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  translate: -50% 0;
+  margin-bottom: 0.5rem;
+  padding: 0.4rem 0.6rem;
+  border-radius: 0.4rem;
+  background: var(--fg);
+  color: #1a1410;
+  font-family: "Galmuri11", monospace;
+  font-size: 0.75rem;
+  line-height: 1.35;
+  white-space: nowrap;
+  opacity: 0;
+  transition:
+    opacity 0.3s ease,
+    transform 0.3s ease;
+  transform: translateY(4px);
   pointer-events: none;
 }
 
-@keyframes ant-splash {
-  0% {
-    opacity: 1;
-    transform: translate(-50%, 0) scale(0.6);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(-50%, 2.5rem) scale(1.3);
-  }
+.speech-bubble[data-visible="yes"] {
+  opacity: 1;
+  transform: translateY(0);
 }
 
-/* ── 발자국 ───────────────────────────────────────── */
-
-.ant-footprint {
+/* 꼬리 */
+.speech-bubble::after {
+  content: "";
   position: absolute;
-  /* 개미 스프라이트의 발 높이. 캐릭터 크기(h-48)에 맞춰 잡았다. */
-  top: 62%;
-  width: 9px;
-  height: 12px;
-  border-radius: 2px;
+  top: 100%;
+  left: 50%;
+  translate: -50% 0;
+  border: 5px solid transparent;
+  border-top-color: var(--fg);
+}
+
+/* ── 배경 날씨 ────────────────────────────────────── */
+
+/*
+ * 날씨는 전부 바닥선 위(하늘)에서만 벌어진다. 땅속으로 비가 새지 않도록
+ * 위쪽 절반만 남기고 잘라낸다 — 안쪽 좌표(%)는 이 상자 기준이다.
+ */
+.scene-sky {
+  position: absolute;
+  inset: 0 0 50% 0;
+  overflow: hidden;
+  pointer-events: none;
+}
+
+.scene-cloud {
+  position: absolute;
+  height: 28%;
+  border-radius: 999px;
+  background: #2f3644;
+  filter: blur(6px);
+  opacity: 0.85;
+  animation: scene-drift 26s linear infinite;
+}
+
+@keyframes scene-drift {
+  from {
+    transform: translateX(-8%);
+  }
+  to {
+    transform: translateX(8%);
+  }
+}
+
+.scene-rain {
+  position: absolute;
+  top: -24%;
+  width: 2px;
+  height: 26%;
+  border-radius: 1px;
+  background: linear-gradient(to bottom, transparent, #6f8fc4);
+  opacity: 0.55;
+  animation: scene-rain 1.05s linear infinite;
+}
+
+/* 하늘 상자 아래로 빠져나가면 잘려서 사라진다 (= 바닥에 닿아 사라지는 모양). */
+@keyframes scene-rain {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(480%);
+  }
+}
+
+.scene-lightning {
+  position: absolute;
+  inset: 0;
+  background: #cfe0ff;
   opacity: 0;
-  animation: ant-footprint 2.6s linear forwards;
+  animation: scene-lightning 7s linear infinite;
 }
 
-.ant-footprint[data-mood="profit"] {
+@keyframes scene-lightning {
+  0%,
+  92%,
+  100% {
+    opacity: 0;
+  }
+  93% {
+    opacity: 0.5;
+  }
+  94% {
+    opacity: 0;
+  }
+  95% {
+    opacity: 0.32;
+  }
+  96% {
+    opacity: 0;
+  }
+}
+
+.scene-spark {
+  position: absolute;
+  width: 4px;
+  height: 4px;
+  border-radius: 1px;
+  background: #ffe9a8;
+  animation: scene-spark 2.4s ease-in-out infinite;
+}
+
+@keyframes scene-spark {
+  0%,
+  100% {
+    opacity: 0;
+    transform: scale(0.4);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.3);
+  }
+}
+
+.scene-firework {
+  position: absolute;
+  width: 0;
+  height: 0;
+}
+
+.scene-firework i {
+  position: absolute;
+  display: block;
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
   background: var(--up);
+  box-shadow: 0 0 6px currentColor;
+  animation: scene-burst 2.6s ease-out infinite;
 }
 
-.ant-footprint[data-mood="loss"] {
-  background: var(--down);
+.scene-firework i:nth-child(even) {
+  background: #ffd24a;
 }
 
-.ant-footprint[data-mood="even"] {
-  background: var(--muted);
-}
-
-/* 개미는 제자리걸음이고, 발자국이 뒤(화면 아래)로 흘러 사라진다. */
-@keyframes ant-footprint {
+/*
+ * 회전과 이동을 한 transform 안에서 끝낸다. `translate:` 속성으로 나눠 쓰면
+ * CSS가 이동을 회전보다 **먼저** 적용해서 여덟 조각이 겹친 채 위로만 날아간다.
+ * 각도는 인라인 --angle로 들어온다.
+ */
+@keyframes scene-burst {
   0% {
-    opacity: 0.9;
-    transform: translateY(0) scale(1);
+    opacity: 0;
+    transform: rotate(var(--angle)) translateY(0);
+  }
+  10% {
+    opacity: 1;
+    transform: rotate(var(--angle)) translateY(-4px);
+  }
+  65% {
+    opacity: 1;
+    transform: rotate(var(--angle)) translateY(-38px);
   }
   100% {
     opacity: 0;
-    transform: translateY(150px) scale(0.7);
+    transform: rotate(var(--angle)) translateY(-52px);
+  }
+}
+
+.scene-confetti {
+  position: absolute;
+  top: -14%;
+  width: 5px;
+  height: 8px;
+  border-radius: 1px;
+  opacity: 0.9;
+  animation: scene-confetti 3.4s linear infinite;
+}
+
+/* 높이가 px라서 %로 밀면 8px밖에 안 내려간다 — 픽셀로 밀어야 바닥까지 간다. */
+@keyframes scene-confetti {
+  from {
+    transform: translateY(0) rotate(0deg);
+  }
+  to {
+    transform: translateY(260px) rotate(540deg);
+  }
+}
+
+/* ── 인기 종목 롤링 ───────────────────────────────── */
+
+.ticker-roll {
+  overflow: hidden;
+  /* 위아래 끝을 흐리게 지운다 — 목록이 잘린 게 아니라 흘러가는 것으로 읽힌다. */
+  mask-image: linear-gradient(180deg, transparent, #000 12%, #000 88%, transparent);
+}
+
+.ticker-roll-track {
+  animation: ticker-roll var(--ticker-roll-duration) linear infinite;
+}
+
+/* 같은 목록이 두 벌 쌓여 있고 한 벌 높이(50%)만큼 올린다 — 이음매가 안 보인다. */
+@keyframes ticker-roll {
+  from {
+    transform: translateY(0);
+  }
+  to {
+    transform: translateY(-50%);
+  }
+}
+
+/*
+ * 흘러가는 줄은 누르기 어렵다. 손을 대면 멈춘다 —
+ * `:active`는 자식에서 조상으로 올라오므로 줄을 눌러도 이 규칙이 걸린다.
+ */
+.ticker-roll:hover .ticker-roll-track,
+.ticker-roll:focus-within .ticker-roll-track,
+.ticker-roll:active .ticker-roll-track {
+  animation-play-state: paused;
+}
+
+/* ── 대문 ─────────────────────────────────────────── */
+
+/*
+ * 대문 봉차트. 대시보드의 장대봉(candle-stage)과는 다른 물건이다 —
+ * 시세를 읽지 않고 분위기만 그린다.
+ */
+.hero-candles {
+  /* 봉이 오르내려도 대문 높이가 흔들리지 않게 잘라내고, 양끝은 흐리게 지운다. */
+  overflow: hidden;
+  mask-image: linear-gradient(90deg, transparent, #000 14%, #000 86%, transparent);
+  pointer-events: none;
+}
+
+.hero-candle {
+  flex: 1 1 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  animation: hero-candle-drift var(--hero-candle-duration) ease-in-out
+    var(--hero-candle-delay) infinite;
+}
+
+/* 아래에서 위로 밀어 올렸다 내린다 — 대문의 "영차"가 이 움직임이다. */
+@keyframes hero-candle-drift {
+  0%,
+  100% {
+    transform: translateY(var(--hero-candle-travel));
+  }
+  50% {
+    transform: translateY(calc(var(--hero-candle-travel) * -1));
+  }
+}
+
+.hero-candle-body,
+.hero-candle-wick {
+  /* 애니메이션이 멎었을 때 남는 바탕색 */
+  background: var(--up);
+  animation: hero-candle-tint var(--hero-candle-duration) ease-in-out
+    var(--hero-candle-delay) infinite;
+}
+
+/* 봉 색도 같은 주기를 탄다 — 바닥에선 파랑, 꼭대기에선 빨강. */
+@keyframes hero-candle-tint {
+  0%,
+  100% {
+    background: var(--down);
+  }
+  50% {
+    background: var(--up);
+  }
+}
+
+.hero-candle-body {
+  width: 100%;
+  border-radius: 1px;
+}
+
+.hero-candle-wick {
+  width: 2px;
+}
+
+.hero-ant {
+  transform-origin: bottom center;
+  animation: hero-ant-dance 0.96s ease-in-out infinite;
+}
+
+/* 발을 붙인 채 좌우로 기울고, 기울기가 바뀌는 사이사이 한 번씩 뛴다. */
+@keyframes hero-ant-dance {
+  0%,
+  100% {
+    transform: translateY(0) rotate(-7deg);
+  }
+  25% {
+    transform: translateY(-9%) rotate(0deg);
+  }
+  50% {
+    transform: translateY(0) rotate(7deg);
+  }
+  75% {
+    transform: translateY(-9%) rotate(0deg);
+  }
+}
+
+/*
+ * 손 흔드는 두 자세를 겹쳐두고 절반씩 번갈아 보여준다.
+ * setInterval 대신 CSS로 프레임을 넘기는 건 아래 prefers-reduced-motion 하나로
+ * 몸짓과 프레임을 같이 멎게 하려고다.
+ */
+.hero-ant-frame {
+  position: absolute;
+  inset: 0;
+  height: 100%;
+  width: 100%;
+  image-rendering: pixelated;
+  animation: hero-ant-frame 0.96s linear infinite;
+}
+
+.hero-ant-frame-b {
+  animation-delay: -0.48s;
+}
+
+@keyframes hero-ant-frame {
+  0%,
+  49.99% {
+    opacity: 1;
+  }
+  50%,
+  100% {
+    opacity: 0;
   }
 }
 
 @media (prefers-reduced-motion: reduce) {
   .ant-sway,
-  .ant-footprint,
-  .ant-splash {
+  .candle-bar,
+  .candle-ant,
+  .candle-world,
+  .hero-candle,
+  .hero-candle-body,
+  .hero-candle-wick,
+  .hero-ant,
+  .hero-ant-frame,
+  .scene-cloud,
+  .scene-rain,
+  .scene-lightning,
+  .scene-spark,
+  .scene-firework i,
+  .scene-confetti,
+  .ticker-roll-track {
     animation: none;
+    transition: none;
+  }
+
+  /* 프레임을 안 넘기니 겹쳐둔 두 번째 자세는 치운다 — 안 그러면 팔이 겹쳐 보인다. */
+  .hero-ant-frame-b {
+    display: none;
+  }
+
+  /* 안 굴러가면 사본은 같은 목록이 두 번 나온 것일 뿐이라 치우고, 직접 굴리게 둔다. */
+  .ticker-roll-copy {
+    display: none;
+  }
+
+  .ticker-roll {
+    overflow-y: auto;
+    mask-image: none;
+  }
+
+  /* 봉이 멈춰 서도 차트로 읽히도록 오르내림을 색으로만 남긴다. */
+  .hero-candle:nth-child(even) .hero-candle-body,
+  .hero-candle:nth-child(even) .hero-candle-wick {
+    background: var(--down);
   }
 }

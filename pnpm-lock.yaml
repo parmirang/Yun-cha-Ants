@@ -35,6 +35,9 @@ importers:
       '@yca/shared':
         specifier: workspace:*
         version: link:../../packages/shared
+      galmuri:
+        specifier: ^2.40.3
+        version: 2.40.3
       next:
         specifier: ^15.1.6
         version: 15.5.20(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
@@ -846,6 +849,9 @@ packages:
     resolution: {integrity: sha512-5xoDfX+fL7faATnagmWPpbFtwh/R77WmMMqqHGS65C3vvB0YHrgF+B1YmZ3441tMj5n63k0212XNoJwzlhffQw==}
     engines: {node: ^8.16.0 || ^10.6.0 || >=11.0.0}
     os: [darwin]
+
+  galmuri@2.40.3:
+    resolution: {integrity: sha512-eXflXih1AWy2J+jWeT5sGVj4PUCb1bMK7lnwKDKMzEd3lx+F6myuxqp6c0eZlD7EMXOicUYaM+FH7DAoQ7mWbw==}
 
   graceful-fs@4.2.11:
     resolution: {integrity: sha512-RbJ5/jmFcNNCcDV5o9eTnBLJ/HszWV0P73bc+Ff4nS/rJj+YaS6IGyiOL0VoBYX+l1Wrl3k63h/KrH+nhJ0XvQ==}
@@ -1695,6 +1701,8 @@ snapshots:
 
   fsevents@2.3.3:
     optional: true
+
+  galmuri@2.40.3: {}
 
   graceful-fs@4.2.11: {}
 

@@ -59,13 +59,43 @@ export function calcPositionStatus(
   };
 }
 
-/** 초 → "HH:MM:SS". 100시간을 넘으면 시 자리가 자연스럽게 늘어난다. */
+/**
+ * 카운터에서의 하루는 **24시간**이다. 봉 길이에 쓰는 근무일(8시간)과 다른 값이니
+ * 섞지 말 것 — 봉은 "며칠치 노동인가"를, 카운터는 "얼마나 긴 시간인가"를 그린다.
+ */
+const SECONDS_PER_DAY = 24 * 3600;
+
+/**
+ * 초 → "HH:MM:SS". 24시간을 넘기면 앞에 날을 세워 "1일 02:34:56"으로 적는다 —
+ * 시 자리만 늘리면 "134:02:11" 같은 숫자가 나오는데 한눈에 안 읽힌다.
+ */
 export function formatDuration(totalSeconds: number): string {
   const safe = Math.max(0, Math.floor(totalSeconds));
-  const hours = Math.floor(safe / 3600);
+  const days = Math.floor(safe / SECONDS_PER_DAY);
+  const hours = Math.floor((safe % SECONDS_PER_DAY) / 3600);
   const minutes = Math.floor((safe % 3600) / 60);
   const seconds = safe % 60;
   const pad = (n: number) => String(n).padStart(2, "0");
+  const clock = `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
 
-  return `${pad(hours)}:${pad(minutes)}:${pad(seconds)}`;
+  return days > 0 ? `${days}일 ${clock}` : clock;
+}
+
+/**
+ * 같은 시간을 문장에 넣을 때의 표기 — "1일 3시간", "3시간 12분", "12분", "40초".
+ *
+ * 큰 단위 둘까지만 남긴다. 초까지 읽어주면 바로 위 카운터를 소리 내어 따라 읽는
+ * 꼴이 되고, 문장은 카운터가 못 주는 "그래서 얼마나 긴데?"를 맡아야 한다.
+ */
+export function formatSpanWords(totalSeconds: number): string {
+  const safe = Math.max(0, Math.floor(totalSeconds));
+  const days = Math.floor(safe / SECONDS_PER_DAY);
+  const hours = Math.floor((safe % SECONDS_PER_DAY) / 3600);
+  const minutes = Math.floor((safe % 3600) / 60);
+
+  if (days > 0) return hours > 0 ? `${days}일 ${hours}시간` : `${days}일`;
+  if (hours > 0) return minutes > 0 ? `${hours}시간 ${minutes}분` : `${hours}시간`;
+  if (minutes > 0) return `${minutes}분`;
+
+  return `${safe % 60}초`;
 }

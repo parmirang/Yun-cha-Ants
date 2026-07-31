@@ -2,47 +2,37 @@ import type { Quote, Ticker } from "./market.js";
 
 import { MOCK_TICKERS, type MockTicker } from "./mock-tickers.js";
 
-interface MockState {
+interface MarketState {
   ticker: MockTicker;
-  price: number;
+  /** 전일 종가 (원). 실시간 시세가 붙기 전까지 현재가로도 이 값을 그대로 쓴다. */
   previousClose: number;
 }
 
-/** 평균 회귀 강도. 0이면 순수 랜덤워크, 1이면 매 틱 기준가로 복귀. */
-const MEAN_REVERSION = 0.02;
-const TICK_INTERVAL_MS = 1_000;
-
 /**
- * 목 시세 엔진. 종목별로 기준가 주변을 맴도는 랜덤워크를 굴린다.
- * 실제 시세를 붙일 때는 이 클래스와 같은 모양(getQuotes/subscribe)의
- * 구현체로 교체하면 라우트는 그대로 둘 수 있다.
+ * 종목 마스터와 **전일 종가**를 들고 있는 시세 소스.
+ *
+ * 예전엔 이 자리에서 랜덤워크로 장중 현재가를 지어냈지만, 가짜로 움직이는 시세가
+ * 실제인 척 오해를 사서 걷어냈다. 지금은 **현재가 = 전일 종가**로 고정하고,
+ * 화면이 "실시간 적용 준비중" 라벨로 그 사실을 알린다.
+ *
+ * 실시간(장중) 시세를 붙일 때는 이 클래스와 같은 모양(search / getQuotes / subscribe)의
+ * 구현체로 갈아끼우면 라우트와 웹은 그대로 둔다 — 그때 `subscribe`가 틱마다 listener를
+ * 부르면 SSE가 다시 살아난다. 이름에 Mock이 남은 건 그 스왑 지점을 가리키기 위해서다.
  */
 export class MockMarket {
-  private readonly states = new Map<string, MockState>();
-  private readonly listeners = new Set<() => void>();
-  // 브라우저(number)와 Node(Timeout) 양쪽에서 도는 엔진이라 반환 타입을 추론시킨다.
-  private timer: ReturnType<typeof setInterval> | null = null;
+  private readonly states = new Map<string, MarketState>();
 
   constructor(tickers: MockTicker[] = MOCK_TICKERS) {
     for (const ticker of tickers) {
-      // 전일 종가는 기준가에서 ±2% 안쪽으로 흩어둬 첫 화면부터 등락이 보이게 한다.
-      const previousClose = round(ticker.basePrice * (1 + (Math.random() - 0.5) * 0.04));
-      this.states.set(ticker.symbol, { ticker, price: previousClose, previousClose });
+      // KRX에서 받은 실제 전일 종가를 쓰고, 없으면(키 없는 개발) 기준가로 대신한다.
+      const previousClose = ticker.previousClose ?? ticker.basePrice;
+      this.states.set(ticker.symbol, { ticker, previousClose });
     }
   }
 
-  start(): void {
-    if (this.timer) return;
-    this.timer = setInterval(() => this.tick(), TICK_INTERVAL_MS);
-    // Node에서만 있는 API — 목 시세가 프로세스 종료를 붙잡지 않도록.
-    (this.timer as { unref?: () => void }).unref?.();
-  }
-
-  stop(): void {
-    if (!this.timer) return;
-    clearInterval(this.timer);
-    this.timer = null;
-  }
+  /** 실시간 피드가 붙기 전까지 밀어줄 틱이 없다 — 라이프사이클 훅만 남겨둔다. */
+  start(): void {}
+  stop(): void {}
 
   search(query: string, limit = 20): Ticker[] {
     const normalized = query.trim().toLowerCase();
@@ -63,48 +53,26 @@ export class MockMarket {
 
     return symbols
       .map((symbol) => this.states.get(symbol))
-      .filter((state): state is MockState => state !== undefined)
+      .filter((state): state is MarketState => state !== undefined)
       .map((state) => ({
         symbol: state.ticker.symbol,
         name: state.ticker.name,
-        price: state.price,
+        // 장중 현재가는 아직 없다 — 전일 종가를 그대로 현재가로 쓴다.
+        price: state.previousClose,
         previousClose: state.previousClose,
         updatedAt,
       }));
   }
 
-  /** 틱마다 호출되는 리스너를 등록하고, 해제 함수를 돌려준다. */
-  subscribe(listener: () => void): () => void {
-    this.listeners.add(listener);
-    return () => {
-      this.listeners.delete(listener);
-    };
-  }
-
-  private tick(): void {
-    for (const state of this.states.values()) {
-      const drift = (state.ticker.basePrice - state.price) * MEAN_REVERSION;
-      const shock = state.price * state.ticker.volatility * gaussian();
-      state.price = Math.max(1, round(state.price + drift + shock));
-    }
-
-    for (const listener of this.listeners) listener();
+  /**
+   * 실시간 피드가 없으므로 지금은 밀어줄 틱이 없다. 인터페이스만 지켜 SSE 라우트와
+   * 목업이 그대로 붙게 한다 — 실시간을 붙이면 여기서 listener를 호출하면 된다.
+   */
+  subscribe(_listener: () => void): () => void {
+    return () => {};
   }
 }
 
 function toTicker({ symbol, name, market }: MockTicker): Ticker {
   return { symbol, name, market };
-}
-
-/** 원 단위 절사 — 실제 호가 단위는 아니지만 목 데이터로는 충분하다. */
-function round(value: number): number {
-  return Math.round(value);
-}
-
-/** Box-Muller 변환으로 표준정규분포 난수를 만든다. */
-function gaussian(): number {
-  const u = 1 - Math.random();
-  const v = Math.random();
-
-  return Math.sqrt(-2 * Math.log(u)) * Math.cos(2 * Math.PI * v);
 }

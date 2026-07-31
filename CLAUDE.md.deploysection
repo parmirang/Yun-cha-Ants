@@ -1,0 +1,27 @@
+## 배포
+
+**웹은 Vercel, API는 Render.** 저장소 하나(`parmirang/Yun-cha-Ants`)를 두 서비스에 각각
+연결한다. 둘 다 무료 등급으로 굴러간다.
+
+`packages/shared/dist`는 **gitignore라 새 클론에 없고**, `@yca/shared`에는 `prepare`
+스크립트가 없다. 그래서 **어느 쪽이든 빌드 첫 줄이 shared 빌드여야 한다** — 안 그러면
+임포트가 안 풀린다. 웹은 `vercel-build` 스크립트가 그 일을 한다 (Vercel이 기본
+`next build`보다 이걸 먼저 집는다). 로컬 `build`는 루트 스크립트가 순서를 잡으므로
+그대로 둔다.
+
+**Render의 Root Directory를 `apps/api`로 잡지 말 것.** Render는 rootDir 바깥 파일을
+빌드에서 못 보는데 `@yca/api`는 `workspace:*`로 `packages/shared`에 의존한다.
+저장소 루트에서 빌드하고 `--filter`로 대상만 고른다 ([render.yaml](render.yaml)).
+
+`env.ts`는 이미 `process.env.PORT`를 읽고 host를 `0.0.0.0`으로 둔다 — 로컬 4300은
+개발 포트일 뿐이라 배포용으로 고칠 게 없다.
+
+배포 환경에서는 CORS가 `WEB_ORIGIN` 목록으로 좁혀진다(개발 모드만 전체 허용).
+**Vercel 프리뷰 배포는 URL이 매번 바뀌므로 이 목록에 안 걸려 시세가 막힌다** —
+프리뷰까지 쓰려면 그 오리진을 추가하거나 프로덕션 도메인만 쓴다.
+
+**Render 무료 인스턴스는 15분 무요청이면 잠든다.** 다시 깨는 데 1분쯤 걸리고, 그
+기동마다 `loadKrxTickers()`가 KRX를 다시 부른다(시장당 1회, 하루 10,000회 제한이라
+여유는 있다). 첫 검색이 느린 건 이 때문이지 버그가 아니다. 종가는 기동 시점 기준으로
+갱신되므로, 잠들었다 깨면 종가가 최신으로 바뀔 수 있다.
+

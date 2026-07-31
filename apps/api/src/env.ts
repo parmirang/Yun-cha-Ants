@@ -1,3 +1,10 @@
+// apps/api/.env를 읽는다. 파일이 없으면 조용히 넘어가고 실제 환경변수만 쓴다.
+try {
+  process.loadEnvFile?.();
+} catch {
+  // .env 없음 — 배포 환경에서는 정상이다.
+}
+
 const nodeEnv = process.env.NODE_ENV ?? "development";
 
 export const env = {
@@ -14,4 +21,9 @@ export const env = {
     .split(",")
     .map((origin) => origin.trim())
     .filter(Boolean),
+  /**
+   * KRX Data Marketplace OPEN API 인증키.
+   * 없으면 목 종목으로 뜬다 — 개발에 지장은 없다.
+   */
+  krxAuthKey: process.env.KRX_AUTH_KEY?.trim() || undefined,
 } as const;
