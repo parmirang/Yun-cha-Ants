@@ -104,3 +104,25 @@ export function koreanWon(amount: number): string {
   // 조를 넘기면 읽어줘도 못 읽는다 — 그럴 땐 숫자만 남긴다.
   return rest > 0 || groups.length === 0 ? "" : `${groups.join(" ")}원`;
 }
+
+/**
+ * 금액 입력 상한 — **100억원**.
+ *
+ * 상한이 필요한 건 계산이 틀려서가 아니라 **입력이 말이 안 되기 때문**이다. 연봉칸은
+ * 만원 단위라 0 하나만 더 붙어도 자릿수가 통째로 밀리는데, 그 값도 화면은 멀쩡한
+ * 얼굴로 받아 시급 몇백만원짜리 결과를 내놓는다. 여기서 잘라두면 그 순간 눈에 띈다.
+ */
+export const MAX_INPUT_WON = 10_000_000_000;
+
+/** 연봉칸은 만원 단위로 받으므로 상한도 만원으로 환산해 쓴다. */
+export const MAX_INPUT_MANWON = MAX_INPUT_WON / 10_000;
+
+/**
+ * `formatNumericInput`에 상한을 씌운다. 넘으면 **되돌리지 않고 상한값으로 바꿔 넣는다** —
+ * 글자가 안 들어가면 고장으로 읽히지만, 상한값이 들어차면 "여기까지"가 그대로 읽힌다.
+ */
+export function capNumericInput(raw: string, max: number): string {
+  const formatted = formatNumericInput(raw);
+
+  return parseNumericInput(formatted) > max ? formatNumericInput(String(max)) : formatted;
+}

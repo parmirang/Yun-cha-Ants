@@ -88,8 +88,17 @@ function StorySheet({
   const [failed, setFailed] = useState(false);
   const [canShareFile, setCanShareFile] = useState(false);
   const [note, setNote] = useState<string | null>(null);
+  /*
+   * **파일 공유는 보안 컨텍스트에서만 된다** (HTTPS·localhost). 실기기 테스트로
+   * LAN IP(http)에 들어오면 `navigator.share` 자체가 없어서 인스타로 넘길 방법이
+   * 아예 없다 — 그걸 안 알려주면 위쪽 "공유하기"(링크용)를 누르게 되고, 그러면
+   * 스토리가 아니라 링크가 나간다. 왜 안 되는지 시트에서 말해준다.
+   */
+  const [insecure, setInsecure] = useState(false);
 
   useLockedBodyScroll();
+
+  useEffect(() => setInsecure(!window.isSecureContext), []);
 
   // 이미지는 시트가 열리는 즉시 받아둔다 — 공유 버튼을 누르는 순간엔 이미 손에 있어야
   // iOS의 제스처 검사를 통과한다 (위 주석 참고).

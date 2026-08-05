@@ -15,7 +15,15 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { track } from "@/lib/analytics";
-import { formatNumericInput, formatWon, koreanWon, parseNumericInput } from "@/lib/format";
+import {
+  MAX_INPUT_MANWON,
+  MAX_INPUT_WON,
+  capNumericInput,
+  formatNumericInput,
+  formatWon,
+  koreanWon,
+  parseNumericInput,
+} from "@/lib/format";
 import { useKeyboardInset, useRevealOnKeyboard } from "@/lib/keyboard-inset";
 import { searchTickers } from "@/lib/tickers";
 import { useQuote } from "@/lib/use-quote";
@@ -169,12 +177,12 @@ function SalaryStep({
             value={broke ? "" : value}
             disabled={broke}
             /*
-             * 만원 단위라 5자리면 9억 9,999만원까지 적을 수 있다. 자릿수를 안 막으면
-             * "12000000"(1,200억) 같은 값이 들어와 시급 2,299만원짜리 결과가 멀쩡한
-             * 얼굴로 나온다 — 계산이 틀린 게 아니라 입력이 말이 안 되는 것이다.
-             * 상한은 formatNumericInput이 잡는다 (maxLength는 쉼표까지 세어서 못 쓴다).
+             * 만원 단위라 상한도 만원으로 환산해 씌운다 (100억 = 1,000,000만원).
+             * 자릿수를 안 막으면 "12000000"(1,200억) 같은 값이 들어와 시급 2,299만원짜리
+             * 결과가 멀쩡한 얼굴로 나온다 — 계산이 틀린 게 아니라 입력이 말이 안 되는 것이다.
+             * `<input maxLength>`로는 이 일을 못 한다 — 쉼표까지 글자 수로 세어버린다.
              */
-            onChange={(event) => onChange(formatNumericInput(event.target.value, 5))}
+            onChange={(event) => onChange(capNumericInput(event.target.value, MAX_INPUT_MANWON))}
           />
           {/*
             적은 값을 한글로 읽어준다 ("1,200" → 천이백만원). 만원 단위 입력이라 한 자리만
@@ -617,7 +625,9 @@ function PositionStep({
             }
             autoFocus
             value={avgPriceInput}
-            onChange={(event) => setAvgPriceInput(formatNumericInput(event.target.value))}
+            onChange={(event) =>
+              setAvgPriceInput(capNumericInput(event.target.value, MAX_INPUT_WON))
+            }
           />
         </label>
 

@@ -16,7 +16,10 @@ import {
 import { useEffect, useRef, useState } from "react";
 
 import { track } from "@/lib/analytics";
+import { copyText } from "@/lib/clipboard";
 import {
+  MAX_INPUT_WON,
+  capNumericInput,
   formatNumericInput,
   formatPercent,
   formatSignedWon,
@@ -265,14 +268,21 @@ function ShareButton({
 }) {
   const [copied, setCopied] = useState(false);
 
+  /*
+   * **어느 길로도 못 나가는 경우가 있다.** 공유 시트(`navigator.share`)와
+   * 클립보드(`navigator.clipboard`)는 둘 다 보안 컨텍스트에서만 존재하는데,
+   * 실기기 테스트는 LAN IP(http)로 들어와서 둘 다 없다. 그때는 주소를 직접
+   * 보여줘서 손으로 복사하게 둔다 — 눌러도 아무 일이 없는 것보다 낫다.
+   */
   const share = async () => {
-    const token = encodeShareSnapshot({
-      n: name,
-      s: seconds,
-      g: stage,
-      m: mood === "loss" ? "l" : mood === "profit" ? "p" : "e",
-    });
-    const url = shareUrl(token);
+    const url = shareUrl(
+      encodeShareSnapshot({
+        n: name,
+        s: seconds,
+        g: stage,
+        m: mood === "loss" ? "l" : mood === "profit" ? "p" : "e",
+      }),
+    );
 
     // 모바일에서는 공유 시트를, 데스크톱에서는 클립보드 복사로 떨어진다.
     if (navigator.share) {
@@ -285,14 +295,19 @@ function ShareButton({
       }
     }
 
-    await navigator.clipboard.writeText(url);
-    track("share_click", { share_method: "clipboard", mood });
-    setCopied(true);
-    setTimeout(() => setCopied(false), 2_000);
+    if (await copyText(url)) {
+      track("share_click", { share_method: "clipboard", mood });
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2_000);
+      return;
+    }
+
+    // 마지막 수단. 못생겼지만 어디서나 뜨고, 주소를 골라 복사할 수 있다.
+    window.prompt("이 링크를 복사해줘", url);
   };
 
   return (
-    <button className="btn-primary flex-1" onClick={share}>
+    <button type="button" className="btn-primary flex-1" onClick={share}>
       {copied ? "링크 복사됨!" : "공유하기"}
     </button>
   );
@@ -431,7 +446,7 @@ function AveragingSheet({
             className="rounded-xl border border-[color:var(--line)] bg-transparent px-4 py-3 tabular-nums outline-none"
             inputMode="numeric"
             value={priceInput}
-            onChange={(event) => setPriceInput(formatNumericInput(event.target.value))}
+            onChange={(event) => setPriceInput(capNumericInput(event.target.value, MAX_INPUT_WON))}
           />
         </label>
 
