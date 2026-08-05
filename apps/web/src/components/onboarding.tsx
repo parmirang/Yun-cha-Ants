@@ -256,6 +256,9 @@ function SearchStep({
   // 검색 결과 0건과 **서버 불통**을 화면에서 구분하기 위한 플래그.
   // 없으면 서버가 죽어도 "국내 주식만 지원해"로 보여 오해를 준다.
   const [failed, setFailed] = useState(false);
+  // 다시 시도 버튼이 올리는 값. 검색어가 그대로여도 이게 바뀌면 아래 효과가 다시 돈다.
+  const [retry, setRetry] = useState(0);
+  const [retrying, setRetrying] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
@@ -267,6 +270,8 @@ function SearchStep({
         // 키를 칠 때마다 이전 요청을 abort하는데, 그 취소는 실패가 아니다 — 무시한다.
         // 서버가 죽어 fetch가 거부된 경우만 실패로 표시한다.
         if (!controller.signal.aborted) setFailed(true);
+      } finally {
+        if (!controller.signal.aborted) setRetrying(false);
       }
     }, 180);
 
@@ -274,7 +279,7 @@ function SearchStep({
       controller.abort();
       clearTimeout(timer);
     };
-  }, [query]);
+  }, [query, retry]);
 
   // 결과가 0건인 검색어만 GA로 남긴다 — 오타와 미지원 종목(해외 주식·ETF)이 여기
   // 섞여 들어오고, 그게 "무엇을 더 지원해야 하나"의 유일한 단서다.
@@ -329,12 +334,27 @@ function SearchStep({
         <>
           <span className="text-xs text-[color:var(--muted)]">인기 종목</span>
           {failed && tickers.length === 0 ? (
-            // 서버가 죽어 인기 종목도 못 받아온 경우 — 빈 롤러 대신 이유를 알려준다.
-            <p className="px-4 py-6 text-center text-sm leading-relaxed text-[color:var(--muted)]">
-              종목 정보를 못 불러왔어.
-              <br />
-              잠시 후 다시 시도해줘.
-            </p>
+            // 서버가 죽어 인기 종목도 못 받아온 경우 — 빈 롤러 대신 이유를 알려주고,
+            // 새로고침 대신 여기서 바로 다시 부를 수 있게 한다. 배포에서는 잠들었던 API가
+            // 깨는 데 시간이 걸려 첫 요청만 실패하는 일이 잦다 — 한 번 더 누르면 뜬다.
+            <div className="flex flex-col items-center gap-3 px-4 py-6 text-center">
+              <p className="text-sm leading-relaxed text-[color:var(--muted)]">
+                종목 정보를 못 불러왔어.
+                <br />
+                잠시 후 다시 시도해줘.
+              </p>
+              <button
+                className="btn-ghost px-5 py-2 text-sm"
+                type="button"
+                disabled={retrying}
+                onClick={() => {
+                  setRetrying(true);
+                  setRetry((count) => count + 1);
+                }}
+              >
+                {retrying ? "부르는 중..." : "다시 시도"}
+              </button>
+            </div>
           ) : (
             <PopularRoller tickers={tickers} onSelect={onSelect} />
           )}
