@@ -23,6 +23,19 @@ export class MockMarket {
   private readonly states = new Map<string, MarketState>();
 
   constructor(tickers: MockTicker[] = MOCK_TICKERS) {
+    this.replaceTickers(tickers);
+  }
+
+  /**
+   * 종목 마스터를 통째로 갈아끼운다.
+   *
+   * API는 목 20종목으로 **먼저 포트를 열고**, KRX 응답이 도착하면 이걸로 실제
+   * 종목을 밀어 넣는다 (apps/api/src/app.ts). 생성자에서만 받으면 KRX를 기다리는
+   * 동안 서버가 통째로 안 뜬다.
+   */
+  replaceTickers(tickers: MockTicker[]): void {
+    this.states.clear();
+
     for (const ticker of tickers) {
       // KRX에서 받은 실제 전일 종가를 쓰고, 없으면(키 없는 개발) 기준가로 대신한다.
       const previousClose = ticker.previousClose ?? ticker.basePrice;

@@ -21,6 +21,10 @@ interface EventParams {
   /** 평단가·수량까지 넣고 결과 화면에 도달 — 온보딩 전환. */
   onboarding_complete: { ticker_symbol: string; ticker_name: string };
   share_click: { share_method: "web_share" | "clipboard"; mood: Mood };
+  /** 인스타 내보내기 시트를 엶 — 여기서 실제 내보내기까지 얼마나 새는지 본다. */
+  story_open: undefined;
+  /** 시트에서 실제로 내보냄. 공유 시트로 넘겼는지, 파일로 저장했는지만 남긴다. */
+  story_export: { export_method: "share" | "download"; mood: Mood };
   /** 공유 링크로 들어온 사람이 "나도 내 개미 키우기"를 누름. */
   share_cta_click: undefined;
   /** 개미를 탭해 추가 매수 시트를 엶. */

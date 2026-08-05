@@ -9,6 +9,13 @@
  * OG용 폰트(`assets/galmuri11-og.woff`)는 현대 한글 전체를 담고 있어서
  * 문구를 고쳐도 `pnpm --filter @yca/web font`를 다시 돌릴 필요가 없다.
  */
-export const SHARE_TAGLINE = "영-차 개미, 내 평단, 얼만큼 더 일해야 할까?";
+/**
+ * 세로 카드(인스타)는 폭이 좁아 한 줄로는 안 들어간다. 쉼표에서 끊어 두 줄로 적되,
+ * **두 벌을 따로 두지 않는다** — 아래 `SHARE_TAGLINE`이 이걸 이어 붙여 만들어지므로
+ * 문구를 고치면 양쪽이 함께 바뀐다.
+ */
+export const SHARE_TAGLINE_LINES = ["영-차 개미, 내 평단,", "얼만큼 더 일해야 할까?"];
+
+export const SHARE_TAGLINE = SHARE_TAGLINE_LINES.join(" ");
 
 export const BRAND = "영차Ants";

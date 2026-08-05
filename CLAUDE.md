@@ -206,14 +206,25 @@ pnpm 워크스페이스 모노레포. 웹(Next.js) + API(Fastify) + 둘이 공�
 3. 아래에는 **"다시 계산해보기" 버튼 하나뿐**이다 (종목 카드도, 하단 한마디도 없다).
    받은 사람이 보는 건 남의 손익이라, 할 일은 앱 구경이 아니라 내 평단을 넣어보는 것이다.
 
-### 링크 미리보기 (OG 카드)
+### 굽는 이미지 (OG 카드 · 인스타 스토리)
 
-카톡·X에 링크를 던지면 뜨는 1200×630 그림은 **화면의 그 무대를 그대로 다시 굽는다** —
-밤하늘/땅, 지평선에서 뻗는 장대봉, 그 옆에서 말풍선을 띄운 개미
-([apps/web/src/components/og-card.tsx](apps/web/src/components/og-card.tsx)).
+내보내는 그림은 두 판형이다. 둘 다 **화면의 그 무대를 그대로 다시 굽는다** —
+밤하늘/땅, 지평선에서 뻗는 장대봉, 그 옆에서 말풍선을 띄운 개미.
+
+| | 크기 | 어디에 | 그리는 곳 |
+| --- | --- | --- | --- |
+| 링크 카드 | 1200×630 가로 | 카톡·X 링크 미리보기 | [og-card.tsx](apps/web/src/components/og-card.tsx) |
+| 인스타 스토리 | 1080×1920 세로 | 공유 시트 → 인스타 | [story-card.tsx](apps/web/src/components/story-card.tsx) |
+
+**무대는 [og-scene.tsx](apps/web/src/components/og-scene.tsx) 하나뿐이고 크기만 받는다.**
+판형이 늘어도 무대를 새로 짜지 말 것 — 봉 길이·개미 크기·날씨가 판형마다 따로 놀게 된다.
+글자도 [card-text.ts](apps/web/src/lib/card-text.ts) 한 곳에서 나온다 (같은 링크가 두
+판형에서 다른 말을 하면 안 된다). 판형이 맡는 건 **배치뿐**이다 — 가로는 글자를 왼쪽에
+앉히고 무대를 오른쪽으로 밀며(`candleX`), 세로는 글자 위·무대 가운데로 쌓는다.
+
 카드 전용 그림을 따로 그리지 말 것 — 받은 사람이 링크를 열었을 때 같은 장면을 만나야 한다.
 공유 링크(`/s/[snapshot]/opengraph-image`)와 대문(`/opengraph-image`)이 같은 컴포넌트를 쓴다.
-**카드는 스냅샷에 실린 값만으로 그려진다** — 그래서 위의 공유 규칙이 여기도 그대로 성립한다.
+**그림은 스냅샷에 실린 값만으로 그려진다** — 그래서 위의 공유 규칙이 여기도 그대로 성립한다.
 
 정지 화면이라 앱과 셋이 다르다. ① 지평선이 손익 방향을 따라 오르내린다(앱은 늘 한가운데).
 봉이 뻗는 쪽에 높이를 몰아줘야 한 컷에서 봉이 길어 보인다. ② 개미 최소 크기가 크다 —
@@ -248,6 +259,30 @@ satori에는 시스템 폰트가 없고 화면이 쓰는 woff2는 **못 읽으�
 **`metadataBase`를 지우지 말 것** ([layout.tsx](apps/web/src/app/layout.tsx)). og:image는
 절대 주소로 나가야 크롤러가 그림을 가져가는데, 없으면 Next가 배포마다 바뀌는 주소나
 localhost를 채워 넣어 미리보기가 빈 채로 뜬다. 커스텀 도메인을 붙이면 `NEXT_PUBLIC_SITE_URL`로 덮는다.
+
+### 인스타 내보내기
+
+**인스타는 링크 미리보기가 없다.** 링크를 붙여도 그림이 안 뜨고 본문 링크는 눌리지도
+않는다. 그래서 인스타로는 링크가 아니라 **이미지를 넘긴다** — 서버가 스토리 규격
+PNG를 굽고([/s/[snapshot]/story](apps/web/src/app/s/[snapshot]/story/route.tsx)),
+앱이 그걸 받아 공유 시트에 **파일로** 얹는다
+([story-export.tsx](apps/web/src/components/story-export.tsx)). 시트에서 인스타그램을
+고르면 스토리 편집기로 바로 들어간다. 링크 카드와 달리 크롤러가 아니라 사람이 받아
+가므로 파일 규칙(`opengraph-image`)이 아니라 라우트 핸들러다.
+
+**누르면 바로 공유하지 않고 미리보기 시트를 먼저 띄운다.** iOS는 `navigator.share()`를
+사용자 제스처 안에서 불러야 하는데 이미지를 받아오는 `await`가 그 제스처를 소모한다 —
+미리 받아두고 시트 안에서 다시 누르면 새 제스처라 통과한다. 겸사겸사 뭘 올리는지 보고
+가게 된다. 공유 시트가 없는 데스크톱에서는 저장만 남고, iOS Safari는 `download` 속성을
+무시하므로 "길게 눌러 저장"을 안내한다.
+
+**스토리 카드에만 주소 한 줄이 들어간다** — 인스타에는 링크가 없어 이걸 보고 찾아오는
+수밖에 없다. 주소는 `NEXT_PUBLIC_SITE_URL`이 있으면 그걸, 없으면 요청이 들어온 호스트를
+쓴다. 위아래 여백이 큰 것도 규격 때문이다 — 인스타 UI가 위(프로필 줄)와 아래(답장 입력창)를
+덮으므로 **여백을 줄이면 글자가 그 밑으로 들어간다.**
+
+목업에는 이미지를 구울 서버가 없어 `@/lib/story-image`가 null을 돌려주고 **버튼째
+사라진다** (아래 "단일 HTML 목업"의 alias 참고).
 
 ### 하단 한마디
 
@@ -353,7 +388,8 @@ Q를 풀어주고, 닿을 수 없는 목표에는 null을 준다.
 | `ticker_select` | 종목 고름 |
 | `onboarding_complete` | 평단·수량까지 넣고 결과 화면 도달 |
 | `share_click` | 공유하기 (`web_share` / `clipboard`) |
-| `share_cta_click` | 공유 링크에서 "나도 내 개미 키우기" |
+| `story_open` / `story_export` | 인스타 시트 엶 / 실제 내보냄 (`share` / `download`) |
+| `share_cta_click` | 공유 링크에서 "다시 계산해보기" |
 | `averaging_open` / `averaging_confirm` | 개미 탭 / 평단 바꾸기 |
 | `profile_reset` | 다시 입력 |
 
@@ -440,8 +476,9 @@ KRX 응답은 값이 전부 **문자열이고 숫자에 천 단위 콤마가 들
 것이라, 어긋나면 `loadKrxTickers()`가 첫 행의 키를 로그로 뱉고 목으로 떨어진다.
 
 **단일 HTML 목업은 `pnpm --filter @yca/web mockup`으로 굽는다.** 실제 컴포넌트와
-계산 로직을 그대로 번들하고, 서버가 필요한 세 지점만 alias로 바꿔 끼운다
-(`@/lib/use-quote`, `@/lib/tickers`, `@/lib/share-url` → `apps/web/mockup/`).
+계산 로직을 그대로 번들하고, 서버가 필요한 네 지점만 alias로 바꿔 끼운다
+(`@/lib/use-quote`, `@/lib/tickers`, `@/lib/share-url`, `@/lib/story-image`
+→ `apps/web/mockup/`).
 **목업용으로 화면을 복제하지 말 것** — 두 벌이 되는 순간 어긋난다.
 새 컴포넌트가 서버를 필요로 하면 그 접점을 `src/lib/`의 모듈 하나로 뽑고 alias에 추가한다.
 

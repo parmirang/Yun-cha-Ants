@@ -9,10 +9,11 @@ import * as esbuild from "esbuild";
  * 앱 전체를 파일 하나로 굽는다.
  *
  * 계산 로직과 화면은 실제 소스(@yca/shared, src/components)를 그대로 번들하고,
- * 서버가 필요한 두 지점만 브라우저용 구현으로 바꿔 끼운다.
- *   @/lib/use-quote  → mockup/market-browser.ts  (SSE 대신 브라우저에서 목 엔진 실행)
- *   @/lib/tickers    → mockup/market-browser.ts  (검색 API 대신 같은 엔진)
- *   @/lib/share-url  → mockup/share-url.ts       (경로 대신 해시 라우팅)
+ * 서버가 필요한 네 지점만 브라우저용 구현으로 바꿔 끼운다.
+ *   @/lib/use-quote    → mockup/market-browser.ts  (SSE 대신 브라우저에서 목 엔진 실행)
+ *   @/lib/tickers      → mockup/market-browser.ts  (검색 API 대신 같은 엔진)
+ *   @/lib/share-url    → mockup/share-url.ts       (경로 대신 해시 라우팅)
+ *   @/lib/story-image  → mockup/story-image.ts     (이미지를 구울 서버가 없다 → 버튼 숨김)
  *
  * CSS는 Next 프로덕션 빌드가 뽑아낸 Tailwind 결과물을 그대로 인라인한다 —
  * 목업에서만 쓰는 별도 스타일시트를 두지 않기 위해서다.
@@ -49,6 +50,7 @@ const bundle = await esbuild.build({
     "@/lib/use-quote": join(here, "market-browser.ts"),
     "@/lib/tickers": join(here, "market-browser.ts"),
     "@/lib/share-url": join(here, "share-url.ts"),
+    "@/lib/story-image": join(here, "story-image.ts"),
   },
   absWorkingDir: webRoot,
   tsconfig: join(webRoot, "tsconfig.json"),
