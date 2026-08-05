@@ -21,6 +21,7 @@ import {
   formatPercent,
   formatSignedWon,
   formatWon,
+  koreanWon,
   parseNumericInput,
 } from "@/lib/format";
 import { useKeyboardInset } from "@/lib/keyboard-inset";
@@ -418,7 +419,11 @@ function AveragingSheet({
         </div>
 
         <label className="mt-4 flex flex-col gap-1.5">
-          <span className="text-xs text-[color:var(--muted)]">매수할 주식의 가격 (원)</span>
+          {/* 온보딩 평단가와 같은 자리, 같은 규칙 — 라벨 오른쪽에 한글로 읽어준다. */}
+          <span className="flex items-baseline justify-between gap-2 text-xs text-[color:var(--muted)]">
+            <span className="shrink-0">매수할 주식의 가격 (원)</span>
+            <span className="min-w-0 truncate">{koreanWon(price)}</span>
+          </span>
           <input
             className="rounded-xl border border-[color:var(--line)] bg-transparent px-4 py-3 tabular-nums outline-none"
             inputMode="numeric"

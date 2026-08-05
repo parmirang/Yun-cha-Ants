@@ -15,7 +15,7 @@ import {
 import { useEffect, useMemo, useRef, useState } from "react";
 
 import { track } from "@/lib/analytics";
-import { formatNumericInput, formatWon, parseNumericInput } from "@/lib/format";
+import { formatNumericInput, formatWon, koreanWon, parseNumericInput } from "@/lib/format";
 import { useKeyboardInset } from "@/lib/keyboard-inset";
 import { searchTickers } from "@/lib/tickers";
 import { useQuote } from "@/lib/use-quote";
@@ -138,6 +138,9 @@ function SalaryStep({
   const netWage = net.net / WORK_HOURS_PER_YEAR;
   const grossWage = grossHourlyWage(basis);
   const valid = basis > 0;
+  // 무일푼이면 입력칸이 비므로 읽어줄 것도 없다 (annualSalary가 아니라 basis를 쓰면
+  // 최저임금 연봉이 안 적은 칸 옆에 적힌다).
+  const reading = broke ? "" : koreanWon(annualSalary);
 
   return (
     // 높이를 늘려 잡지 않는다 — 남는 공간은 위쪽 대문이 가져간다.
@@ -168,7 +171,17 @@ function SalaryStep({
              */
             onChange={(event) => onChange(formatNumericInput(event.target.value, 5))}
           />
-          <span className="shrink-0 text-sm text-[color:var(--muted)]">만원</span>
+          {/*
+            적은 값을 한글로 읽어준다 ("1,200" → 천이백만원). 만원 단위 입력이라 한 자리만
+            밀려도 열 배가 어긋나는데, 숫자만 보고는 그걸 알아채기 어렵다.
+
+            비어 있을 때만 "만원"이 뜬다 — 적고 나면 읽기가 그 자리를 대신한다.
+            둘을 같이 두면 "천이백만원 만원"이 된다. 읽기가 이미 원으로 끝나므로
+            단위는 그대로 읽힌다.
+          */}
+          <span className="min-w-0 shrink truncate text-sm text-[color:var(--muted)]">
+            {reading || "만원"}
+          </span>
         </div>
       </label>
 
@@ -560,7 +573,12 @@ function PositionStep({
 
       <div className="flex gap-2">
         <label className="flex min-w-0 flex-[8] flex-col gap-1.5">
-          <span className="text-xs text-[color:var(--muted)]">평단가 (원)</span>
+          {/* 라벨 오른쪽에 적은 값을 한글로 읽어준다 — 평단가는 0이 여섯 개씩 붙어
+              눈으로 자릿수를 세기 어렵다 (24000과 240000이 한눈에 안 갈린다). */}
+          <span className="flex items-baseline justify-between gap-2 text-xs text-[color:var(--muted)]">
+            <span className="shrink-0">평단가 (원)</span>
+            <span className="min-w-0 truncate">{koreanWon(avgPrice)}</span>
+          </span>
           <input
             className={`${FIELD_CLASS} px-4 text-lg`}
             inputMode="numeric"
