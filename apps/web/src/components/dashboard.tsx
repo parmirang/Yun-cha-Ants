@@ -23,6 +23,7 @@ import {
   formatWon,
   parseNumericInput,
 } from "@/lib/format";
+import { useKeyboardInset } from "@/lib/keyboard-inset";
 import { shareUrl } from "@/lib/share-url";
 import { useLockedBodyScroll } from "@/lib/use-locked-body-scroll";
 import { useQuote } from "@/lib/use-quote";
@@ -361,15 +362,20 @@ function AveragingSheet({
   const pnlUnchanged = preview !== null && price === currentPrice;
 
   useLockedBodyScroll();
+  useKeyboardInset();
 
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-black/50" onClick={onClose}>
       {/* 시트 안의 --mood-color는 **추가 매수 이후**의 손익을 따른다 — 바깥 화면의
           지금 손익을 그대로 물려받으면 뒤집히는 순간 색이 거짓말을 한다. */}
-      <div
-        className="max-h-dvh w-full overflow-y-auto overscroll-contain rounded-t-2xl bg-[color:var(--surface)] p-5 pb-8"
+      <form
+        className="kb-sheet max-h-dvh w-full overflow-y-auto overscroll-contain rounded-t-2xl bg-[color:var(--surface)] p-5"
         data-mood={preview?.mood}
         onClick={(event) => event.stopPropagation()}
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (valid) onConfirm(price, quantity);
+        }}
       >
         {/* 앱이 유저에게 반말로 묻는 목소리를 온보딩("어떤 종목을 샀어?")과 맞춘다.
             "평단 다시 계산"은 이미 있는 걸 고쳐 세는 소리로 들리는데, 이 시트가 답하는
@@ -394,8 +400,11 @@ function AveragingSheet({
               <p className="mt-1.5 text-xs text-[color:var(--muted)] tabular-nums">
                 필요한 돈 {formatWon(plan.cost)}
               </p>
+              {/* type을 안 적으면 submit이 되어, 시트 안에서 엔터를 쳤을 때 확인 대신
+                  이 버튼이 눌린다 (form의 첫 submit 버튼이 엔터를 받는다). */}
               <button
                 className="btn-ghost mt-3 w-full py-2 text-sm"
+                type="button"
                 onClick={() => setQuantityInput(formatNumericInput(String(plan.shares)))}
               >
                 {plan.shares}주 넣어보기
@@ -502,19 +511,21 @@ function AveragingSheet({
           </p>
         )}
 
-        <div className="mt-5 flex gap-3">
-          <button className="btn-ghost flex-1" onClick={onClose}>
+        {/* 여기도 숫자 키패드라 엔터가 없다 — 버튼을 키보드 위로 올린다.
+            바탕을 깔아두는 건 시트 안쪽 내용 위로 떠오르기 때문이다. */}
+        <div className="kb-sticky mt-5 flex gap-3 bg-[color:var(--surface)] pb-1">
+          <button className="btn-ghost flex-1" type="button" onClick={onClose}>
             취소
           </button>
           <button
             className="btn-primary flex-[2] text-sm"
+            type="submit"
             disabled={!valid}
-            onClick={() => onConfirm(price, quantity)}
           >
             {watering ? "설마 물탔어? 평단 바꾸기" : "우와 불탔어? 평단 바꾸기"}
           </button>
         </div>
-      </div>
+      </form>
     </div>
   );
 }

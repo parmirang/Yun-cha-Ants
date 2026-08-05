@@ -436,6 +436,14 @@ button {
   padding-bottom: var(--keyboard-inset, 0px);
 }
 
+/*
+ * 바텀 시트용. 시트는 화면 바닥에 붙어 있어 키보드가 올라오면 아랫부분이 통째로
+ * 가려진다 — 원래 여백(2rem)에 가려진 높이를 더해 그만큼 안쪽 스크롤로 밀어낸다.
+ */
+.kb-sheet {
+  padding-bottom: calc(2rem + var(--keyboard-inset, 0px));
+}
+
 /* ── 인기 종목 롤링 ───────────────────────────────── */
 
 /*

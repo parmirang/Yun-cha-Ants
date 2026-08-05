@@ -283,15 +283,30 @@ function SearchStep({
     // min-h-0이 없으면 목록이 화면 밖으로 자란다 — flex 자식은 기본이 min-height:auto라
     // 안쪽 내용(20종목 × 2벌)만큼 부풀고 flex-1이 줄이지를 못한다.
     <section className="flex min-h-0 flex-1 flex-col gap-4">
-      <label className="flex flex-col gap-2">
-        <span className="text-sm font-medium">어떤 종목을 샀어?</span>
-        <input
-          className="rounded-xl border border-[color:var(--line)] bg-[color:var(--surface)] px-4 py-3 outline-none"
-          placeholder="종목명 또는 종목코드"
-          value={query}
-          onChange={(event) => setQuery(event.target.value)}
-        />
-      </label>
+      {/*
+        여기는 글자 키보드라 엔터 키가 있다. 누르면 **맨 위 결과**를 고른다 — 검색 결과가
+        키보드에 가려 안 보일 때 손가락으로 짚는 대신 엔터로 끝낼 수 있다.
+        검색어가 비어 있을 때(인기 종목이 흘러갈 때)는 아무 일도 안 한다 — 굴러가는
+        목록의 "맨 위"는 누르는 순간마다 달라서, 뭘 고른 건지 알 수 없다.
+      */}
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          const first = tickers[0];
+          if (!rolling && first) onSelect(first);
+        }}
+      >
+        <label className="flex flex-col gap-2">
+          <span className="text-sm font-medium">어떤 종목을 샀어?</span>
+          <input
+            className="w-full rounded-xl border border-[color:var(--line)] bg-[color:var(--surface)] px-4 py-3 outline-none"
+            placeholder="종목명 또는 종목코드"
+            enterKeyHint="search"
+            value={query}
+            onChange={(event) => setQuery(event.target.value)}
+          />
+        </label>
+      </form>
 
       {rolling ? (
         <>
