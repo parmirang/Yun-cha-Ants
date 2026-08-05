@@ -22,6 +22,7 @@ import { useQuote } from "@/lib/use-quote";
 
 import { CandleScene } from "./candle-scene";
 import { Hero } from "./hero";
+import { CUSTOM_QUANTITY, QuantityPicker } from "./quantity-picker";
 import { TickerLogo } from "./ticker-logo";
 
 type Step = "salary" | "search" | "position";
@@ -544,8 +545,6 @@ const QUANTITY_OPTIONS = [
   1000, 1500, 2000, 3000, 5000, 10000,
 ];
 
-const CUSTOM_QUANTITY = "custom";
-
 /**
  * 평단가 입력과 수량 피커가 나란히 서므로 높이를 못으로 박아둔다.
  * 패딩으로만 잡으면 글자 크기가 다른 둘(text-lg / text-base)이 서로 다른 높이가 되고,
@@ -637,19 +636,12 @@ function PositionStep({
               }}
             />
           ) : (
-            <select
+            <QuantityPicker
               className={`${FIELD_CLASS} px-2 text-center text-base`}
+              options={QUANTITY_OPTIONS}
               value={quantitySelect}
-              onChange={(event) => setQuantitySelect(event.target.value)}
-            >
-              {/* 값은 숫자 그대로 두고 보이는 글자만 묶는다 — 옆 칸 입력과 표기를 맞춘다. */}
-              {QUANTITY_OPTIONS.map((option) => (
-                <option key={option} value={option}>
-                  {formatNumericInput(String(option))}
-                </option>
-              ))}
-              <option value={CUSTOM_QUANTITY}>직접</option>
-            </select>
+              onSelect={setQuantitySelect}
+            />
           )}
         </label>
       </div>

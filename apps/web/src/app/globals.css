@@ -433,6 +433,62 @@ button {
   padding-bottom: calc(2rem + var(--keyboard-inset, 0px));
 }
 
+/* ── 수량 피커 ────────────────────────────────────── */
+
+/*
+ * 바텀시트 안의 휠. `<select>`는 iOS에서만 바닥 휠로 열리고 데스크톱·안드로이드에서는
+ * 드롭다운으로 떨어져 화면마다 다른 물건이 된다 — 그래서 직접 그린다.
+ * 줄 높이는 quantity-picker.tsx의 `ROW_PX`가 인라인으로 박는다 (스크롤 위치를 그 값으로
+ * 나눠 고른 줄을 되짚으므로 둘이 어긋나면 엉뚱한 값이 잡힌다).
+ */
+.picker {
+  position: relative;
+  margin-top: 0.75rem;
+  /* 위아래 끝을 흐리게 지운다 — 휠이 돌아가는 물건으로 읽힌다. */
+  mask-image: linear-gradient(180deg, transparent, #000 28%, #000 72%, transparent);
+}
+
+.picker-wheel {
+  height: 100%;
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  scroll-snap-type: y mandatory;
+  scrollbar-width: none;
+}
+
+.picker-wheel::-webkit-scrollbar {
+  display: none;
+}
+
+.picker-row {
+  display: flex;
+  width: 100%;
+  align-items: center;
+  justify-content: center;
+  scroll-snap-align: center;
+  font-variant-numeric: tabular-nums;
+  color: var(--muted);
+  transition: color 0.15s ease;
+}
+
+.picker-row[data-picked] {
+  color: var(--fg);
+  font-size: 1.125rem;
+  font-weight: 700;
+}
+
+/* 가운데 칸. 손가락이 통과해야 하므로 눌림을 안 받는다. */
+.picker-band {
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: 50%;
+  translate: 0 -50%;
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+  pointer-events: none;
+}
+
 /* ── 인기 종목 롤링 ───────────────────────────────── */
 
 /*
