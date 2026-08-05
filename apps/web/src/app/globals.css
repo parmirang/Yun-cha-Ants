@@ -411,36 +411,50 @@ button {
   }
 }
 
-/* ── 인기 종목 롤링 ───────────────────────────────── */
+/* ── 소프트 키보드 ────────────────────────────────── */
 
-.ticker-roll {
-  overflow: hidden;
-  /* 위아래 끝을 흐리게 지운다 — 목록이 잘린 게 아니라 흘러가는 것으로 읽힌다. */
-  mask-image: linear-gradient(180deg, transparent, #000 12%, #000 88%, transparent);
-}
-
-.ticker-roll-track {
-  animation: ticker-roll var(--ticker-roll-duration) linear infinite;
-}
-
-/* 같은 목록이 두 벌 쌓여 있고 한 벌 높이(50%)만큼 올린다 — 이음매가 안 보인다. */
-@keyframes ticker-roll {
-  from {
-    transform: translateY(0);
-  }
-  to {
-    transform: translateY(-50%);
-  }
+/*
+ * **iOS 숫자 키패드에는 엔터 키가 없다.** 연봉·평단가·수량은 전부 숫자 입력이라,
+ * 화면의 버튼을 누르는 것 말고는 입력을 끝낼 방법이 없다. 그런데 그 버튼이 키보드
+ * 뒤에 깔리면 아무것도 못 하고 막힌다 — 키보드를 내려야 버튼이 보이는데, 그걸
+ * 알아채는 사람은 드물다.
+ *
+ * `--keyboard-inset`(useKeyboardInset)만큼 버튼을 띄워 키보드 바로 위에 세운다.
+ * 키보드가 없으면 0이라 평소 모습 그대로다.
+ */
+.kb-sticky {
+  position: sticky;
+  bottom: var(--keyboard-inset, 0px);
+  z-index: 1;
 }
 
 /*
- * 흘러가는 줄은 누르기 어렵다. 손을 대면 멈춘다 —
- * `:active`는 자식에서 조상으로 올라오므로 줄을 눌러도 이 규칙이 걸린다.
+ * 키보드 높이만큼 아래를 늘려둔다 — 스크롤할 여지가 있어야 sticky가 버튼을 끌어올린다.
+ * 내용이 짧아 페이지가 안 밀리면 sticky는 아무 일도 하지 않는다.
  */
-.ticker-roll:hover .ticker-roll-track,
-.ticker-roll:focus-within .ticker-roll-track,
-.ticker-roll:active .ticker-roll-track {
-  animation-play-state: paused;
+.kb-pad {
+  padding-bottom: var(--keyboard-inset, 0px);
+}
+
+/* ── 인기 종목 롤링 ───────────────────────────────── */
+
+/*
+ * 저 혼자 굴러가지만 **손으로도 굴릴 수 있다.** 그래서 transform이 아니라 스크롤로
+ * 움직인다 (onboarding.tsx의 PopularRoller) — 손가락이 닿으면 브라우저의 기본
+ * 스크롤이 그대로 먹고, 손을 떼고 조용해지면 다시 저 혼자 굴러간다.
+ */
+.ticker-roll {
+  overflow-y: auto;
+  /* 목록 끝에서 뒤 화면으로 스크롤이 넘어가지 않게 막는다. */
+  overscroll-behavior: contain;
+  /* 위아래 끝을 흐리게 지운다 — 목록이 잘린 게 아니라 흘러가는 것으로 읽힌다. */
+  mask-image: linear-gradient(180deg, transparent, #000 12%, #000 88%, transparent);
+  /* 막대는 감춘다. 굴러가는 목록이라 위치를 가리키는 뜻이 없다. */
+  scrollbar-width: none;
+}
+
+.ticker-roll::-webkit-scrollbar {
+  display: none;
 }
 
 /* ── 대문 ─────────────────────────────────────────── */
@@ -593,8 +607,7 @@ button {
   .scene-lightning,
   .scene-spark,
   .scene-firework i,
-  .scene-confetti,
-  .ticker-roll-track {
+  .scene-confetti {
     animation: none;
     transition: none;
   }
@@ -611,13 +624,13 @@ button {
     display: none;
   }
 
-  /* 안 굴러가면 사본은 같은 목록이 두 번 나온 것일 뿐이라 치우고, 직접 굴리게 둔다. */
+  /* 저 혼자 안 굴러가면(PopularRoller가 rAF를 안 건다) 사본은 같은 목록이 두 번
+     나온 것일 뿐이라 치운다. 스크롤은 그대로라 직접 굴려서 볼 수 있다. */
   .ticker-roll-copy {
     display: none;
   }
 
   .ticker-roll {
-    overflow-y: auto;
     mask-image: none;
   }
 

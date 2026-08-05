@@ -12,10 +12,11 @@ import {
   estimateNetAnnualSalary,
   grossHourlyWage,
 } from "@yca/shared";
-import { type CSSProperties, useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { track } from "@/lib/analytics";
 import { formatNumericInput, formatWon, parseNumericInput } from "@/lib/format";
+import { useKeyboardInset } from "@/lib/keyboard-inset";
 import { searchTickers } from "@/lib/tickers";
 import { useQuote } from "@/lib/use-quote";
 
@@ -34,6 +35,9 @@ export function Onboarding({
   const [salaryManwon, setSalaryManwon] = useState("");
   const [broke, setBroke] = useState(false);
   const [ticker, setTicker] = useState<Ticker | null>(null);
+
+  // 온보딩은 세 단계가 전부 숫자 입력이라, 키보드가 버튼을 가리면 진행이 막힌다.
+  useKeyboardInset();
 
   // 입력은 세전 연봉이고, 저장·계산에 쓰이는 시급은 실수령 기준이다.
   // 무일푼은 연봉 0으로 저장한다 — 환산은 shared가 최저임금으로 대신 처리한다.
@@ -67,7 +71,7 @@ export function Onboarding({
   const frame = step === "search" ? "h-dvh" : "min-h-dvh";
 
   return (
-    <main className={`mx-auto flex w-full max-w-md flex-col px-6 py-10 ${frame}`}>
+    <main className={`kb-pad mx-auto flex w-full max-w-md flex-col px-6 py-10 ${frame}`}>
       {/*
         연봉 단계는 입력을 버튼 위에 붙여두고 남는 공간을 대문이 위아래로 나눠 갖는다
         (my-auto) — 그만큼 대문이 화면 가운데로 내려온다. 여백이 0까지 줄어드는
@@ -137,7 +141,16 @@ function SalaryStep({
 
   return (
     // 높이를 늘려 잡지 않는다 — 남는 공간은 위쪽 대문이 가져간다.
-    <section className="flex flex-col gap-5">
+    // form인 건 **엔터로도 넘어가게** 하기 위해서다. 하드웨어 키보드나 엔터가 있는
+    // 소프트 키보드는 이걸로 끝나고, 엔터가 없는 iOS 숫자 키패드는 아래 kb-sticky가
+    // 버튼을 키보드 위로 올려 받는다.
+    <form
+      className="flex flex-col gap-5"
+      onSubmit={(event) => {
+        event.preventDefault();
+        if (valid) onNext();
+      }}
+    >
       <label className="flex flex-col gap-2">
         <span className="text-sm font-medium">개미야, 너 얼마나 벌어?</span>
         <div className="flex items-center gap-2 rounded-xl border border-[color:var(--line)] bg-[color:var(--surface)] px-4 py-3 has-disabled:opacity-40">
@@ -207,10 +220,10 @@ function SalaryStep({
         {broke ? " 수입 없음은 이 기기에만 저장돼." : " 연봉은 이 기기에만 저장돼."}
       </p>
 
-      <button className="btn-primary" disabled={!valid} onClick={onNext}>
+      <button className="btn-primary kb-sticky" type="submit" disabled={!valid}>
         다음
       </button>
-    </section>
+    </form>
   );
 }
 
@@ -363,6 +376,89 @@ function PopularRoller({
   tickers: Ticker[];
   onSelect: (ticker: Ticker) => void;
 }) {
+  const viewportRef = useRef<HTMLDivElement>(null);
+  const rowCount = tickers.length;
+
+  /*
+   * 굴리는 방식이 **transform이 아니라 스크롤**이다. 손으로 밀 수 있어야 하는데,
+   * transform으로 올리면 스크롤할 게 없어서 손가락이 목록을 통과해 페이지를 민다.
+   * scrollTop을 매 프레임 조금씩 밀면 굴러가는 모습은 같고, 손으로 미는 건 브라우저의
+   * 기본 스크롤이 그대로 해준다 — 관성도 튕김도 공짜로 따라온다.
+   */
+  useEffect(() => {
+    const viewport = viewportRef.current;
+    if (!viewport || rowCount === 0) return;
+    if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+
+    /** 손이 닿은 뒤 이만큼 조용하면 다시 굴러간다. */
+    const RESUME_DELAY_MS = 2500;
+
+    let frame = 0;
+    let previous = 0;
+    let holdUntil = 0;
+    /*
+     * 굴러간 거리를 **여기에** 소수점째로 쌓는다. `scrollTop`을 읽어 더하면 안 된다 —
+     * 브라우저가 정수로 반올림해 돌려주므로 한 프레임치(60fps에서 0.6px, 120fps에서는
+     * 0.3px)가 매번 0으로 깎여 목록이 영영 안 움직인다.
+     */
+    let offset = viewport.scrollTop;
+    // 우리가 마지막으로 써넣은 값(반올림된 실제 값). scrollTop이 이것과 어긋나면 손으로 민 것이다.
+    let written = viewport.scrollTop;
+
+    const hold = () => {
+      holdUntil = performance.now() + RESUME_DELAY_MS;
+    };
+
+    const step = (now: number) => {
+      frame = requestAnimationFrame(step);
+
+      const elapsed = previous ? (now - previous) / 1000 : 0;
+      previous = now;
+      if (now < holdUntil) return;
+
+      // 같은 목록이 두 벌이라 절반을 지나면 처음으로 되감는다 — 이음매가 안 보인다.
+      const half = viewport.scrollHeight / 2;
+      if (half <= 0) return;
+
+      offset += (half / (rowCount * ROLL_SECONDS_PER_ROW)) * elapsed;
+      if (offset >= half) offset -= half;
+
+      viewport.scrollTop = offset;
+      written = viewport.scrollTop;
+    };
+
+    const onScroll = () => {
+      if (Math.abs(viewport.scrollTop - written) > 2) {
+        hold();
+        // 손이 옮겨놓은 자리에서 이어 굴린다.
+        offset = viewport.scrollTop;
+      }
+
+      // 손으로 끝까지 밀어도 이어지도록 여기서도 되감는다. 위쪽(0)은 안 감는다 —
+      // 손가락이 당기고 있는 중에 값을 되돌리면 드래그와 싸운다.
+      const half = viewport.scrollHeight / 2;
+      if (half > 0 && viewport.scrollTop >= half) {
+        viewport.scrollTop -= half;
+        offset = viewport.scrollTop;
+      }
+
+      written = viewport.scrollTop;
+    };
+
+    // 스크롤이 시작되기 전에 손이 닿은 것부터 멈춘다 — 흘러가는 줄은 누르기 어렵다.
+    viewport.addEventListener("pointerdown", hold);
+    viewport.addEventListener("wheel", hold, { passive: true });
+    viewport.addEventListener("scroll", onScroll, { passive: true });
+    frame = requestAnimationFrame(step);
+
+    return () => {
+      cancelAnimationFrame(frame);
+      viewport.removeEventListener("pointerdown", hold);
+      viewport.removeEventListener("wheel", hold);
+      viewport.removeEventListener("scroll", onScroll);
+    };
+  }, [rowCount]);
+
   if (tickers.length === 0) return <div className="min-h-0 flex-1" />;
 
   const rows = (copy: boolean) => (
@@ -376,15 +472,8 @@ function PopularRoller({
   );
 
   return (
-    <div
-      className="ticker-roll min-h-0 flex-1"
-      style={
-        {
-          "--ticker-roll-duration": `${tickers.length * ROLL_SECONDS_PER_ROW}s`,
-        } as CSSProperties
-      }
-    >
-      <div className="ticker-roll-track">
+    <div ref={viewportRef} className="ticker-roll min-h-0 flex-1">
+      <div>
         {rows(false)}
         {rows(true)}
       </div>
@@ -439,7 +528,7 @@ function PositionStep({
   const valid = avgPrice > 0 && quantity > 0;
 
   return (
-    <main className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 py-6">
+    <main className="kb-pad mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 py-6">
       <header className="flex flex-col items-center gap-1 text-center">
         <span className="text-lg font-bold">{ticker.name}</span>
         <span className="text-sm text-[color:var(--muted)]">평단이 어떻게 돼? 몇 주나 산 거지?</span>
@@ -525,9 +614,10 @@ function PositionStep({
         )}
       </p>
 
-      {/* 입력 묶음(평단가·수량·매수 원금)과 버튼 사이 간격 24px */}
-      <div className="mt-6 flex gap-3">
-        <button className="btn-ghost flex-1" onClick={onBack}>
+      {/* 입력 묶음(평단가·수량·매수 원금)과 버튼 사이 간격 24px.
+          kb-sticky로 키보드 위에 세운다 — 여기도 숫자 키패드라 엔터가 없다. */}
+      <div className="kb-sticky mt-6 flex gap-3 bg-[color:var(--bg)] pb-1">
+        <button className="btn-ghost flex-1" type="button" onClick={onBack}>
           이전
         </button>
         <button
