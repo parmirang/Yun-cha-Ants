@@ -16,7 +16,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 
 import { track } from "@/lib/analytics";
 import { formatNumericInput, formatWon, koreanWon, parseNumericInput } from "@/lib/format";
-import { useKeyboardInset } from "@/lib/keyboard-inset";
+import { useKeyboardInset, useRevealOnKeyboard } from "@/lib/keyboard-inset";
 import { searchTickers } from "@/lib/tickers";
 import { useQuote } from "@/lib/use-quote";
 
@@ -142,11 +142,15 @@ function SalaryStep({
   // 최저임금 연봉이 안 적은 칸 옆에 적힌다).
   const reading = broke ? "" : koreanWon(annualSalary);
 
+  // 키보드가 올라오면 이 버튼이 가려진다 — 그때 한 번 굴려서 보여준다.
+  const submitRef = useRef<HTMLButtonElement>(null);
+  useRevealOnKeyboard(submitRef);
+
   return (
     // 높이를 늘려 잡지 않는다 — 남는 공간은 위쪽 대문이 가져간다.
     // form인 건 **엔터로도 넘어가게** 하기 위해서다. 하드웨어 키보드나 엔터가 있는
-    // 소프트 키보드는 이걸로 끝나고, 엔터가 없는 iOS 숫자 키패드는 아래 kb-sticky가
-    // 버튼을 키보드 위로 올려 받는다.
+    // 소프트 키보드(안드로이드 숫자 키보드에는 있다)는 이걸로 끝난다. 엔터가 없는 iOS
+    // 숫자 키패드는 버튼을 눌러야 하므로, 키보드가 올라올 때 그 버튼까지 굴려서 보여준다.
     <form
       className="flex flex-col gap-5"
       onSubmit={(event) => {
@@ -233,7 +237,7 @@ function SalaryStep({
         {broke ? " 수입 없음은 이 기기에만 저장돼." : " 연봉은 이 기기에만 저장돼."}
       </p>
 
-      <button className="btn-primary kb-sticky" type="submit" disabled={!valid}>
+      <button ref={submitRef} className="btn-primary" type="submit" disabled={!valid}>
         다음
       </button>
     </form>
@@ -555,6 +559,10 @@ function PositionStep({
   const costBasis = useMemo(() => avgPrice * quantity, [avgPrice, quantity]);
   const valid = avgPrice > 0 && quantity > 0;
 
+  // 여기도 숫자 키패드라 엔터가 없다 — 키보드가 올라오면 버튼줄을 보여준다.
+  const submitRef = useRef<HTMLDivElement>(null);
+  useRevealOnKeyboard(submitRef);
+
   return (
     <main className="kb-pad mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 py-6">
       <header className="flex flex-col items-center gap-1 text-center">
@@ -647,9 +655,8 @@ function PositionStep({
         )}
       </p>
 
-      {/* 입력 묶음(평단가·수량·매수 원금)과 버튼 사이 간격 24px.
-          kb-sticky로 키보드 위에 세운다 — 여기도 숫자 키패드라 엔터가 없다. */}
-      <div className="kb-sticky mt-6 flex gap-3 bg-[color:var(--bg)] pb-1">
+      {/* 입력 묶음(평단가·수량·매수 원금)과 버튼 사이 간격 24px */}
+      <div ref={submitRef} className="mt-6 flex gap-3">
         <button className="btn-ghost flex-1" type="button" onClick={onBack}>
           이전
         </button>

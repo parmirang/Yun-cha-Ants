@@ -24,7 +24,7 @@ import {
   koreanWon,
   parseNumericInput,
 } from "@/lib/format";
-import { useKeyboardInset } from "@/lib/keyboard-inset";
+import { useKeyboardInset, useRevealOnKeyboard } from "@/lib/keyboard-inset";
 import { shareUrl } from "@/lib/share-url";
 import { useLockedBodyScroll } from "@/lib/use-locked-body-scroll";
 import { useQuote } from "@/lib/use-quote";
@@ -365,6 +365,9 @@ function AveragingSheet({
   useLockedBodyScroll();
   useKeyboardInset();
 
+  const submitRef = useRef<HTMLDivElement>(null);
+  useRevealOnKeyboard(submitRef);
+
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-black/50" onClick={onClose}>
       {/* 시트 안의 --mood-color는 **추가 매수 이후**의 손익을 따른다 — 바깥 화면의
@@ -516,9 +519,8 @@ function AveragingSheet({
           </p>
         )}
 
-        {/* 여기도 숫자 키패드라 엔터가 없다 — 버튼을 키보드 위로 올린다.
-            바탕을 깔아두는 건 시트 안쪽 내용 위로 떠오르기 때문이다. */}
-        <div className="kb-sticky mt-5 flex gap-3 bg-[color:var(--surface)] pb-1">
+        {/* 여기도 숫자 키패드라 엔터가 없다 — 키보드가 올라오면 이 버튼줄을 보여준다. */}
+        <div ref={submitRef} className="mt-5 flex gap-3">
           <button className="btn-ghost flex-1" type="button" onClick={onClose}>
             취소
           </button>
