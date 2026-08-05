@@ -55,13 +55,11 @@ export function sceneLevelWithHysteresis(
   return next;
 }
 
-/**
- * 하루치 노동. 아래 봉 길이 구간(0.5일 ~ 20일)이 여기서 나온다.
- *
- * **카운터의 "1일"과 다른 값이다** — 화면에 찍히는 시간은 24시간을 하루로 센다
- * (`formatDuration`). 이쪽은 봉이 며칠치 노동인지를 재는 자라서 8시간이다.
+/*
+ * 봉 길이 구간(0.5일 ~ 20일)은 `WORK_HOURS_PER_DAY`(8시간)에서 나온다 —
+ * 카운터 큰 글씨의 "출근 N번", 그 아래 시계의 날 자리와 **같은 자**다
+ * (status.ts에 정의). 이 앱에서 하루는 어디서나 8시간이다.
  */
-export const WORK_HOURS_PER_DAY = 8;
 
 /** 이 이하는 봉이 자라지 않는다 — 1:1 정사각형 그대로 (0.5 근무일) */
 export const CANDLE_MIN_HOURS = 4;

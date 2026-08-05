@@ -1,45 +1,16 @@
-import { decodeShareSnapshot, formatDuration } from "@yca/shared";
+import { decodeShareSnapshot, formatTotalWorkLine, formatWorkSpanWords } from "@yca/shared";
 import { ImageResponse } from "next/og";
 
-import { antDataUri } from "@/components/ant-sprite";
+import { OG_SIZE, OgCard } from "@/components/og-card";
+import { pickWorkLine } from "@/components/countdown-lines";
+import { pickAntSpeech } from "@/components/speech-lines";
+import { ogFont } from "@/lib/og-font";
 
-export const size = { width: 1200, height: 630 };
+export const size = OG_SIZE;
 export const contentType = "image/png";
 export const alt = "영차Ants";
 
-const CAPTION: Record<string, string> = {
-  l: "만큼 더 벌어야 해..",
-  p: "만큼 안 일해도 돼!",
-  e: "딱 본전이야",
-};
-
-const MOOD_COLOR: Record<string, string> = {
-  l: "#5c9dff",
-  p: "#ff5c5c",
-  e: "#f3ece2",
-};
-
-/**
- * satori에는 시스템 폰트가 없어서, 한글을 그리려면 폰트 바이너리를 직접 넘겨야 한다.
- * 네트워크가 막힌 환경에서도 카드가 깨지지 않도록 실패하면 null을 돌려주고,
- * 호출부는 숫자만 있는 레이아웃으로 떨어진다.
- */
-async function loadKoreanFont(text: string): Promise<ArrayBuffer | null> {
-  try {
-    const cssUrl = `https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@700&text=${encodeURIComponent(text)}`;
-    // 구형 UA로 요청해야 woff2 대신 satori가 읽을 수 있는 ttf를 준다.
-    const css = await fetch(cssUrl, {
-      headers: { "User-Agent": "Mozilla/5.0 (Windows NT 6.1)" },
-    }).then((response) => response.text());
-
-    const fontUrl = css.match(/src:\s*url\((https:\/\/[^)]+)\)/)?.[1];
-    if (!fontUrl) return null;
-
-    return await fetch(fontUrl).then((response) => response.arrayBuffer());
-  } catch {
-    return null;
-  }
-}
+const MOOD = { l: "loss", p: "profit", e: "even" } as const;
 
 export default async function Image({
   params,
@@ -47,53 +18,48 @@ export default async function Image({
   params: Promise<{ snapshot: string }>;
 }) {
   const snapshot = decodeShareSnapshot((await params).snapshot);
-  const time = formatDuration(snapshot?.s ?? 0);
-  const mood = snapshot?.m ?? "e";
-  const caption = CAPTION[mood] ?? "";
-  const name = snapshot?.n ?? "";
+  const seconds = snapshot?.s ?? 0;
+  const mood = MOOD[snapshot?.m ?? "e"];
+  const stage = snapshot?.g ?? 25;
 
-  const font = await loadKoreanFont(`${caption}${name}영차Ants`);
+  /*
+   * 문구는 화면과 같은 풀에서 뽑되 **시간에서 나온 씨앗**을 쓴다. 링크 하나가 늘 같은
+   * 카드를 내야 미리보기 캐시가 다시 구워질 때 문장이 갈리지 않는다 (화면은 매번
+   * 새로 뽑아도 되지만 카드는 아니다).
+   */
+  const seed = seconds % 997;
+
+  const headline =
+    mood === "even"
+      ? ["딱 본전이야"]
+      : [`${formatWorkSpanWords(seconds)} 만큼`, pickWorkLine(mood, seconds, seed)];
+
+  /*
+   * **말풍선은 큰 글씨와 다른 씨앗으로 뽑는다.** 같은 seed를 그대로 넘기면 두 풀에서
+   * 늘 같은 자리의 문장이 뽑힌다 — 화면은 seed가 서로 독립이라 가끔이지만, 카드는
+   * 매번이다. 한쪽을 흩어놔야 짝이 고정되지 않는다.
+   *
+   * 그래도 겹칠 수 있으니(본전은 풀이 좁다) 같으면 한 칸 밀어 다시 뽑는다.
+   * 비교 대상은 **말줄(`headline[1]`)**이다 — `headline[0]`은 "{시간} 만큼"이라
+   * 말풍선과 같아질 수가 없어서, 예전 코드는 검사를 하고도 아무것도 못 걸렀다.
+   */
+  const speechSeed = (seed * 7 + 3) % 997;
+  const spoken = headline[1] ?? headline[0];
+  const first = pickAntSpeech(mood, seconds, speechSeed);
+  const speech = first === spoken ? pickAntSpeech(mood, seconds, speechSeed + 1) : first;
 
   return new ImageResponse(
     (
-      <div
-        style={{
-          width: "100%",
-          height: "100%",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 24,
-          background: "#14100c",
-          color: "#f3ece2",
-          fontFamily: font ? "Noto Sans KR" : "sans-serif",
-        }}
-      >
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src={antDataUri(snapshot?.g ?? 25)} width={200} height={200} alt="" />
-
-        <div
-          style={{
-            fontSize: 128,
-            fontWeight: 700,
-            color: MOOD_COLOR[mood] ?? "#f3ece2",
-          }}
-        >
-          {time}
-        </div>
-
-        {font && <div style={{ fontSize: 44, color: "#9c8f7e" }}>{caption}</div>}
-        <div style={{ fontSize: 32, color: "#9c8f7e" }}>
-          {font ? `${name} · 영차Ants` : "YUNGCHA ANTS"}
-        </div>
-      </div>
+      <OgCard
+        mood={mood}
+        stage={stage}
+        seconds={seconds}
+        speech={speech}
+        eyebrow={snapshot?.n}
+        headline={headline}
+        footnote={formatTotalWorkLine(seconds, mood) ?? undefined}
+      />
     ),
-    {
-      ...size,
-      fonts: font
-        ? [{ name: "Noto Sans KR", data: font, style: "normal", weight: 700 }]
-        : [],
-    },
+    { ...size, fonts: [{ name: "Galmuri11", data: await ogFont(), style: "normal", weight: 400 }] },
   );
 }

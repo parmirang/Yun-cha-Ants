@@ -5,17 +5,17 @@ import {
   type Position,
   type Profile,
   RATE_YEAR,
-  STAGE_COUNT,
   averageIn,
   calcPositionStatus,
   encodeShareSnapshot,
-  formatSpanWords,
+  formatWorkSpanWords,
   halfwayAveragingPlan,
   isBroke,
   netHourlyWage,
 } from "@yca/shared";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 
+import { track } from "@/lib/analytics";
 import {
   formatNumericInput,
   formatPercent,
@@ -29,6 +29,7 @@ import { useQuote } from "@/lib/use-quote";
 import { CandleScene } from "./candle-scene";
 import { Countdown } from "./countdown";
 import { nudgeTier, pickNudgeLine } from "./nudge-lines";
+import { StageMeter } from "./stage-meter";
 
 export function Dashboard({
   profile,
@@ -43,6 +44,34 @@ export function Dashboard({
 }) {
   const quote = useQuote(position.symbol);
   const [averagingOpen, setAveragingOpen] = useState(false);
+
+  // 추가 매수 직후 **뭐가 바뀌었는지** 알리는 줄. 바뀌는 값(평단·수량·수익률)은 전부
+  // 화면 맨 아래 카드 안에 있고, 개미를 탭한 자리는 맨 위라 시트를 닫으면 안 바뀌는
+  // 것들(카운터·장대봉)만 보인다 — 그래서 "안 먹었다"고 읽힌다. 카드로 데려가서
+  // 바뀐 값을 그 자리에서 말해준다.
+  const [changeNote, setChangeNote] = useState<string | null>(null);
+  const cardRef = useRef<HTMLElement>(null);
+
+  useEffect(() => {
+    if (!changeNote) return;
+
+    // 시트가 걸어둔 스크롤 잠금은 언마운트 정리에서 원래 위치로 되돌린다. 그 정리가
+    // 이 이펙트보다 먼저 도므로 여기서 옮겨야 덮이지 않는다.
+    //
+    // 부드러운 스크롤은 **모션 감소 설정을 코드로 따로 지켜야 한다** — globals.css의
+    // `prefers-reduced-motion` 블록은 CSS 애니메이션만 끄고 이 호출은 그대로 흐른다.
+    // 화면이 저 혼자 미끄러지는 건 어지럼증을 부르는 대표적인 움직임이라, 설정을
+    // 켜둔 사람에게는 즉시 이동으로 떨어뜨린다 (데려가는 일 자체는 남긴다).
+    cardRef.current?.scrollIntoView({
+      behavior: window.matchMedia("(prefers-reduced-motion: reduce)").matches
+        ? "auto"
+        : "smooth",
+      block: "center",
+    });
+
+    const timer = setTimeout(() => setChangeNote(null), 6000);
+    return () => clearTimeout(timer);
+  }, [changeNote]);
 
   // 손익을 시간으로 바꿀 때는 실수령 시급으로 나눈다 (profile에는 세전 연봉이 들어있다).
   // 무일푼(연봉 0)이면 shared가 최저임금으로 대신 환산하므로, 그 사실을 화면에 적어준다 —
@@ -62,21 +91,28 @@ export function Dashboard({
       className="mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 py-6"
       data-mood={status.mood}
     >
-      <Countdown seconds={status.seconds} mood={status.mood} />
+      <Countdown seconds={status.seconds} mood={status.mood} pnl={status.pnl} />
 
       <section className="my-5">
         <CandleScene
           seconds={status.seconds}
           mood={status.mood}
           stage={status.stage}
-          onAntTap={() => setAveragingOpen(true)}
+          onAntTap={() => {
+            track("averaging_open");
+            setAveragingOpen(true);
+          }}
           antLabel={`${averagingLabel} 계산하기`}
         />
       </section>
 
       <StageMeter stage={status.stage} />
 
-      <section className="mt-5 flex flex-col gap-3 rounded-2xl border border-[color:var(--line)] bg-[color:var(--surface)] p-4">
+      <section
+        ref={cardRef}
+        className="mt-5 flex flex-col gap-3 rounded-2xl border border-[color:var(--line)] bg-[color:var(--surface)] p-4"
+        data-changed={changeNote ? "" : undefined}
+      >
         <div className="flex items-start justify-between">
           <span className="font-semibold">{position.name}</span>
           {/* 장중 현재가는 아직 없다 — 전일 종가를 현재가로 쓰고, 그 사실을 라벨로 알린다. */}
@@ -106,13 +142,34 @@ export function Dashboard({
           </dd>
         </dl>
 
-        <p className="text-xs text-[color:var(--muted)]">
-          개미를 탭하면 몇 주를 더 사야 평단이 넘어오는지 계산해줄게.
-        </p>
+        {/* 평소엔 개미를 탭하라는 안내, 추가 매수 직후엔 뭐가 바뀌었는지 알리는 자리.
+            한 줄을 나눠 쓰는 건 대답이 질문과 같은 자리에서 나와야 읽히기 때문이다. */}
+        {changeNote ? (
+          <p
+            className="text-center text-xs font-semibold tabular-nums"
+            style={{ color: "var(--mood-color)" }}
+          >
+            {changeNote}
+          </p>
+        ) : (
+          <p className="text-center text-xs text-[color:var(--fg)]">
+            {/* 수익이면 더 사도 평단은 올라간다(불타기), 손실이면 내려온다(물타기) —
+                방향을 손익에 맞춰야 "평단이 넘어온다"가 거짓말이 안 된다. */}
+            {price < position.avgPrice
+              ? "개미를 탭하면 몇 주 더 사야 평단이 내려오는지 계산해줄게."
+              : "개미를 탭하면 더 살 때 평단이 얼마나 오르는지 계산해줄게."}
+          </p>
+        )}
       </section>
 
       <div className="mt-4 flex gap-3">
-        <button className="btn-ghost" onClick={onReset}>
+        <button
+          className="btn-ghost"
+          onClick={() => {
+            track("profile_reset");
+            onReset();
+          }}
+        >
           다시 입력
         </button>
         <ShareButton
@@ -133,7 +190,15 @@ export function Dashboard({
           currentSeconds={status.seconds}
           onClose={() => setAveragingOpen(false)}
           onConfirm={(addPrice, addQuantity) => {
-            onPositionChange(averageIn(position, addPrice, addQuantity));
+            // 물타기/불타기 방향만 남긴다 — 단가도 수량도 안 보낸다.
+            track("averaging_confirm", {
+              averaging_kind: addPrice < position.avgPrice ? "down" : "up",
+            });
+            const updated = averageIn(position, addPrice, addQuantity);
+            setChangeNote(
+              `평단 ${formatWon(position.avgPrice)} → ${formatWon(updated.avgPrice)} · ${updated.quantity}주로 바꿨어`,
+            );
+            onPositionChange(updated);
             setAveragingOpen(false);
           }}
         />
@@ -174,38 +239,6 @@ function FooterNote({
   );
 }
 
-function StageMeter({ stage }: { stage: number }) {
-  return (
-    <section className="flex flex-col gap-1.5">
-      <div className="flex justify-between text-xs text-[color:var(--muted)]">
-        <span>탈진</span>
-        <span className="tabular-nums">
-          {stage + 1} / {STAGE_COUNT} 단계
-        </span>
-        <span>쌩쌩</span>
-      </div>
-      <div className="flex gap-[2px]" aria-hidden>
-        {Array.from({ length: STAGE_COUNT }, (_, index) => {
-          // 미터 색은 개미 껍질 색과 같은 축을 쓰되, 얇은 막대라 명도만 조금 올린다.
-          const t = index / (STAGE_COUNT - 1);
-          return (
-            <span
-              key={index}
-              className="h-2 flex-1 rounded-[1px]"
-              style={{
-                background:
-                  index <= stage
-                    ? `hsl(${Math.round(30 - t * 18)}, ${Math.round(8 + t * 54)}%, ${Math.round(41 + t * 13)}%)`
-                    : "var(--line)",
-              }}
-            />
-          );
-        })}
-      </div>
-    </section>
-  );
-}
-
 function ShareButton({
   name,
   seconds,
@@ -232,6 +265,7 @@ function ShareButton({
     if (navigator.share) {
       try {
         await navigator.share({ title: "영차Ants", url });
+        track("share_click", { share_method: "web_share", mood });
         return;
       } catch {
         // 사용자가 공유 시트를 닫은 경우 — 복사로 이어간다.
@@ -239,6 +273,7 @@ function ShareButton({
     }
 
     await navigator.clipboard.writeText(url);
+    track("share_click", { share_method: "clipboard", mood });
     setCopied(true);
     setTimeout(() => setCopied(false), 2_000);
   };
@@ -294,16 +329,41 @@ function AveragingSheet({
   const next = valid ? averageIn(position, price, quantity) : null;
   const preview = next ? calcPositionStatus(next, currentPrice, hourlyWage) : null;
 
+  /*
+   * 아래 두 조건은 **다른 질문에 답한다.** 한 변수로 합치면 안 된다.
+   *
+   * `spanUnchanged` — "화면에 적히는 글자가 그대로인가". 취소선을 그어 같은 문자열을
+   *   두 번 적는 걸 막는 **표시** 문제라 적힌 글자로 비교하는 게 맞다.
+   * `pnlUnchanged` — "손익 금액이 정말 한 푼도 안 움직이는가". 아래 설명 문단이
+   *   "금액은 그대로야"라고 **단언**하므로 실제 값으로 판정해야 한다.
+   *
+   * 표기는 1근무일(8시간) 단위로 뭉뚱그려지니 글자만 보면 최대 네 시간치 손익 변화가
+   * "출근 131번" 안에 숨는다. 그걸 근거로 "금액은 그대로야"라고 적으면 거짓말이 된다.
+   *
+   * 손익 변화량은 정확히 `(현재가 − 매수 단가) × 추가 수량`이라, 단가가 현재가와 같을
+   * 때만 0이다 (수량은 `valid`가 1주 이상을 보장한다). 시트의 기본값이 현재가이므로
+   * 열자마자 보이는 화면이 바로 이 경우다.
+   */
+  const spanUnchanged =
+    preview !== null &&
+    formatWorkSpanWords(preview.seconds) === formatWorkSpanWords(currentSeconds);
+  const pnlUnchanged = preview !== null && price === currentPrice;
+
+  useLockedBodyScroll();
+
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-black/50" onClick={onClose}>
       {/* 시트 안의 --mood-color는 **추가 매수 이후**의 손익을 따른다 — 바깥 화면의
           지금 손익을 그대로 물려받으면 뒤집히는 순간 색이 거짓말을 한다. */}
       <div
-        className="max-h-dvh w-full overflow-y-auto rounded-t-2xl bg-[color:var(--surface)] p-5 pb-8"
+        className="max-h-dvh w-full overflow-y-auto overscroll-contain rounded-t-2xl bg-[color:var(--surface)] p-5 pb-8"
         data-mood={preview?.mood}
         onClick={(event) => event.stopPropagation()}
       >
-        <h2 className="text-lg font-bold">평단 다시 계산하기</h2>
+        {/* 앱이 유저에게 반말로 묻는 목소리를 온보딩("어떤 종목을 샀어?")과 맞춘다.
+            "평단 다시 계산"은 이미 있는 걸 고쳐 세는 소리로 들리는데, 이 시트가 답하는
+            건 아직 안 산 것에 대한 가정이다. */}
+        <h2 className="text-lg font-bold">더 사면 어떻게 될까?</h2>
         <p className="mt-1 text-xs text-[color:var(--muted)] tabular-nums">
           현재가 {formatWon(currentPrice)} · 내 평단 {formatWon(position.avgPrice)}
         </p>
@@ -318,7 +378,7 @@ function AveragingSheet({
                 </b>{" "}
                 더 사면 평단이{" "}
                 <b className="tabular-nums">{formatWon(plan.targetAvg)}</b> — 현재가와의
-                차이가 절반으로 줄어.
+                차이가 딱 절반으로 줄어.
               </p>
               <p className="mt-1.5 text-xs text-[color:var(--muted)] tabular-nums">
                 필요한 돈 {formatWon(plan.cost)}
@@ -327,18 +387,18 @@ function AveragingSheet({
                 className="btn-ghost mt-3 w-full py-2 text-sm"
                 onClick={() => setQuantityInput(formatNumericInput(String(plan.shares)))}
               >
-                {plan.shares}주로 채우기
+                {plan.shares}주 넣어보기
               </button>
             </>
           ) : (
             <p className="text-sm text-[color:var(--muted)]">
-              매수 단가가 평단과 같으면 평단은 움직이지 않아. 다른 값을 넣어봐.
+              지금 평단이랑 같은 값이면 평단은 안 움직여. 다른 가격을 넣어봐.
             </p>
           )}
         </div>
 
         <label className="mt-4 flex flex-col gap-1.5">
-          <span className="text-xs text-[color:var(--muted)]">매수 단가 (원)</span>
+          <span className="text-xs text-[color:var(--muted)]">매수할 주식의 가격 (원)</span>
           <input
             className="rounded-xl border border-[color:var(--line)] bg-transparent px-4 py-3 tabular-nums outline-none"
             inputMode="numeric"
@@ -348,7 +408,7 @@ function AveragingSheet({
         </label>
 
         <label className="mt-3 flex flex-col gap-1.5">
-          <span className="text-xs text-[color:var(--muted)]">추가 수량 (주)</span>
+          <span className="text-xs text-[color:var(--muted)]">매수할 주식의 수량 (주)</span>
           <input
             className="rounded-xl border border-[color:var(--line)] bg-transparent px-4 py-3 tabular-nums outline-none"
             inputMode="numeric"
@@ -368,24 +428,68 @@ function AveragingSheet({
           <dt className="text-[color:var(--muted)]">바뀔 수량</dt>
           <dd className="text-right tabular-nums">{next ? `${next.quantity}주` : "—"}</dd>
 
+          {/* 카운터 큰 글씨와 **같은 자**(근무일)로 적는다 — 여기만 다른 자를 쓰면
+              시트를 닫는 순간 같은 손익이 다른 숫자로 보인다. */}
           <dt className="text-[color:var(--muted)]">
-            {preview?.mood === "profit" ? "안 일해도 되는 시간" : "더 일할 시간"}
+            {preview?.mood === "profit" ? "안 나가도 되는 만큼" : "더 일해야 하는 만큼"}
           </dt>
           <dd className="text-right tabular-nums">
             {preview ? (
-              <>
-                <span className="text-[color:var(--muted)] line-through">
-                  {formatSpanWords(currentSeconds)}
-                </span>{" "}
-                <span style={{ color: "var(--mood-color)" }}>
-                  {formatSpanWords(preview.seconds)}
-                </span>
-              </>
+              spanUnchanged ? (
+                // 같은 값을 취소선까지 그어 두 번 적으면 "바뀐다더니 안 바뀐" 꼴이라
+                // 화면이 고장 난 것처럼 읽힌다. 안 바뀌면 한 번만 적는다.
+                <>
+                  {formatWorkSpanWords(preview.seconds)}{" "}
+                  <span className="text-[color:var(--muted)]">그대로</span>
+                </>
+              ) : (
+                <>
+                  <span className="text-[color:var(--muted)] line-through">
+                    {formatWorkSpanWords(currentSeconds)}
+                  </span>{" "}
+                  <span style={{ color: "var(--mood-color)" }}>
+                    {formatWorkSpanWords(preview.seconds)}
+                  </span>
+                </>
+              )
             ) : (
               "—"
             )}
           </dd>
         </dl>
+
+        {/* 추가 매수는 **이미 난 손익을 안 바꾼다** — 손익 변화량은 정확히
+            `(현재가 − 매수 단가) × 추가 수량`이라 기본값인 현재가로 사면 0이다.
+            그러면 평단·수량만 움직이고 카운터·장대봉·개미는 제자리인데, 그걸 안
+            적어두면 시트를 닫은 사용자가 "평단 바꾸기가 안 먹었다"고 읽는다.
+
+            판정은 `spanUnchanged`(적힌 글자)가 아니라 `pnlUnchanged`(실제 금액)다 —
+            이 문단은 "금액은 그대로야"라고 단언하므로 표기가 뭉뚱그린 몇 시간치
+            차이를 근거로 삼으면 안 된다. 금액이 안 움직이면 손익 방향도 못 뒤집히므로
+            아래 `preview.mood`도 지금 화면의 방향과 같다. */}
+        {pnlUnchanged && (
+          <p className="mt-2.5 text-xs leading-relaxed text-[color:var(--fg)]">
+            {/* 앞머리는 "안 바뀐다"는 사실, — 뒤는 **그럼 뭘 바꾸는지**다.
+                뒤쪽이 이 시트에서 제일 남아야 할 말이라 노랑으로 굵게 세운다.
+                손익색(빨강/파랑)을 쓰면 방향을 뜻하게 되므로 --accent를 쓴다. */}
+            {preview?.mood === "profit" ? (
+              <>
+                평단은 올라가도 수익 금액은 그대로야 —{" "}
+                <b className="font-semibold text-[color:var(--accent)]">
+                  지금 값에 더 사는 건 앞으로의 오름폭을 키울 뿐이거든.
+                </b>
+              </>
+            ) : (
+              <>
+                평단은 내려와도 손실 금액은 그대로야 —{" "}
+                <b className="font-semibold text-[color:var(--accent)]">
+                  물타기는 손실을 지우는 게 아니라, 주가가 오를 때 두 배로 따라잡게 해주는
+                  거야.
+                </b>
+              </>
+            )}
+          </p>
+        )}
 
         <div className="mt-5 flex gap-3">
           <button className="btn-ghost flex-1" onClick={onClose}>
@@ -396,10 +500,47 @@ function AveragingSheet({
             disabled={!valid}
             onClick={() => onConfirm(price, quantity)}
           >
-            {watering ? "설마 물탔어? 가격 업데이트" : "우와 불탔어? 가격 업데이트"}
+            {watering ? "설마 물탔어? 평단 바꾸기" : "우와 불탔어? 평단 바꾸기"}
           </button>
         </div>
       </div>
     </div>
   );
+}
+
+/**
+ * 시트가 떠 있는 동안 **뒤 화면의 스크롤을 잠근다.**
+ *
+ * 딤은 시각적으로만 덮을 뿐이라, 딤 위를 쓸면 그 아래 대시보드가 그대로 따라 움직인다.
+ * 시트가 길어 안쪽을 스크롤하다 끝에 닿을 때도 스크롤이 뒤로 넘어간다
+ * (그쪽은 시트에 걸어둔 `overscroll-contain`이 막는다).
+ *
+ * iOS Safari는 body에 `overflow: hidden`만 걸면 안 먹으므로 `position: fixed`로 못
+ * 박는다. 그러면 스크롤 위치가 0으로 튀니 열 때의 위치를 기억했다가 닫을 때
+ * 되돌린다 — 안 되돌리면 시트를 닫는 순간 화면이 맨 위로 올라간다.
+ */
+function useLockedBodyScroll() {
+  useEffect(() => {
+    const { body } = document;
+    const scrollY = window.scrollY;
+    const saved = {
+      position: body.style.position,
+      top: body.style.top,
+      width: body.style.width,
+      overflow: body.style.overflow,
+    };
+
+    body.style.position = "fixed";
+    body.style.top = `-${scrollY}px`;
+    body.style.width = "100%";
+    body.style.overflow = "hidden";
+
+    return () => {
+      body.style.position = saved.position;
+      body.style.top = saved.top;
+      body.style.width = saved.width;
+      body.style.overflow = saved.overflow;
+      window.scrollTo(0, scrollY);
+    };
+  }, []);
 }

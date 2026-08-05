@@ -14,6 +14,7 @@ import {
 } from "@yca/shared";
 import { type CSSProperties, useEffect, useMemo, useState } from "react";
 
+import { track } from "@/lib/analytics";
 import { formatNumericInput, formatWon, parseNumericInput } from "@/lib/format";
 import { searchTickers } from "@/lib/tickers";
 import { useQuote } from "@/lib/use-quote";
@@ -44,12 +45,17 @@ export function Onboarding({
       <PositionStep
         ticker={ticker}
         onBack={() => setStep("search")}
-        onSubmit={(avgPrice, quantity) =>
+        onSubmit={(avgPrice, quantity) => {
+          // 평단가·수량·금액은 안 보낸다 — 종목과 "여기까지 왔다"만 남긴다.
+          track("onboarding_complete", {
+            ticker_symbol: ticker.symbol,
+            ticker_name: ticker.name,
+          });
           onComplete(
             { annualSalary },
             { symbol: ticker.symbol, name: ticker.name, avgPrice, quantity },
-          )
-        }
+          );
+        }}
       />
     );
   }
@@ -77,7 +83,11 @@ export function Onboarding({
           broke={broke}
           onChange={setSalaryManwon}
           onBrokeChange={setBroke}
-          onNext={() => setStep("search")}
+          onNext={() => {
+            // 금액은 안 보낸다 — 적었는지 무일푼을 골랐는지만 남긴다.
+            track("salary_submit", { salary_kind: broke ? "broke" : "entered" });
+            setStep("search");
+          }}
         />
       )}
 
@@ -85,6 +95,10 @@ export function Onboarding({
         <SearchStep
           onBack={() => setStep("salary")}
           onSelect={(selected) => {
+            track("ticker_select", {
+              ticker_symbol: selected.symbol,
+              ticker_name: selected.name,
+            });
             setTicker(selected);
             setStep("position");
           }}
@@ -209,14 +223,20 @@ function SearchStep({
 }) {
   const [query, setQuery] = useState("");
   const [tickers, setTickers] = useState<Ticker[]>([]);
+  // 검색 결과 0건과 **서버 불통**을 화면에서 구분하기 위한 플래그.
+  // 없으면 서버가 죽어도 "국내 주식만 지원해"로 보여 오해를 준다.
+  const [failed, setFailed] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
     const timer = setTimeout(async () => {
       try {
         setTickers(await searchTickers(query, controller.signal));
+        setFailed(false);
       } catch {
-        // 취소되었거나 서버가 죽은 경우 — 목록을 그대로 둔다.
+        // 키를 칠 때마다 이전 요청을 abort하는데, 그 취소는 실패가 아니다 — 무시한다.
+        // 서버가 죽어 fetch가 거부된 경우만 실패로 표시한다.
+        if (!controller.signal.aborted) setFailed(true);
       }
     }, 180);
 
@@ -225,6 +245,21 @@ function SearchStep({
       clearTimeout(timer);
     };
   }, [query]);
+
+  // 결과가 0건인 검색어만 GA로 남긴다 — 오타와 미지원 종목(해외 주식·ETF)이 여기
+  // 섞여 들어오고, 그게 "무엇을 더 지원해야 하나"의 유일한 단서다.
+  // 결과가 멎고 1.2초를 더 기다리는 건 한 글자씩 칠 때마다 찍히는 걸 막기 위해서다
+  // ("삼성전자"를 치면 "삼"·"삼성"·"삼성전"이 전부 0건 구간을 지나간다).
+  useEffect(() => {
+    const term = query.trim();
+    if (term.length < 2 || tickers.length > 0) return;
+
+    const timer = setTimeout(() => {
+      track("ticker_search_miss", { search_term: term });
+    }, 1_200);
+
+    return () => clearTimeout(timer);
+  }, [query, tickers]);
 
   // 검색어가 비면 인기 종목이 흘러가고, 한 글자라도 치면 멈추고 결과만 보여준다.
   // `query`로 판단하는 건 의도적이다 — 디바운스가 끝나기를 기다리면 이미 검색 중인데
@@ -248,7 +283,16 @@ function SearchStep({
       {rolling ? (
         <>
           <span className="text-xs text-[color:var(--muted)]">인기 종목</span>
-          <PopularRoller tickers={tickers} onSelect={onSelect} />
+          {failed && tickers.length === 0 ? (
+            // 서버가 죽어 인기 종목도 못 받아온 경우 — 빈 롤러 대신 이유를 알려준다.
+            <p className="px-4 py-6 text-center text-sm leading-relaxed text-[color:var(--muted)]">
+              종목 정보를 못 불러왔어.
+              <br />
+              잠시 후 다시 시도해줘.
+            </p>
+          ) : (
+            <PopularRoller tickers={tickers} onSelect={onSelect} />
+          )}
         </>
       ) : (
         <ul className="min-h-0 flex-1 divide-y divide-[color:var(--line)] overflow-y-auto">
@@ -257,16 +301,24 @@ function SearchStep({
               <TickerRow ticker={ticker} onSelect={() => onSelect(ticker)} />
             </li>
           ))}
-          {tickers.length === 0 && (
-            // 미지원 종목(해외 주식·ETF 등)은 KRX 국내 마스터에 아예 없어 검색에 안 잡힌다.
-            // 오타와 구분할 방법이 없으니, 없을 때는 지원 범위를 알려주는 문구로 대신한다.
-            <li className="px-4 py-6 text-center text-sm leading-relaxed text-[color:var(--muted)]">
-              찾는 종목이 없어.
-              <br />
-              지금은 <strong className="text-[color:var(--fg)]">국내 주식</strong>만 지원해 —
-              해외 주식·ETF는 아직이야.
-            </li>
-          )}
+          {tickers.length === 0 &&
+            (failed ? (
+              // 서버 불통 — 미지원 종목과 헷갈리지 않게 "다시 시도" 쪽으로 안내한다.
+              <li className="px-4 py-6 text-center text-sm leading-relaxed text-[color:var(--muted)]">
+                종목 정보를 못 불러왔어.
+                <br />
+                잠시 후 다시 시도해줘.
+              </li>
+            ) : (
+              // 미지원 종목(해외 주식·ETF 등)은 KRX 국내 마스터에 아예 없어 검색에 안 잡힌다.
+              // 오타와 구분할 방법이 없으니, 없을 때는 지원 범위를 알려주는 문구로 대신한다.
+              <li className="px-4 py-6 text-center text-sm leading-relaxed text-[color:var(--muted)]">
+                찾는 종목이 없어.
+                <br />
+                지금은 <strong className="text-[color:var(--fg)]">국내 주식</strong>만 지원해 —
+                해외 주식·ETF는 아직이야.
+              </li>
+            ))}
         </ul>
       )}
 

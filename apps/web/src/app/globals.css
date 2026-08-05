@@ -12,6 +12,12 @@
   --up: #ff5c5c;
   --down: #5c9dff;
   --mood-color: var(--fg);
+
+  /*
+   * 손익과 무관한 **강조**색. 빨강/파랑은 손익 방향을 뜻하므로 "이건 알아둬"에
+   * 쓰면 방향을 잘못 읽힌다 — 그 자리에 쓰는 노랑을 따로 둔다.
+   */
+  --accent: #ffcf5c;
 }
 
 [data-mood="profit"] {
@@ -549,6 +555,29 @@ button {
   }
 }
 
+/*
+ * 추가 매수 직후 종목 카드가 한 번 밝아진다.
+ *
+ * 물타기/불타기가 바꾸는 건 평단·수량·수익률뿐이고 셋 다 이 카드 안에 있다 —
+ * 손익 금액과 카운터는 원리상 안 바뀌므로(추가 매수는 이미 난 손익을 안 건드린다)
+ * 카드가 안 짚어주면 화면이 통째로 그대로인 것처럼 보인다.
+ */
+[data-changed] {
+  animation: card-flash 1.4s ease-out;
+}
+
+@keyframes card-flash {
+  0%,
+  100% {
+    border-color: var(--line);
+    box-shadow: none;
+  }
+  25% {
+    border-color: var(--mood-color);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--mood-color) 22%, transparent);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ant-sway,
   .candle-bar,
@@ -568,6 +597,13 @@ button {
   .ticker-roll-track {
     animation: none;
     transition: none;
+  }
+
+  /* 깜빡임 대신 테두리를 켜둔 채로 둔다 — 바뀐 자리를 짚는 일 자체는 남겨야 한다.
+     어차피 [data-changed]는 알림 줄이 떠 있는 동안에만 붙는다. */
+  [data-changed] {
+    animation: none;
+    border-color: var(--mood-color);
   }
 
   /* 프레임을 안 넘기니 겹쳐둔 두 번째 자세는 치운다 — 안 그러면 팔이 겹쳐 보인다. */
