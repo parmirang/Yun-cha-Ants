@@ -309,9 +309,25 @@ function SearchStep({
   // 다시 시도 버튼이 올리는 값. 검색어가 그대로여도 이게 바뀌면 아래 효과가 다시 돈다.
   const [retry, setRetry] = useState(0);
   const [retrying, setRetrying] = useState(false);
+  /*
+   * 아직 대답을 못 받았다.
+   *
+   * **이게 없으면 기다리는 동안이 "결과 없음"으로 보인다.** Render 무료 API는 15분
+   * 무요청이면 잠들고 깨는 데 1분쯤 걸리는데, 그때 인기 종목 자리는 통째로 비고
+   * ("주식 목록이 안 보인다") 검색어를 친 사람에게는 **"찾는 종목이 없어 · 국내
+   * 주식만 지원해"가 뜬다** — 삼성전자를 못 찾는다고 거짓말을 하는 셈이라, 사용자는
+   * 기다리는 대신 앱을 닫는다.
+   */
+  const [loading, setLoading] = useState(true);
+  /** 오래 걸리는 중. 왜 오래 걸리는지 말해줘야 기다릴 마음이 든다. */
+  const [waking, setWaking] = useState(false);
 
   useEffect(() => {
     const controller = new AbortController();
+    setLoading(true);
+    setWaking(false);
+
+    const wakingTimer = setTimeout(() => setWaking(true), 3_500);
     const timer = setTimeout(async () => {
       try {
         setTickers(await searchTickers(query, controller.signal));
@@ -321,13 +337,18 @@ function SearchStep({
         // 서버가 죽어 fetch가 거부된 경우만 실패로 표시한다.
         if (!controller.signal.aborted) setFailed(true);
       } finally {
-        if (!controller.signal.aborted) setRetrying(false);
+        // 취소된 요청은 아무것도 끄지 않는다 — 뒤이어 뜬 효과가 이미 켜놨다.
+        if (!controller.signal.aborted) {
+          setRetrying(false);
+          setLoading(false);
+        }
       }
     }, 180);
 
     return () => {
       controller.abort();
       clearTimeout(timer);
+      clearTimeout(wakingTimer);
     };
   }, [query, retry]);
 
@@ -350,6 +371,15 @@ function SearchStep({
   // `query`로 판단하는 건 의도적이다 — 디바운스가 끝나기를 기다리면 이미 검색 중인데
   // 목록이 계속 굴러간다.
   const rolling = query.trim() === "";
+
+  /*
+   * 보여줄 게 아직 없는 채로 기다리는 중. **이 상태를 따로 두지 않으면 기다림이
+   * "없음"으로 보인다** (위 `loading` 주석 참고).
+   *
+   * 목록이 이미 있으면 기다리는 티를 안 낸다 — 한 글자 칠 때마다 화면이 "불러오는
+   * 중"으로 깜빡이면 결과를 눈으로 좇을 수가 없다. 옛 결과를 두고 조용히 갈아끼운다.
+   */
+  const pending = loading && tickers.length === 0;
 
   return (
     // min-h-0이 없으면 목록이 화면 밖으로 자란다 — flex 자식은 기본이 min-height:auto라
@@ -383,7 +413,11 @@ function SearchStep({
       {rolling ? (
         <>
           <span className="text-xs text-[color:var(--muted)]">인기 종목</span>
-          {failed && tickers.length === 0 ? (
+          {pending ? (
+            // 여기가 비어 있던 자리다 — 잠든 API가 깨는 1분 동안 "인기 종목" 라벨만
+            // 덩그러니 남아, 목록이 없는 앱으로 보였다.
+            <WaitingNote waking={waking} className="min-h-0 flex-1" />
+          ) : failed && tickers.length === 0 ? (
             // 서버가 죽어 인기 종목도 못 받아온 경우 — 빈 롤러 대신 이유를 알려주고,
             // 새로고침 대신 여기서 바로 다시 부를 수 있게 한다. 배포에서는 잠들었던 API가
             // 깨는 데 시간이 걸려 첫 요청만 실패하는 일이 잦다 — 한 번 더 누르면 뜬다.
@@ -417,7 +451,14 @@ function SearchStep({
             </li>
           ))}
           {tickers.length === 0 &&
-            (failed ? (
+            (pending ? (
+              // **여기서 "찾는 종목이 없어"가 뜨면 거짓말이 된다.** 아직 안 물어봤을
+              // 뿐인데 삼성전자를 못 찾는다고 말하는 셈이라, 사용자는 기다리는 대신
+              // 지원 안 하는 앱이라고 판단하고 나간다.
+              <li>
+                <WaitingNote waking={waking} />
+              </li>
+            ) : failed ? (
               // 서버 불통 — 미지원 종목과 헷갈리지 않게 "다시 시도" 쪽으로 안내한다.
               <li className="px-4 py-6 text-center text-sm leading-relaxed text-[color:var(--muted)]">
                 종목 정보를 못 불러왔어.
@@ -441,6 +482,32 @@ function SearchStep({
         연봉 다시 입력
       </button>
     </section>
+  );
+}
+
+/**
+ * 대답을 기다리는 동안 그 자리를 지키는 한 줄.
+ *
+ * **비워두면 "없음"으로 읽힌다.** 인기 종목 자리가 비면 목록이 없는 앱처럼 보이고,
+ * 검색 결과 자리가 비면 "찾는 종목이 없어"가 대신 뜬다 — 둘 다 서버가 대답하기 전일
+ * 뿐인데 사용자에게는 결론으로 보인다.
+ *
+ * 오래 걸리면 **왜 오래 걸리는지** 덧붙인다. Render 무료 API는 15분 무요청이면
+ * 잠들고 깨는 데 1분쯤 걸리는데(CLAUDE.md의 배포 문단), 그걸 안 적으면 고장으로
+ * 읽혀서 기다릴 이유가 사라진다.
+ */
+function WaitingNote({ waking, className }: { waking: boolean; className?: string }) {
+  return (
+    <div
+      className={`flex flex-col items-center justify-center gap-2 px-4 py-6 text-center ${className ?? ""}`}
+    >
+      <p className="text-sm text-[color:var(--muted)]">종목 데려오는 중..</p>
+      {waking && (
+        <p className="text-xs leading-relaxed text-[color:var(--muted)] opacity-70">
+          서버가 자고 있었나 봐. 깨우는 데 1분쯤 걸려 — 조금만 기다려줘.
+        </p>
+      )}
+    </div>
   );
 }
 
