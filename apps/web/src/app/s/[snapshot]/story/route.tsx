@@ -16,23 +16,12 @@ import { ogFont } from "@/lib/og-font";
  * 다른 말을 하면 안 된다.
  */
 export async function GET(
-  request: Request,
+  _request: Request,
   { params }: { params: Promise<{ snapshot: string }> },
 ) {
   const text = cardText(decodeShareSnapshot((await params).snapshot));
 
-  /*
-   * 인스타에는 링크가 없으니 이미지 안에 주소를 적어준다. 커스텀 도메인을 붙였으면
-   * 그쪽을(NEXT_PUBLIC_SITE_URL), 아니면 지금 이 요청이 들어온 호스트를 쓴다 —
-   * 배포 주소가 바뀌어도 따라간다. www는 떼고 적는다 (짧을수록 읽힌다).
-   */
-  const site = process.env.NEXT_PUBLIC_SITE_URL;
-  const host = (site ? new URL(site).host : new URL(request.url).host).replace(
-    /^www\./,
-    "",
-  );
-
-  return new ImageResponse(<StoryCard {...text} host={host} />, {
+  return new ImageResponse(<StoryCard {...text} />, {
     ...STORY_SIZE,
     fonts: [{ name: "Galmuri11", data: await ogFont(), style: "normal", weight: 400 }],
     headers: {

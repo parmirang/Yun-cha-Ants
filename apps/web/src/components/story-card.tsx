@@ -12,8 +12,10 @@ import { stageMeterColor } from "./stage-meter";
  * 판형만 맡는다 — 글자 위, 무대 가운데, 한 줄 문구 아래. 화면(모바일 세로)과 같은
  * 순서라 스크린샷을 찍은 것처럼 읽힌다.
  *
- * **인스타에는 링크가 없다.** 그래서 이 카드에만 주소 한 줄이 들어간다 — 이걸 보고
- * 찾아올 방법이 그것뿐이다 (링크 카드는 링크 자체가 따라다니므로 안 넣는다).
+ * **주소는 안 적고 서비스명만 적는다.** 이미지에는 링크를 심을 수 없고, 스토리에서
+ * 누를 수 있는 링크는 사람이 붙이는 **링크 스티커**뿐이다 — 그래서 내보낼 때 앱이
+ * 공유 링크를 클립보드에 넣어주고(`story-export.tsx`), 카드에는 날 주소 대신 이름만
+ * 남긴다. 주소를 적어두면 스티커와 겹쳐 같은 말을 두 번 하는 꼴이 된다.
  *
  * 위아래 여백이 큰 건 인스타 UI가 그만큼을 덮기 때문이다 — 위는 프로필 줄,
  * 아래는 답장 입력창이 올라온다. **여백을 줄이면 글자가 그 밑으로 들어간다.**
@@ -42,7 +44,7 @@ const FONT = {
   foot: pixelFont(H, 0.023),
   meter: pixelFont(H, 0.017),
   tagline: pixelFont(H, 0.023),
-  host: pixelFont(H, 0.017),
+  signature: pixelFont(H, 0.017),
 };
 
 export interface StoryCardProps {
@@ -55,8 +57,6 @@ export interface StoryCardProps {
   headline: readonly string[];
   /** 총 몇 시간 */
   footnote?: string;
-  /** 찾아올 주소 (인스타에는 링크가 없다) */
-  host: string;
 }
 
 export function StoryCard({
@@ -67,7 +67,6 @@ export function StoryCard({
   eyebrow,
   headline,
   footnote,
-  host,
 }: StoryCardProps) {
   return (
     <div
@@ -178,16 +177,17 @@ export function StoryCard({
             </div>
           ))}
         </div>
+        {/* 서명 자리. 날 주소 대신 이름만 — 누를 수 있는 링크는 링크 스티커가 맡는다. */}
         <div
           style={{
             display: "flex",
             marginTop: 14,
-            fontSize: FONT.host,
+            fontSize: FONT.signature,
             color: SCENE_COLOR.muted,
             letterSpacing: 2,
           }}
         >
-          {host}
+          {BRAND}
         </div>
       </div>
     </div>

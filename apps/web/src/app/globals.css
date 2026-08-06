@@ -64,6 +64,40 @@ button {
   cursor: not-allowed;
 }
 
+/*
+ * 채움 버튼(btn-primary) 옆에 나란히 서는 **같은 무게의 선택지**.
+ * btn-ghost는 테두리도 글자도 어두워서 "덜 중요한 것"으로 읽히는데, 링크 공유는
+ * 이미지 공유와 대등한 두 갈래라 흰 선으로 세운다 — 무게는 같고 강조만 다르다.
+ */
+.btn-outline {
+  border-radius: 0.75rem;
+  border: 1px solid var(--fg);
+  padding: 0.875rem 1rem;
+  font-weight: 700;
+  color: var(--fg);
+}
+
+/*
+ * 아이콘만 있는 정사각 버튼 (닫기·저장). 선은 btn-ghost와 같고 폭만 글자에 안 맞춘다.
+ * 높이는 안 정한다 — flex 행에서 옆의 채움 버튼을 따라 늘어나야 줄이 안 어긋난다.
+ */
+.btn-icon {
+  display: flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 3.25rem;
+  border-radius: 0.75rem;
+  border: 1px solid var(--line);
+  color: var(--muted);
+}
+
+.btn-icon:disabled {
+  opacity: 0.3;
+  cursor: not-allowed;
+}
+
+/* 본문 흐름에서 한 발 물러난 버튼 (다시 입력처럼 되돌리는 동작). */
 .btn-ghost {
   border-radius: 0.75rem;
   border: 1px solid var(--line);

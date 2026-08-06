@@ -171,17 +171,20 @@ export function Dashboard({
         )}
       </section>
 
+      {/*
+        내보내는 길 둘을 나란히 세운다 — 왼쪽은 링크(카톡·X처럼 링크가 먹는 곳),
+        오른쪽은 이미지(인스타처럼 링크가 안 먹는 곳). 이미지 쪽만 채움 버튼인 건
+        공유의 기본값이 그쪽이기 때문이고, 링크는 같은 무게의 흰 선으로 세운다.
+        "다시 입력"은 공유가 아니라 되돌리는 동작이라 줄을 바꿔 아래로 내린다.
+      */}
       <div className="mt-4 flex gap-3">
-        <button
-          className="btn-ghost"
-          onClick={() => {
-            track("profile_reset");
-            onReset();
-          }}
-        >
-          다시 입력
-        </button>
         <ShareButton
+          name={position.name}
+          seconds={status.seconds}
+          stage={status.stage}
+          mood={status.mood}
+        />
+        <StoryExportButton
           name={position.name}
           seconds={status.seconds}
           stage={status.stage}
@@ -189,14 +192,15 @@ export function Dashboard({
         />
       </div>
 
-      {/* 링크가 안 먹는 데(인스타)로 나갈 때는 링크 대신 이미지를 넘긴다.
-          링크 공유가 주(主)라 이쪽은 한 칸 아래에 조용히 둔다. */}
-      <StoryExportButton
-        name={position.name}
-        seconds={status.seconds}
-        stage={status.stage}
-        mood={status.mood}
-      />
+      <button
+        className="btn-ghost mt-3 w-full"
+        onClick={() => {
+          track("profile_reset");
+          onReset();
+        }}
+      >
+        다시 입력
+      </button>
 
       <FooterNote mood={status.mood} seconds={status.seconds} basis={brokeBasis} />
 
@@ -311,8 +315,8 @@ function ShareButton({
   };
 
   return (
-    <button type="button" className="btn-primary flex-1" onClick={share}>
-      {copied ? "링크 복사됨!" : "공유하기"}
+    <button type="button" className="btn-outline flex-1" onClick={share}>
+      {copied ? "링크 복사됨!" : "링크 공유"}
     </button>
   );
 }
