@@ -6,6 +6,10 @@ import { STAGE_COUNT } from "@yca/shared";
  * 오른쪽을 보고 있다 — 왼쪽에서 등장할 때는 `flip`으로 뒤집는다.
  * 기어올 때는 몸이 수평(배-가슴-머리)이고, 서면 수직으로 일어난다.
  *
+ * 앱이 쓰는 자세는 다섯(crawl1/crawl2 · stand · wave1/wave2)이고, 짤 공장이
+ * 파기(dig1/dig2)와 울기(cry1/cry2)를 더 쓴다. **새 자세도 이 파일에 둔다** —
+ * 몸을 딴 데서 다시 그리면 앱 개미와 짤 개미가 서서히 다른 벌레가 된다.
+ *
  * **몸은 머리·가슴·배 세 덩이다.** 세 덩이는 1픽셀짜리 목과 자루마디로만 잇고,
  * 이 이음매를 덩이보다 반드시 얇게 그린다 — 같은 두께로 이으면 잘록한 허리가
  * 사라지고 통짜 한 덩이로 뭉쳐 보인다. 목과 자루마디는 가슴 색(t)을 그대로 쓴다.
@@ -31,7 +35,16 @@ import { STAGE_COUNT } from "@yca/shared";
  *  g  배     G 배 광택          l 다리
  */
 
-export type AntPose = "crawl1" | "crawl2" | "stand" | "wave1" | "wave2";
+export type AntPose =
+  | "crawl1"
+  | "crawl2"
+  | "stand"
+  | "wave1"
+  | "wave2"
+  | "dig1"
+  | "dig2"
+  | "cry1"
+  | "cry2";
 
 const POSES: Record<AntPose, readonly string[]> = {
   /*
@@ -142,7 +155,96 @@ const POSES: Record<AntPose, readonly string[]> = {
     "....l.l.l.l.....",
     "...l..l.l..l....",
   ],
+  /*
+   * 땅파기 — stand와 몸통은 같고 **두 팔이 한 몸으로** 앞(오른쪽)을 향해 휘두른다.
+   * 팔이 엇갈리면 "영차"(wave)가 되므로, 파는 동작은 두 팔을 겹쳐 한 자루처럼 쓴다.
+   *
+   * 팔 끝은 가로(dig1) → 비스듬히 아래(dig2)로만 움직인다. 위로 들면 머리 앞으로
+   * 튀어나온 입(4번 줄 x10~12) 옆에 붙어 실루엣이 뭉갠다 — wave가 앞뒤로만
+   * 흔드는 것과 같은 이유다. 팔 길이는 두 프레임 다 3픽셀로 맞춘다.
+   */
+  dig1: [
+    "...n......n.....",
+    "....n....n......",
+    ".....hhhh.......",
+    "....hhhhehh.....",
+    "....hhhhhhhhh...",
+    ".....hhhhh......",
+    ".......tt.......",
+    ".....tttttwww...",
+    ".....ttttt......",
+    ".......t........",
+    ".....ggggg......",
+    ".....gGGGg......",
+    ".....ggggg......",
+    ".....ll.ll......",
+    "....l.l.l.l.....",
+    "...l..l.l..l....",
+  ],
+  dig2: [
+    "...n......n.....",
+    "....n....n......",
+    ".....hhhh.......",
+    "....hhhhehh.....",
+    "....hhhhhhhhh...",
+    ".....hhhhh......",
+    ".......tt.......",
+    ".....ttttt......",
+    ".....tttttw.....",
+    ".......t...w....",
+    ".....ggggg..w...",
+    ".....gGGGg......",
+    ".....ggggg......",
+    ".....ll.ll......",
+    "....l.l.l.l.....",
+    "...l..l.l..l....",
+  ],
+  /*
+   * 울기 — 두 팔을 좌우로 벌려 올렸다(cry1) 축 늘어뜨린다(cry2).
+   * 팔 끝을 6번 줄까지만 올리는 것도 입 때문이다: 5번 줄을 비워둬야 입(4번 줄)과
+   * 팔 사이에 한 줄이 남는다. 눈물은 스프라이트가 아니라 무대가 눈(e) 좌표에서 그린다 —
+   * 눈물 길이가 프레임 수에 매이면 뚝뚝 끊긴다.
+   */
+  cry1: [
+    "...n......n.....",
+    "....n....n......",
+    ".....hhhh.......",
+    "....hhhhehh.....",
+    "....hhhhhhhhh...",
+    ".....hhhhh......",
+    "..w....tt...w...",
+    "...wwtttttww....",
+    ".....ttttt......",
+    ".......t........",
+    ".....ggggg......",
+    ".....gGGGg......",
+    ".....ggggg......",
+    ".....ll.ll......",
+    "....l.l.l.l.....",
+    "...l..l.l..l....",
+  ],
+  cry2: [
+    "...n......n.....",
+    "....n....n......",
+    ".....hhhh.......",
+    "....hhhhehh.....",
+    "....hhhhhhhhh...",
+    ".....hhhhh......",
+    ".......tt.......",
+    "....wtttttw.....",
+    "...w.ttttt.w....",
+    "...w...t...w....",
+    ".....ggggg......",
+    ".....gGGGg......",
+    ".....ggggg......",
+    ".....ll.ll......",
+    "....l.l.l.l.....",
+    "...l..l.l..l....",
+  ],
 };
+
+/** 눈(e) 픽셀의 좌표. 무대가 눈물·땀을 여기서 흘려보낸다. */
+export const ANT_EYE = { x: 8, y: 3 } as const;
 
 export const ANT_GRID = 16;
 
@@ -211,7 +313,21 @@ const COLOR_KEY: Record<string, keyof AntPalette> = {
   e: "eye",
 };
 
-function rects(stage: number, pose: AntPose): { x: number; y: number; fill: string }[] {
+export interface AntPixel {
+  x: number;
+  y: number;
+  fill: string;
+}
+
+/**
+ * 같은 문자맵을 좌표 배열로 뽑는다. 캔버스에 도트로 찍는 쪽(짤 공장)이 쓴다 —
+ * SVG도 캔버스도 이 배열 하나에서 나오므로 개미 몸은 한 벌뿐이다.
+ */
+export function antPixels(stage: number, pose: AntPose = "stand"): AntPixel[] {
+  return rects(stage, pose);
+}
+
+function rects(stage: number, pose: AntPose): AntPixel[] {
   const palette = antPalette(stage);
   const pixels: { x: number; y: number; fill: string }[] = [];
 

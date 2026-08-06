@@ -13,6 +13,7 @@ import {
   isBroke,
   netHourlyWage,
 } from "@yca/shared";
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 
 import { track } from "@/lib/analytics";
@@ -191,6 +192,15 @@ export function Dashboard({
           mood={status.mood}
         />
       </div>
+
+      {/*
+        짤 공장으로 가는 문. 공유 두 갈래(링크·이미지)는 **내 손익**을 내보내는 길이고
+        이쪽은 손익이 안 실리는 딴 물건이라 줄을 나눈다 — 같은 줄에 세우면 "내 개미가
+        영상으로 나가나?"로 읽힌다.
+      */}
+      <Link href="/meme" className="btn-outline mt-3 block w-full text-center">
+        움직이는 개미 짤 만들기
+      </Link>
 
       <button
         className="btn-ghost mt-3 w-full"

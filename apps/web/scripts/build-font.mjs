@@ -6,7 +6,7 @@
  *    - 전체 Galmuri11은 493KB다. 모바일에서 말풍선 몇 줄 띄우자고 실을 무게가 아니다.
  *    - 단일 HTML 목업은 파일 하나로 굴러가야 하므로 url(...)로 외부 파일을 못 건다.
  *      data URI로 CSS에 박아두면 Next 앱과 목업이 같은 파일을 그대로 쓴다.
- *    서브셋 범위는 speech-lines.ts에 등장하는 모든 글자다. **문구를 고치면 다시 굽는다**
+ *    서브셋 범위는 아래 `speechSources`에 등장하는 모든 글자다. **문구를 고치면 다시 굽는다**
  *    (`pnpm --filter @yca/web font`). 안 구우면 새 글자만 시스템 폰트로 떨어져
  *    문장 중간에서 서체가 바뀐다.
  *
@@ -26,7 +26,16 @@ const webRoot = dirname(dirname(fileURLToPath(import.meta.url)));
 const source = join(webRoot, "node_modules", "galmuri", "dist", "Galmuri11.woff2");
 // OG용은 woff로 다시 압축해야 해서 원본 ttf에서 뽑는다 (woff2 → woff 재포장은 안 된다).
 const sourceTtf = join(webRoot, "node_modules", "galmuri", "dist", "Galmuri11.ttf");
-const speechLines = join(webRoot, "src", "components", "speech-lines.ts");
+/**
+ * 픽셀 폰트로 그려지는 글자가 있는 파일 전부. **말풍선을 새로 띄우는 화면이 생기면
+ * 여기에 더한다** — 빠뜨리면 그 화면의 새 글자만 시스템 폰트로 떨어져 문장 중간에서
+ * 서체가 바뀐다 (짤 공장은 캔버스에 같은 폰트로 글자를 찍는다).
+ */
+const speechSources = [
+  join(webRoot, "src", "components", "speech-lines.ts"),
+  join(webRoot, "src", "components", "meme", "meme-lines.ts"),
+  join(webRoot, "src", "lib", "share-copy.ts"),
+];
 const outCss = join(webRoot, "src", "app", "galmuri.css");
 const outOgFont = join(webRoot, "assets", "galmuri11-og.woff");
 
@@ -36,7 +45,8 @@ const OG_UNICODES = "U+0020-007E,U+00B7,U+2014,U+2026,U+AC00-D7A3";
 // 문구 파일에 등장하는 글자 전부 + 기본 라틴/숫자/기호.
 // 파일 전체를 훑으므로 식별자나 주석의 글자까지 들어가지만, 몇 글리프 더 실릴 뿐이다.
 const ascii = Array.from({ length: 95 }, (_, i) => String.fromCharCode(32 + i)).join("");
-const text = [...new Set([...readFileSync(speechLines, "utf8"), ...ascii, "…", "·", "—"])]
+const sourceText = speechSources.map((file) => readFileSync(file, "utf8")).join("");
+const text = [...new Set([...sourceText, ...ascii, "…", "·", "—"])]
   .filter((char) => char !== "\n" && char !== "\r" && char !== "\t")
   .join("");
 
@@ -69,7 +79,7 @@ try {
  * Galmuri (c) 2019-2025 Lee Minseo, SIL Open Font License 1.1
  * https://github.com/quiple/galmuri
  *
- * 말풍선(speech-lines.ts)에 쓰이는 글자만 남긴 서브셋이다.
+ * 말풍선(speech-lines.ts · meme/meme-lines.ts)에 쓰이는 글자만 남긴 서브셋이다.
  */
 @font-face {
   font-family: "Galmuri11";

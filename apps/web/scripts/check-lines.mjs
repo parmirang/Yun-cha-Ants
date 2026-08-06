@@ -8,6 +8,8 @@
  *   · "{23분} 만큼 안 **나가도** 돼"            — 목적어가 안 서는 구간에서 출근 은유를 씀
  *   · 상단·말풍선·하단이 같은 구간에서 같은 문장 — 한 얘기를 세 번 함
  *   · 풀 길이가 구간 수와 어긋남                — 그 구간이 통째로 빈 말풍선이 됨
+ *   · 짤 세 판이 같은 말을 함 / 앱 말풍선과 겹침 — 문구가 몇 개 없어 보임
+ *   · 짤 문구가 길어 9:16 한 줄을 넘침           — 말풍선이 개미보다 커짐
  *
  * `pnpm --filter @yca/web lines`로 돌리고, `build`/`vercel-build`가 먼저 부른다.
  * 문구는 배포돼야 보이는 물건이라 사람이 기억해서 돌리는 검사로는 안 걸린다.
@@ -149,10 +151,49 @@ try {
   duplicates(speech.HERO_LINES).forEach((line) => fail(`대문: "${line}"이 두 번 있다`));
   duplicates(speech.WAITING_LINES).forEach((line) => fail(`대기: "${line}"이 두 번 있다`));
 
-  const counted = surfaces.reduce(
-    (total, { pools }) => total + pools.loss.flat().length + pools.profit.flat().length,
-    0,
-  );
+  /*
+   * 5. 짤 공장 말풍선. 구간도 손익 방향도 없는 대신 **판마다 풀 하나**라, 여기서
+   *    깨지는 건 다른 것들이다.
+   *
+   *    · 세 판이 한 화면에서 탭으로 오가는데 같은 말을 하면 문구가 몇 개 없어 보인다
+   *    · 앱 말풍선과 겹치면 같은 개미가 같은 자리에서 한 벌을 돌려쓰는 것으로 읽힌다
+   *    · 9:16 한 칸에 한 줄로 들어가야 한다 — 넘치면 말풍선이 개미보다 커진다
+   */
+  const meme = await load(join(components, "meme", "meme-lines.ts"));
+  const MEME_MAX_CHARS = 14;
+
+  const appSpeech = new Set([
+    ...speech.SPEECH_LINES.loss.flat(),
+    ...speech.SPEECH_LINES.profit.flat(),
+    ...speech.EVEN_SPEECH,
+    ...speech.HERO_LINES,
+    ...speech.WAITING_LINES,
+  ]);
+
+  const memeSeen = new Map();
+  for (const [id, pool] of Object.entries(meme.MEME_LINES)) {
+    if (pool.length < 5) fail(`짤/${id}: 문장이 ${pool.length}개뿐이다 (5개 이상)`);
+
+    duplicates(pool).forEach((line) => fail(`짤/${id}: "${line}"이 두 번 있다`));
+
+    for (const line of pool) {
+      if ([...line].length > MEME_MAX_CHARS) {
+        fail(`짤/${id}: "${line}" — ${MEME_MAX_CHARS}자를 넘어 말풍선이 화면을 넘는다`);
+      }
+
+      if (appSpeech.has(line)) fail(`짤/${id}: "${line}"이 앱 말풍선에도 있다`);
+
+      const owner = memeSeen.get(line);
+      if (owner) fail(`짤: "${line}"이 ${owner}·${id} 두 판에 있다`);
+      else memeSeen.set(line, id);
+    }
+  }
+
+  const counted =
+    surfaces.reduce(
+      (total, { pools }) => total + pools.loss.flat().length + pools.profit.flat().length,
+      0,
+    ) + memeSeen.size;
 
   if (failures.length > 0) {
     console.error(`\n✗ 문구 검사 실패 (${failures.length}건)\n`);
@@ -161,7 +202,9 @@ try {
     process.exit(1);
   }
 
-  console.log(`✓ 문구 ${counted}줄 — ${TIER_COUNT}구간 구조·상단 어법·surface 중복 이상 없음`);
+  console.log(
+    `✓ 문구 ${counted}줄 — ${TIER_COUNT}구간 구조·상단 어법·surface 중복·짤 풀 이상 없음`,
+  );
 } finally {
   rmSync(work, { recursive: true, force: true });
 }

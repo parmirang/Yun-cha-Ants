@@ -1,5 +1,7 @@
 import type { Mood } from "@yca/shared";
 
+import type { MemeSceneId } from "@/components/meme/meme-lines";
+
 /**
  * GA4로 내보내는 이벤트를 모아둔 곳.
  *
@@ -31,6 +33,19 @@ interface EventParams {
   averaging_open: undefined;
   averaging_confirm: { averaging_kind: "down" | "up" };
   profile_reset: undefined;
+  /** 짤 공장에 들어옴. 손익 화면을 안 거쳐도 열리는 화면이라 따로 센다. */
+  meme_open: undefined;
+  /** 영상을 굽기 시작함 — 어느 장면이 실제로 만들어지는지 본다. */
+  meme_record: { meme_scene: MemeSceneId };
+  /**
+   * 실제로 내보냄. 영상을 못 굽는 브라우저는 한 컷(PNG)으로 떨어지므로 그 갈래도 남긴다 —
+   * 짤 공장에서 새는 사람이 "안 만든 것"인지 "못 만든 것"인지가 이 값으로 갈린다.
+   */
+  meme_export: {
+    export_method: "share" | "download";
+    meme_scene: MemeSceneId;
+    meme_format: "video" | "image";
+  };
 }
 
 type Gtag = (command: "event", name: string, params?: object) => void;

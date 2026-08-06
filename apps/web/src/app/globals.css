@@ -813,6 +813,81 @@ button {
   }
 }
 
+/* ── 짤 공장 ──────────────────────────────────────── */
+
+/*
+ * 미리보기 캔버스. 비트맵이 1080×1920(스토리 규격)이라 **줄여서만 보여준다** —
+ * 폭과 높이를 동시에 물리면 비율이 깨지므로 최대치만 걸고 크기는 브라우저가 잡게 둔다.
+ * `pixelated`가 없으면 도트가 뭉개져 그림이 통째로 흐려진다.
+ */
+.meme-canvas {
+  display: block;
+  margin-inline: auto;
+  width: auto;
+  height: auto;
+  max-width: 100%;
+  max-height: 58dvh;
+  border-radius: 0.75rem;
+  background: #05060f;
+  image-rendering: pixelated;
+}
+
+/* 장면 탭. 고른 것만 글자를 밝히고 테두리를 세운다. */
+.meme-tab {
+  border-radius: 0.75rem;
+  border: 1px solid var(--line);
+  padding: 0.625rem 0.25rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--muted);
+  transition:
+    color 0.15s ease,
+    border-color 0.15s ease;
+}
+
+.meme-tab[data-on="yes"] {
+  border-color: var(--fg);
+  color: var(--fg);
+}
+
+.meme-tab:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/*
+ * 굽는 동안 캔버스를 덮는다. **캔버스를 가리지는 않는다** — 녹화되는 건 화면에
+ * 도는 그 그림이라, 굽는 내내 뭐가 담기는지 보고 있어야 한다.
+ */
+.meme-recording {
+  position: absolute;
+  inset: auto 0 0.75rem 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  color: var(--fg);
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.8);
+  pointer-events: none;
+}
+
+.meme-progress {
+  width: 60%;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.45);
+  overflow: hidden;
+}
+
+.meme-progress i {
+  display: block;
+  height: 100%;
+  background: var(--accent);
+  transition: width 0.1s linear;
+}
+
 @media (prefers-reduced-motion: reduce) {
   .ant-sway,
   .candle-bar,
