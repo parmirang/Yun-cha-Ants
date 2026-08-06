@@ -3,6 +3,7 @@ import {
   type ShareSnapshot,
   formatTotalWorkLine,
   formatWorkSpanWords,
+  stageFromSceneLevel,
 } from "@yca/shared";
 
 import { pickWorkLine } from "@/components/countdown-lines";
@@ -36,7 +37,8 @@ const MOOD = { l: "loss", p: "profit", e: "even" } as const;
 export function cardText(snapshot: ShareSnapshot | null): CardText {
   const seconds = snapshot?.s ?? 0;
   const mood: Mood = MOOD[snapshot?.m ?? "e"];
-  const stage = snapshot?.g ?? 25;
+  // 링크에는 레벨(7)만 실리므로 그림을 그릴 단계는 여기서 되돌린다 (share.ts 참고).
+  const stage = snapshot ? stageFromSceneLevel(snapshot.v) : 25;
   const seed = seconds % 997;
 
   const headline =

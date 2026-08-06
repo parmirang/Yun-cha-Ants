@@ -113,7 +113,8 @@ export function OgCard({
             letterSpacing: 3,
           }}
         >
-          {BRAND}
+          <span>{BRAND}</span>
+          <span style={{ color: SCENE_COLOR.up }}>베타</span>
         </div>
 
         <div style={{ display: "flex", flexDirection: "column" }}>

@@ -1,5 +1,5 @@
-import { GoogleAnalytics } from "@next/third-parties/google";
 import type { Metadata, Viewport } from "next";
+import Script from "next/script";
 
 import { BRAND, SHARE_TAGLINE } from "@/lib/share-copy";
 
@@ -19,6 +19,39 @@ const gaId = process.env.NEXT_PUBLIC_GA_ID || "G-RXGLBBZ0TY";
  * (apps/web/src/lib/analytics.ts).
  */
 const gaEnabled = process.env.NODE_ENV === "production";
+
+/*
+ * gtag를 직접 깐다 (@next/third-parties의 GoogleAnalytics를 안 쓴다).
+ *
+ * **공유 링크 주소가 통째로 GA에 쌓이기 때문이다.** GA4는 페이지뷰에 현재 주소를
+ * 자동으로 싣는데, 그 주소가 `/s/eyJuIjoi...`라 토큰이 그대로 딸려 간다 — base64일
+ * 뿐이라 누구든 풀면 종목명·시간·단계가 나온다. 재무 정보는 기기 밖으로 안 나간다는
+ * 규칙(analytics.ts)을 파라미터에서는 지키면서 주소로 흘리는 셈이라, config에
+ * **토큰을 뗀 주소**를 직접 넣어 보낸다. 대문에서 들어온 사람 수는 그대로 잡히고,
+ * 어느 링크였는지만 안 남는다.
+ *
+ * 링크에서 대문으로 넘어오면 referrer에도 같은 주소가 실리므로 그쪽도 같이 뗀다.
+ */
+const gaInitScript = `
+window.dataLayer = window.dataLayer || [];
+function gtag(){dataLayer.push(arguments);}
+gtag('js', new Date());
+(function () {
+  function mask(url) {
+    try {
+      var parsed = new URL(url);
+      if (parsed.pathname.indexOf('/s/') === 0) parsed.pathname = '/s';
+      return parsed.toString();
+    } catch (error) {
+      return '';
+    }
+  }
+  var params = { page_location: mask(location.href) || location.origin };
+  var referrer = mask(document.referrer);
+  if (referrer) params.page_referrer = referrer;
+  gtag('config', '${gaId}', params);
+})();
+`;
 
 /*
  * OG 카드(og:image)는 **절대 주소로 실려야** 카카오톡·X가 그림을 가져간다.
@@ -62,7 +95,12 @@ export default function RootLayout({
     <html lang="ko">
       <body className="antialiased">
         {children}
-        {gaEnabled && <GoogleAnalytics gaId={gaId} />}
+        {gaEnabled && (
+          <>
+            <Script id="ga-init" dangerouslySetInnerHTML={{ __html: gaInitScript }} />
+            <Script src={`https://www.googletagmanager.com/gtag/js?id=${gaId}`} />
+          </>
+        )}
       </body>
     </html>
   );

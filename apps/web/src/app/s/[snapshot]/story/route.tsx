@@ -38,6 +38,8 @@ export async function GET(
     headers: {
       // 스냅샷 토큰이 그림을 통째로 결정하므로 하루쯤은 그대로 써도 된다.
       "Cache-Control": "public, max-age=86400",
+      // 공유 화면과 같은 이유로 색인은 막는다 — 이미지 검색에 남의 손익이 뜨면 안 된다.
+      "X-Robots-Tag": "noindex",
     },
   });
 }

@@ -1,9 +1,10 @@
-import { execFileSync } from "node:child_process";
 import { readFileSync, readdirSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 import * as esbuild from "esbuild";
+
+import { nextBuild } from "../scripts/next-build.mjs";
 
 /**
  * 앱 전체를 파일 하나로 굽는다.
@@ -25,10 +26,14 @@ const out = join(outDir, "yungcha-ants.html");
 // Artifact 호스팅은 문서 골격을 스스로 씌우므로 <html>/<head>/<body> 없는 조각도 함께 굽는다.
 const outFragment = join(outDir, "yungcha-ants.fragment.html");
 
+/*
+ * **개발 서버의 `.next`를 건드리지 않는다.** 예전엔 여기서 그냥 `next build`를 돌려
+ * 개발 서버가 쓰던 폴더를 덮었고, 그러면 굽고 나서 화면이 통째로 빈 채 떴다 (청크가
+ * 404). 딴 폴더로 뽑는 일과 그때 딸려오는 뒤처리는 `scripts/next-build.mjs`가 맡는다 —
+ * 이제 개발 서버를 켜둔 채로 구워도 된다.
+ */
 console.log("· next build (Tailwind CSS 추출용)");
-execFileSync("pnpm", ["exec", "next", "build"], { cwd: webRoot, stdio: "inherit" });
-
-const cssDir = join(webRoot, ".next", "static", "css");
+const cssDir = join(nextBuild(".next-mockup"), "static", "css");
 const css = readdirSync(cssDir)
   .filter((file) => file.endsWith(".css"))
   .map((file) => readFileSync(join(cssDir, file), "utf8"))

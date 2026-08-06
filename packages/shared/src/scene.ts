@@ -1,4 +1,4 @@
-import { STAGE_COUNT } from "./status.js";
+import { BREAKEVEN_STAGE, STAGE_COUNT } from "./status.js";
 
 /**
  * 화면 연출(봉 길이·배경 날씨·말풍선 톤)을 결정하는 값들.
@@ -36,6 +36,21 @@ export function sceneLevelFromStage(stage: number): SceneLevel {
     if (stage <= range.max) return range.level;
   }
   return 3;
+}
+
+/**
+ * 레벨을 대표하는 stage — 구간의 한가운데.
+ *
+ * **공유 링크가 stage를 되돌릴 때 쓴다.** 링크에는 50단계가 아니라 이 7레벨만 싣는데
+ * (`share.ts` 참고), 화면은 개미 껍질 색과 눈금을 그리려면 stage가 필요하다. 구간
+ * 한가운데를 골라야 `sceneLevelFromStage()`에 다시 넣었을 때 같은 레벨로 돌아오고,
+ * 그래야 개미 색과 배경 날씨가 계속 한 몸으로 움직인다.
+ */
+export function stageFromSceneLevel(level: SceneLevel): number {
+  const range = LEVEL_RANGES.find((candidate) => candidate.level === level);
+  if (!range) return BREAKEVEN_STAGE;
+
+  return Math.floor((range.min + range.max) / 2);
 }
 
 /**

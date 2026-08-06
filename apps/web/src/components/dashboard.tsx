@@ -7,7 +7,7 @@ import {
   RATE_YEAR,
   averageIn,
   calcPositionStatus,
-  encodeShareSnapshot,
+  encodeShareSnapshotFromStage,
   formatWorkSpanWords,
   halfwayAveragingPlan,
   isBroke,
@@ -28,7 +28,6 @@ import {
   koreanWon,
   parseNumericInput,
 } from "@/lib/format";
-import { useKeyboardInset, useRevealOnKeyboard } from "@/lib/keyboard-inset";
 import { shareUrl } from "@/lib/share-url";
 import { useLockedBodyScroll } from "@/lib/use-locked-body-scroll";
 import { useQuote } from "@/lib/use-quote";
@@ -36,6 +35,8 @@ import { useQuote } from "@/lib/use-quote";
 import { CandleScene } from "./candle-scene";
 import { Countdown } from "./countdown";
 import { nudgeTier, pickNudgeLine } from "./nudge-lines";
+import { NumericKeypad } from "./numeric-keypad";
+import { CUSTOM_QUANTITY, QUANTITY_OPTIONS, QuantityPicker } from "./quantity-picker";
 import { StageMeter } from "./stage-meter";
 import { StoryExportButton } from "./story-export";
 
@@ -276,11 +277,13 @@ function ShareButton({
    * 보여줘서 손으로 복사하게 둔다 — 눌러도 아무 일이 없는 것보다 낫다.
    */
   const share = async () => {
+    // 개미 단계(50)가 아니라 배경 날씨 레벨(7)만 실려 나간다 — 50단계를 그대로
+    // 실으면 종가와 맞춰 평단가가 ±1%로 역산된다 (@yca/shared의 share.ts 참고).
     const url = shareUrl(
-      encodeShareSnapshot({
+      encodeShareSnapshotFromStage({
         n: name,
         s: seconds,
-        g: stage,
+        stage,
         m: mood === "loss" ? "l" : mood === "profit" ? "p" : "e",
       }),
     );
@@ -339,23 +342,48 @@ function AveragingSheet({
   onClose: () => void;
   onConfirm: (price: number, quantity: number) => void;
 }) {
-  // 초기값·"N주로 채우기"가 넣는 값도 손으로 친 것과 같은 모양이어야 한다 —
-  // 쉼표 없는 숫자가 끼면 커서를 대는 순간 표기가 튄다.
+  // 초기값도 손으로 친 것과 같은 모양이어야 한다 — 쉼표 없는 숫자가 끼면 커서를
+  // 대는 순간 표기가 튄다.
   const [priceInput, setPriceInput] = useState(() =>
     formatNumericInput(String(Math.round(currentPrice))),
   );
-  const [quantityInput, setQuantityInput] = useState("");
+  /*
+   * 수량은 입력칸이 아니라 **온보딩과 같은 바텀시트 휠**로 고른다 — 같은 질문("몇 주?")이
+   * 화면마다 다른 물건이면 안 된다. 여닫는 상태를 여기(부르는 쪽)가 쥐는 것도,
+   * 수량을 한 번은 반드시 거치게 하는 것(`quantityPicked` — 안 두면 피커에 미리 적힌
+   * 10주가 아무도 안 고른 채 조용히 확정된다)도 온보딩 `PositionStep`과 같은 규칙이다.
+   */
+  const [quantitySelect, setQuantitySelect] = useState("10");
+  const [customQuantity, setCustomQuantity] = useState("");
+  const [quantityOpen, setQuantityOpen] = useState(false);
+  const [quantityPicked, setQuantityPicked] = useState(false);
 
+  const custom = quantitySelect === CUSTOM_QUANTITY;
   const price = parseNumericInput(priceInput);
-  const quantity = Math.floor(parseNumericInput(quantityInput));
+  const quantity = Math.floor(
+    parseNumericInput(custom ? customQuantity : quantitySelect),
+  );
   const valid = price > 0 && quantity > 0;
 
   const watering = price > 0 && price < position.avgPrice;
   const plan = price > 0 ? halfwayAveragingPlan(position, price) : null;
 
+  // "N주 넣어보기"가 넣는 수량(=지금 보유 수량)은 기본 목록에 없을 수 있고, 고른 뒤
+  // 단가를 바꾸면 plan이 달라져 고른 값이 목록에서 빠질 수도 있다 — 둘 다 끼워 넣어야
+  // 휠을 다시 열었을 때 고른 줄이 가운데 온다.
+  const quantityOptions = [
+    ...new Set([
+      ...QUANTITY_OPTIONS,
+      ...(plan ? [plan.shares] : []),
+      ...(!custom && quantity > 0 ? [quantity] : []),
+    ]),
+  ].sort((a, b) => a - b);
+
   // 추가 매수 이후의 상태는 **현재가**로 다시 평가한다 — 산 값이 아니라 지금 값이
   // 손익을 만든다. 계산은 대시보드와 같은 함수를 그대로 쓴다.
-  const next = valid ? averageIn(position, price, quantity) : null;
+  // 수량을 고르기 전에는 미리보기를 안 그린다 — 피커에 미리 적힌 10주로 "바뀔 평단"을
+  // 단언하면 거짓말이 된다.
+  const next = valid && quantityPicked ? averageIn(position, price, quantity) : null;
   const preview = next ? calcPositionStatus(next, currentPrice, hourlyWage) : null;
 
   /*
@@ -370,8 +398,8 @@ function AveragingSheet({
    * "출근 131번" 안에 숨는다. 그걸 근거로 "금액은 그대로야"라고 적으면 거짓말이 된다.
    *
    * 손익 변화량은 정확히 `(현재가 − 매수 단가) × 추가 수량`이라, 단가가 현재가와 같을
-   * 때만 0이다 (수량은 `valid`가 1주 이상을 보장한다). 시트의 기본값이 현재가이므로
-   * 열자마자 보이는 화면이 바로 이 경우다.
+   * 때만 0이다 (수량은 `valid`가 1주 이상을 보장한다). 시트의 기본 단가가 현재가이므로
+   * 단가를 안 건드리고 수량만 골랐다면 바로 이 경우다.
    */
   const spanUnchanged =
     preview !== null &&
@@ -379,22 +407,58 @@ function AveragingSheet({
   const pnlUnchanged = preview !== null && price === currentPrice;
 
   useLockedBodyScroll();
-  useKeyboardInset();
+
+  /*
+   * 커스텀 키패드가 지금 편집하는 칸. 온보딩 평단가 화면과 같은 물건 — 시트가 바닥에
+   * 붙어 있어 키패드가 아랫부분을 덮으므로, 뜰 때 버튼줄까지 굴려 올려 보여준다.
+   */
+  const [keypadTarget, setKeypadTarget] = useState<"price" | "quantity" | null>(null);
+
+  const closeKeypad = () => {
+    const focused = document.activeElement;
+    if (focused instanceof HTMLElement) focused.blur();
+    setKeypadTarget(null);
+  };
+
+  const openQuantity = () => {
+    // 키패드를 먼저 접는다 — 수량 휠도 바닥에 붙어 뜨는 물건이라 겹치면 가린다.
+    closeKeypad();
+    setQuantityOpen(true);
+  };
+
+  /*
+   * "다 쳤다"는 신호를 한 곳으로 모은다 — 키패드 확인 키, 아래 본버튼, 엔터가 전부
+   * 여기로 들어온다 (온보딩 `advance()`와 같은 물건). 수량을 아직 안 골랐으면 확정
+   * 대신 수량 휠을 연다.
+   */
+  const advance = () => {
+    if (price <= 0) return;
+    if (!quantityPicked) return openQuantity();
+    if (valid) onConfirm(price, quantity);
+  };
+
+  // 키패드 확인 키와 아래 본버튼이 **같은 말을 한다** — 키는 짧게, 본버튼은 온말로.
+  const keypadLabel = quantityPicked ? "바꾸기" : "다음";
+  const confirmLabel = quantityPicked
+    ? watering
+      ? "설마 물탔어? 평단 바꾸기"
+      : "우와 불탔어? 평단 바꾸기"
+    : "다음";
+  const confirmDisabled = quantityPicked ? !valid : price <= 0;
 
   const submitRef = useRef<HTMLDivElement>(null);
-  useRevealOnKeyboard(submitRef);
 
   return (
     <div className="fixed inset-0 z-50 flex items-end bg-black/50" onClick={onClose}>
       {/* 시트 안의 --mood-color는 **추가 매수 이후**의 손익을 따른다 — 바깥 화면의
           지금 손익을 그대로 물려받으면 뒤집히는 순간 색이 거짓말을 한다. */}
       <form
-        className="kb-sheet max-h-dvh w-full overflow-y-auto overscroll-contain rounded-t-2xl bg-[color:var(--surface)] p-5"
+        className="max-h-dvh w-full overflow-y-auto overscroll-contain rounded-t-2xl bg-[color:var(--surface)] p-5 pb-8"
         data-mood={preview?.mood}
         onClick={(event) => event.stopPropagation()}
         onSubmit={(event) => {
           event.preventDefault();
-          if (valid) onConfirm(price, quantity);
+          advance();
         }}
       >
         {/* 앱이 유저에게 반말로 묻는 목소리를 온보딩("어떤 종목을 샀어?")과 맞춘다.
@@ -425,7 +489,11 @@ function AveragingSheet({
               <button
                 className="btn-ghost mt-3 w-full py-2 text-sm"
                 type="button"
-                onClick={() => setQuantityInput(formatNumericInput(String(plan.shares)))}
+                onClick={() => {
+                  // 이 버튼으로 넣은 것도 "골랐다"다 — 휠을 또 열어 되물으면 이미 답한 걸 묻는 꼴.
+                  setQuantitySelect(String(plan.shares));
+                  setQuantityPicked(true);
+                }}
               >
                 {plan.shares}주 넣어보기
               </button>
@@ -444,25 +512,58 @@ function AveragingSheet({
             <span className="min-w-0 truncate">{koreanWon(price)}</span>
           </span>
           <input
-            className="rounded-xl border border-[color:var(--line)] bg-transparent px-4 py-3 tabular-nums outline-none"
-            inputMode="numeric"
+            className={`rounded-xl border border-[color:var(--line)] bg-transparent px-4 py-3 tabular-nums outline-none ${
+              keypadTarget === "price" ? "keypad-target" : ""
+            }`}
+            /* 네이티브 키보드를 안 부른다 — 아래 커스텀 키패드가 대신한다. */
+            inputMode="none"
             value={priceInput}
+            onFocus={() => setKeypadTarget("price")}
+            /* ▾로 접은 뒤 다시 누르면 포커스가 그대로라 focus가 안 온다 — 클릭으로도 연다. */
+            onClick={() => setKeypadTarget("price")}
             onChange={(event) => setPriceInput(capNumericInput(event.target.value, MAX_INPUT_WON))}
           />
         </label>
 
         <label className="mt-3 flex flex-col gap-1.5">
           <span className="text-xs text-[color:var(--muted)]">매수할 주식의 수량 (주)</span>
-          <input
-            className="rounded-xl border border-[color:var(--line)] bg-transparent px-4 py-3 tabular-nums outline-none"
-            inputMode="numeric"
-            placeholder={plan ? formatNumericInput(String(plan.shares)) : "10"}
-            autoFocus
-            value={quantityInput}
-            onChange={(event) =>
-              setQuantityInput(capNumericInput(event.target.value, MAX_INPUT_SHARES))
-            }
-          />
+          {custom ? (
+            <input
+              className={`rounded-xl border border-[color:var(--line)] bg-transparent px-4 py-3 tabular-nums outline-none ${
+                keypadTarget === "quantity" ? "keypad-target" : ""
+              }`}
+              inputMode="none"
+              placeholder={plan ? formatNumericInput(String(plan.shares)) : "10"}
+              autoFocus
+              value={customQuantity}
+              onFocus={() => setKeypadTarget("quantity")}
+              onClick={() => setKeypadTarget("quantity")}
+              onChange={(event) =>
+                setCustomQuantity(capNumericInput(event.target.value, MAX_INPUT_SHARES))
+              }
+              onBlur={() => {
+                // 빈 채로 접으면 휠로 돌아갈 길이 없다 — 피커로 되돌린다 (온보딩과 같은 규칙).
+                if (parseNumericInput(customQuantity) <= 0) setQuantitySelect("10");
+              }}
+            />
+          ) : (
+            <QuantityPicker
+              className="rounded-xl border border-[color:var(--line)] bg-transparent px-4 py-3 text-left tabular-nums"
+              options={quantityOptions}
+              value={quantitySelect}
+              title="몇 주 더 살까?"
+              open={quantityOpen}
+              onOpenChange={(open) => {
+                // 피커의 제 버튼으로 열 때도 키패드를 먼저 접는다 — 겹치면 휠이 가린다.
+                if (open) closeKeypad();
+                setQuantityOpen(open);
+              }}
+              onSelect={(next) => {
+                setQuantitySelect(next);
+                setQuantityPicked(true);
+              }}
+            />
+          )}
         </label>
 
         <dl className="mt-4 grid grid-cols-2 gap-y-1.5 text-sm">
@@ -537,7 +638,8 @@ function AveragingSheet({
           </p>
         )}
 
-        {/* 여기도 숫자 키패드라 엔터가 없다 — 키보드가 올라오면 이 버튼줄을 보여준다. */}
+        {/* 키패드의 확인 키("바꾸기")와 같은 일을 한다 — 문구가 긴 이쪽이 본버튼이고,
+            키패드가 뜰 때 이 줄까지 굴려 올려 함께 보인다. */}
         <div ref={submitRef} className="mt-5 flex gap-3">
           <button className="btn-ghost flex-1" type="button" onClick={onClose}>
             취소
@@ -545,11 +647,31 @@ function AveragingSheet({
           <button
             className="btn-primary flex-[2] text-sm"
             type="submit"
-            disabled={!valid}
+            disabled={confirmDisabled}
           >
-            {watering ? "설마 물탔어? 평단 바꾸기" : "우와 불탔어? 평단 바꾸기"}
+            {confirmLabel}
           </button>
         </div>
+
+        {keypadTarget !== null && (
+          <>
+            {/* 키패드가 시트 아랫부분을 덮는 만큼 안쪽 스크롤 자리를 비워둔다. */}
+            <div className="keypad-space" aria-hidden />
+            <NumericKeypad
+              value={keypadTarget === "price" ? priceInput : customQuantity}
+              onChange={(draft) =>
+                keypadTarget === "price"
+                  ? setPriceInput(capNumericInput(draft, MAX_INPUT_WON))
+                  : setCustomQuantity(capNumericInput(draft, MAX_INPUT_SHARES))
+              }
+              submitLabel={keypadLabel}
+              submitDisabled={confirmDisabled}
+              onSubmit={advance}
+              onDismiss={closeKeypad}
+              revealRef={submitRef}
+            />
+          </>
+        )}
       </form>
     </div>
   );

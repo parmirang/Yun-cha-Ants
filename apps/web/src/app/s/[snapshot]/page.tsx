@@ -1,4 +1,9 @@
-import { type Mood, decodeShareSnapshot, formatWorkSpanWords } from "@yca/shared";
+import {
+  type Mood,
+  decodeShareSnapshot,
+  formatWorkSpanWords,
+  stageFromSceneLevel,
+} from "@yca/shared";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
@@ -40,6 +45,16 @@ export async function generateMetadata({ params }: PageProps): Promise<Metadata>
     description: SHARE_TAGLINE,
     openGraph: { title, description: SHARE_TAGLINE },
     twitter: { title, description: SHARE_TAGLINE },
+    /*
+     * **검색엔진에 색인되면 안 된다.** 링크를 블로그나 X에 붙이면 크롤러가 따라오고,
+     * 제목이 "삼성전자 · 출근 131번 만큼 더 벌어야 해.."라 `site:` 검색 한 번으로
+     * 남들의 스냅샷을 훑을 수 있게 된다 — 링크를 받은 사람만 보라고 만든 화면이다.
+     *
+     * **robots.txt로 막으면 안 된다** — 카카오톡·X의 미리보기 크롤러도 robots.txt를
+     * 따르므로 링크 카드가 통째로 안 뜬다. 여기 메타 태그는 페이지를 읽어가는 건
+     * 그대로 두고 색인만 막아서, 미리보기는 살고 검색에서만 빠진다.
+     */
+    robots: { index: false, follow: false },
   };
 }
 
@@ -62,6 +77,9 @@ export default async function SharePage({ params }: PageProps) {
   if (!snapshot) notFound();
 
   const mood = MOOD[snapshot.m] ?? "even";
+  // 링크에는 개미 50단계가 아니라 배경 날씨 레벨(7)만 실린다 — 50단계를 실으면
+  // 종가와 맞춰 보낸 사람의 평단가가 역산된다. 화면은 레벨 한가운데 단계로 그린다.
+  const stage = stageFromSceneLevel(snapshot.v);
 
   return (
     <main
@@ -71,10 +89,10 @@ export default async function SharePage({ params }: PageProps) {
       <Countdown seconds={snapshot.s} mood={mood} />
 
       <section className="my-5">
-        <CandleScene seconds={snapshot.s} mood={mood} stage={snapshot.g} />
+        <CandleScene seconds={snapshot.s} mood={mood} stage={stage} />
       </section>
 
-      <StageMeter stage={snapshot.g} />
+      <StageMeter stage={stage} />
 
       {/* 어느 종목 이야기인지는 있어야 한다 — 숫자만 남으면 무엇의 손익인지 모른다. */}
       <p className="mt-4 text-center text-sm text-[color:var(--muted)]">{snapshot.n}</p>

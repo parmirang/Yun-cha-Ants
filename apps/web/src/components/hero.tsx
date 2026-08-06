@@ -127,8 +127,9 @@ export function Hero({ className }: { className?: string }) {
         </div>
       </div>
 
-      <h1>
+      <h1 className="flex items-start gap-1.5">
         <PixelText text="영-차! 개미들아" className="h-7 w-auto" />
+        <span className="text-xs font-bold leading-none text-[color:var(--up)]">베타</span>
       </h1>
 
       <p className="text-center text-sm text-[color:var(--muted)]">

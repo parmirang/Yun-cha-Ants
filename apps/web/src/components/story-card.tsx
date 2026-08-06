@@ -92,7 +92,8 @@ export function StoryCard({
             letterSpacing: 4,
           }}
         >
-          {BRAND}
+          <span>{BRAND}</span>
+          <span style={{ color: SCENE_COLOR.up }}>베타</span>
         </div>
 
         {eyebrow ? (

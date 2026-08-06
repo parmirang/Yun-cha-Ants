@@ -1,6 +1,6 @@
 "use client";
 
-import { type Mood, encodeShareSnapshot } from "@yca/shared";
+import { type Mood, encodeShareSnapshotFromStage } from "@yca/shared";
 import { useEffect, useMemo, useState } from "react";
 
 import { track } from "@/lib/analytics";
@@ -41,10 +41,10 @@ export function StoryExportButton({
   const source = useMemo(() => {
     try {
       return storyImageUrl(
-        encodeShareSnapshot({
+        encodeShareSnapshotFromStage({
           n: name,
           s: seconds,
-          g: stage,
+          stage,
           m: mood === "loss" ? "l" : mood === "profit" ? "p" : "e",
         }),
       );
@@ -140,17 +140,35 @@ function StorySheet({
     }
   };
 
-  const download = () => {
+  const download = async () => {
     if (!image) return;
+
+    /*
+     * **웹은 사진첩에 직접 저장하지 못한다** — `<a download>`는 아이폰에서 파일 앱
+     * (다운로드 폴더)으로 들어가, 눌러도 사진첩에 아무것도 안 생긴 걸로 보인다.
+     * 사진첩으로 가는 유일한 문은 OS 공유 시트의 "이미지 저장"이라, 파일 공유가
+     * 되는 기기에서는 저장 버튼도 그 시트를 태우고 어느 줄을 누를지 알려준다.
+     */
+    if (canShareFile) {
+      setNote("뜨는 시트에서 '이미지 저장'을 누르면 사진첩에 들어가.");
+      try {
+        await navigator.share({ files: [image.file] });
+        track("story_export", { export_method: "download", mood });
+      } catch {
+        // 시트를 그냥 닫은 경우 — 아무 일도 없었던 걸로 둔다.
+      }
+      return;
+    }
 
     const link = document.createElement("a");
     link.href = image.url;
     link.download = FILE_NAME;
     link.click();
     track("story_export", { export_method: "download", mood });
-    // iOS Safari는 download 속성을 무시하고 이미지를 새 탭에 열어버린다 —
-    // 그때는 길게 눌러 저장하는 길밖에 없어서 그걸 알려준다.
-    setNote("저장이 안 됐으면 이미지를 길게 눌러 사진에 저장해줘.");
+    // 공유 시트가 없으면 내려받기뿐이다 — 데스크톱은 다운로드 폴더로 가고,
+    // iOS Safari(http)는 download 속성을 무시하고 새 탭에 열어버리기도 한다.
+    // 사진첩에 넣는 남은 길은 길게 눌러 저장뿐이라 그걸 알려준다.
+    setNote("사진첩에 안 들어갔으면 이미지를 길게 눌러 사진에 저장해줘.");
   };
 
   return (

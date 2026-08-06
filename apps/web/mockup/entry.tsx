@@ -1,4 +1,4 @@
-import { type Mood, decodeShareSnapshot } from "@yca/shared";
+import { type Mood, decodeShareSnapshot, stageFromSceneLevel } from "@yca/shared";
 import { useEffect, useState } from "react";
 import { createRoot } from "react-dom/client";
 
@@ -44,7 +44,7 @@ function SharedSnapshot({ token }: { token: string }) {
       data-mood={mood}
     >
       <Countdown seconds={snapshot.s} mood={mood} />
-      <AntSprite stage={snapshot.g} className="ant-sway h-40 w-40" />
+      <AntSprite stage={stageFromSceneLevel(snapshot.v)} className="ant-sway h-40 w-40" />
       <p className="text-sm text-[color:var(--muted)]">{snapshot.n}</p>
       <button
         className="btn-primary w-full"

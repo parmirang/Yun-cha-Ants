@@ -25,13 +25,14 @@ import {
   koreanWon,
   parseNumericInput,
 } from "@/lib/format";
-import { useKeyboardInset, useRevealOnKeyboard } from "@/lib/keyboard-inset";
+import { useKeyboardInset } from "@/lib/keyboard-inset";
 import { searchTickers } from "@/lib/tickers";
 import { useQuote } from "@/lib/use-quote";
 
 import { CandleScene } from "./candle-scene";
 import { Hero } from "./hero";
-import { CUSTOM_QUANTITY, QuantityPicker } from "./quantity-picker";
+import { NumericKeypad } from "./numeric-keypad";
+import { CUSTOM_QUANTITY, QUANTITY_OPTIONS, QuantityPicker } from "./quantity-picker";
 import { TickerLogo } from "./ticker-logo";
 
 type Step = "salary" | "search" | "position";
@@ -46,7 +47,8 @@ export function Onboarding({
   const [broke, setBroke] = useState(false);
   const [ticker, setTicker] = useState<Ticker | null>(null);
 
-  // 온보딩은 세 단계가 전부 숫자 입력이라, 키보드가 버튼을 가리면 진행이 막힌다.
+  // 숫자 입력은 커스텀 키패드로 받으므로, 네이티브 키보드가 뜨는 건 종목 검색뿐이다 —
+  // 글자 키보드가 화면을 가린 만큼 아래를 늘려(.kb-pad) 굴릴 자리를 만든다.
   useKeyboardInset();
 
   // 입력은 세전 연봉이고, 저장·계산에 쓰이는 시급은 실수령 기준이다.
@@ -81,7 +83,7 @@ export function Onboarding({
   const frame = step === "search" ? "h-dvh" : "min-h-dvh";
 
   return (
-    <main className={`kb-pad mx-auto flex w-full max-w-md flex-col px-6 py-10 ${frame}`}>
+    <main className={`kb-pad mx-auto flex w-full max-w-md flex-col px-6 pt-10 [--kb-pad-base:20px] ${frame}`}>
       {/*
         연봉 단계는 입력을 버튼 위에 붙여두고 남는 공간을 대문이 위아래로 나눠 갖는다
         (my-auto) — 그만큼 대문이 화면 가운데로 내려온다. 여백이 0까지 줄어드는
@@ -152,15 +154,22 @@ function SalaryStep({
   // 최저임금 연봉이 안 적은 칸 옆에 적힌다).
   const reading = broke ? "" : koreanWon(annualSalary);
 
-  // 키보드가 올라오면 이 버튼이 가려진다 — 그때 한 번 굴려서 보여준다.
-  const submitRef = useRef<HTMLButtonElement>(null);
-  useRevealOnKeyboard(submitRef);
+  // 커스텀 키패드의 여닫음. 칸을 누르면 열리고, ▾·무일푼 체크·제출이 닫는다.
+  const [keypadOpen, setKeypadOpen] = useState(false);
+  const inputRef = useRef<HTMLInputElement>(null);
+  // 키패드가 뜰 때 가려지면 안 되는 묶음 — 입력칸과 한글 읽기.
+  const fieldRef = useRef<HTMLLabelElement>(null);
+
+  const closeKeypad = () => {
+    // 포커스도 거둬야 다음에 칸을 눌렀을 때 focus 이벤트가 와서 키패드가 다시 열린다.
+    inputRef.current?.blur();
+    setKeypadOpen(false);
+  };
 
   return (
     // 높이를 늘려 잡지 않는다 — 남는 공간은 위쪽 대문이 가져간다.
-    // form인 건 **엔터로도 넘어가게** 하기 위해서다. 하드웨어 키보드나 엔터가 있는
-    // 소프트 키보드(안드로이드 숫자 키보드에는 있다)는 이걸로 끝난다. 엔터가 없는 iOS
-    // 숫자 키패드는 버튼을 눌러야 하므로, 키보드가 올라올 때 그 버튼까지 굴려서 보여준다.
+    // form인 건 **엔터로도 넘어가게** 하기 위해서다 — 입력칸은 키패드를 쓰지만
+    // (inputMode="none") 하드웨어 키보드의 타이핑과 엔터는 그대로 받는다.
     <form
       className="flex flex-col gap-5"
       onSubmit={(event) => {
@@ -168,15 +177,24 @@ function SalaryStep({
         if (valid) onNext();
       }}
     >
-      <label className="flex flex-col gap-2">
+      <label ref={fieldRef} className="flex flex-col gap-2">
         <span className="text-sm font-medium">개미야, 너 얼마나 벌어?</span>
-        <div className="flex items-center gap-2 rounded-xl border border-[color:var(--line)] bg-[color:var(--surface)] px-4 py-3 has-disabled:opacity-40">
+        <div
+          className={`flex items-center gap-2 rounded-xl border bg-[color:var(--surface)] px-4 py-3 has-disabled:opacity-40 ${
+            keypadOpen ? "keypad-target" : "border-[color:var(--line)]"
+          }`}
+        >
           <input
+            ref={inputRef}
             className="min-w-0 flex-1 bg-transparent text-xl font-semibold tabular-nums outline-none"
-            inputMode="numeric"
+            /* 네이티브 키보드를 안 부른다 — 아래 커스텀 키패드가 대신한다. */
+            inputMode="none"
             placeholder="4,000"
             value={broke ? "" : value}
             disabled={broke}
+            onFocus={() => setKeypadOpen(true)}
+            /* ▾로 접은 뒤 다시 누르면 포커스가 그대로라 focus가 안 온다 — 클릭으로도 연다. */
+            onClick={() => setKeypadOpen(true)}
             /*
              * 만원 단위라 상한도 만원으로 환산해 씌운다 (100억 = 1,000,000만원).
              * 자릿수를 안 막으면 "12000000"(1,200억) 같은 값이 들어와 시급 2,299만원짜리
@@ -204,7 +222,11 @@ function SalaryStep({
           type="checkbox"
           className="size-4 accent-[color:var(--up)]"
           checked={broke}
-          onChange={(event) => onBrokeChange(event.target.checked)}
+          onChange={(event) => {
+            // 무일푼을 켜면 입력칸이 죽으므로 키패드도 같이 접는다.
+            if (event.target.checked) closeKeypad();
+            onBrokeChange(event.target.checked);
+          }}
         />
         나는 그냥 무일푼이야
       </label>
@@ -247,9 +269,27 @@ function SalaryStep({
         {broke ? " 수입 없음은 이 기기에만 저장돼." : " 연봉은 이 기기에만 저장돼."}
       </p>
 
-      <button ref={submitRef} className="btn-primary" type="submit" disabled={!valid}>
+      <button className="btn-primary" type="submit" disabled={!valid}>
         다음
       </button>
+
+      {keypadOpen && (
+        <>
+          {/* 키패드가 화면 끝을 덮는 만큼 비워둔다 — 위 안내·버튼을 굴려 볼 자리. */}
+          <div className="keypad-space" aria-hidden />
+          <NumericKeypad
+            value={value}
+            onChange={(draft) => onChange(capNumericInput(draft, MAX_INPUT_MANWON))}
+            submitLabel="다음"
+            submitDisabled={!valid}
+            onSubmit={() => {
+              if (valid) onNext();
+            }}
+            onDismiss={closeKeypad}
+            revealRef={fieldRef}
+          />
+        </>
+      )}
     </form>
   );
 }
@@ -544,17 +584,6 @@ function PopularRoller({
 }
 
 /**
- * 피커에 올릴 수량. 1~20주는 한 주 단위로, 그 위로는 자릿수에 맞춰 성글게 벌린다.
- * 목록에 없는 수량을 가진 사람이 막히지 않도록 마지막에 직접 입력을 남겨둔다.
- */
-const QUANTITY_OPTIONS = [
-  ...Array.from({ length: 20 }, (_, index) => index + 1),
-  25, 30, 35, 40, 45, 50, 60, 70, 80, 90,
-  100, 150, 200, 300, 400, 500, 700,
-  1000, 1500, 2000, 3000, 5000, 10000,
-];
-
-/**
  * 평단가 입력과 수량 피커가 나란히 서므로 높이를 못으로 박아둔다.
  * 패딩으로만 잡으면 글자 크기가 다른 둘(text-lg / text-base)이 서로 다른 높이가 되고,
  * `<select>`는 브라우저 기본 스타일이 더해져 또 어긋난다.
@@ -574,6 +603,19 @@ function PositionStep({
   const [avgPriceInput, setAvgPriceInput] = useState("");
   const [quantitySelect, setQuantitySelect] = useState("10");
   const [customQuantity, setCustomQuantity] = useState("");
+  /*
+   * 수량 시트를 **바깥에서 연다.** 이 화면은 평단가를 치고 나면 곧바로 수량을 물어야
+   * 이어지는데, 시트가 제 버튼으로만 열리면 그 흐름을 만들 수가 없다.
+   */
+  const [quantityOpen, setQuantityOpen] = useState(false);
+  /*
+   * 수량을 한 번이라도 골랐나. 키보드 위 버튼이 "다음"에서 "입력"으로 바뀌는 기준이다.
+   *
+   * 수량 칸에는 처음부터 "10"이 적혀 있어서, 이걸 안 두면 **아무도 안 고른 10주가
+   * 조용히 확정된다.** 반대로 한 번 고르고 나서 평단가를 고치러 돌아왔을 때 또 수량을
+   * 물으면 이미 답한 걸 되묻는 꼴이라, 그때는 바로 "입력"으로 넘어간다.
+   */
+  const [quantityPicked, setQuantityPicked] = useState(false);
 
   // 전일 종가를 보여주려고 여기서도 시세를 문다. 현재가는 아직 안 쓴다 —
   // 평단가를 적기도 전에 손익을 흘리면 봉 없는 대기 화면과 어긋난다.
@@ -587,12 +629,47 @@ function PositionStep({
   const costBasis = useMemo(() => avgPrice * quantity, [avgPrice, quantity]);
   const valid = avgPrice > 0 && quantity > 0;
 
-  // 여기도 숫자 키패드라 엔터가 없다 — 키보드가 올라오면 버튼줄을 보여준다.
-  const submitRef = useRef<HTMLDivElement>(null);
-  useRevealOnKeyboard(submitRef);
+  const priceRef = useRef<HTMLInputElement>(null);
+
+  /*
+   * 커스텀 키패드가 지금 편집하는 칸. 칸의 focus가 정하고, 흐름(수량 시트 열기)과
+   * ▾가 null로 되돌린다. 두 칸이 같은 키패드를 나눠 쓰므로 "어느 칸인가"까지 쥔다.
+   */
+  const [keypadTarget, setKeypadTarget] = useState<"price" | "quantity" | null>(null);
+
+  // 키패드가 뜰 때 가려지면 안 되는 묶음 — 입력칸들과 곁줄(전일 종가·매수 원금).
+  const fieldsRef = useRef<HTMLDivElement>(null);
+
+  const closeKeypad = () => {
+    // 포커스도 거둬야 다음에 칸을 눌렀을 때 focus 이벤트가 와서 키패드가 다시 열린다.
+    const focused = document.activeElement;
+    if (focused instanceof HTMLElement) focused.blur();
+    setKeypadTarget(null);
+  };
+
+  const openQuantity = () => {
+    // 키패드를 먼저 접는다 — 수량 시트도 바닥에 붙어 뜨는 물건이라 겹치면 휠이 가린다.
+    closeKeypad();
+    setQuantityOpen(true);
+  };
+
+  /*
+   * "다 쳤다"는 신호 하나를 여기로 모은다 — 키보드 위 버튼, 아래 [입력] 버튼, 그리고
+   * 엔터(하드웨어·안드로이드 숫자 키보드)가 전부 이 함수로 들어온다. 세 길이 갈라지면
+   * 어느 길로 왔느냐에 따라 다른 일이 벌어진다.
+   */
+  const advance = () => {
+    if (avgPrice <= 0) return;
+    if (!quantityPicked) return openQuantity();
+    if (valid) onSubmit(avgPrice, quantity);
+  };
+
+  // 아래 버튼과 키패드 확인 키가 **같은 말을 한다** — 문구는 여기 한 곳에서 정한다.
+  const confirmLabel = quantityPicked ? "본전 계산 🐜" : "다음";
+  const confirmDisabled = quantityPicked ? !valid : avgPrice <= 0;
 
   return (
-    <main className="kb-pad mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 py-6">
+    <main className="kb-pad mx-auto flex min-h-dvh w-full max-w-md flex-col px-5 pt-6 [--kb-pad-base:20px]">
       <header className="flex flex-col items-center gap-1 text-center">
         <span className="text-lg font-bold">{ticker.name}</span>
         <span className="text-sm text-[color:var(--muted)]">평단이 어떻게 돼? 몇 주나 산 거지?</span>
@@ -607,92 +684,157 @@ function PositionStep({
         <CandleScene seconds={0} mood="even" stage={BREAKEVEN_STAGE} mode="waiting" fill />
       </section>
 
-      <div className="flex gap-2">
-        <label className="flex min-w-0 flex-[8] flex-col gap-1.5">
-          {/* 라벨 오른쪽에 적은 값을 한글로 읽어준다 — 평단가는 0이 여섯 개씩 붙어
-              눈으로 자릿수를 세기 어렵다 (24000과 240000이 한눈에 안 갈린다). */}
-          <span className="flex items-baseline justify-between gap-2 text-xs text-[color:var(--muted)]">
-            <span className="shrink-0">평단가 (원)</span>
-            <span className="min-w-0 truncate">{koreanWon(avgPrice)}</span>
-          </span>
-          <input
-            className={`${FIELD_CLASS} px-4 text-lg`}
-            inputMode="numeric"
-            /* 시세가 오기 전 한순간만 쓰이는 자릿수 힌트다. */
-            placeholder={
-              previousClose === null
-                ? "74,800"
-                : formatNumericInput(String(Math.round(previousClose)))
-            }
-            autoFocus
-            value={avgPriceInput}
-            onChange={(event) =>
-              setAvgPriceInput(capNumericInput(event.target.value, MAX_INPUT_WON))
-            }
-          />
-        </label>
-
-        <label className="flex min-w-0 flex-[2] flex-col gap-1.5">
-          <span className="text-xs text-[color:var(--muted)]">수량 (주)</span>
-          {custom ? (
-            <input
-              className={`${FIELD_CLASS} px-2 text-center text-base`}
-              inputMode="numeric"
-              placeholder="주"
-              autoFocus
-              value={customQuantity}
-              onChange={(event) =>
-                setCustomQuantity(capNumericInput(event.target.value, MAX_INPUT_SHARES))
-              }
-              onBlur={() => {
-                if (parseNumericInput(customQuantity) <= 0) setQuantitySelect("10");
-              }}
-            />
-          ) : (
-            <QuantityPicker
-              className={`${FIELD_CLASS} px-2 text-center text-base`}
-              options={QUANTITY_OPTIONS}
-              value={quantitySelect}
-              onSelect={setQuantitySelect}
-            />
-          )}
-        </label>
-      </div>
-
       {/*
-        전일 종가는 종목만 고르면 바로 뜨고, 매수 원금은 평단가와 수량이 다 차면 그
-        아래 줄에 붙는다. 둘 다 "지금 적는 숫자를 가늠하는 곁줄"이다. min-h-5로 첫 줄
-        높이를 미리 잡아둬, 전일 종가가 뜰 때 아래 입력·버튼이 밀리지 않게 한다.
+        form인 건 **엔터로도 넘어가게** 하기 위해서다 — 입력칸은 커스텀 키패드를 쓰지만
+        (inputMode="none") 하드웨어 키보드의 타이핑과 엔터는 그대로 받는다. 키패드의
+        확인 키와 엔터가 같은 `advance()`로 들어오므로 어느 길로 왔든 같은 일이 일어난다.
       */}
-      <p className="mt-3 min-h-5 text-sm text-[color:var(--muted)]">
-        {previousClose !== null && (
-          <span className="block">
-            {ticker.name}의 전일 종가는{" "}
-            <strong className="text-[color:var(--fg)]">{formatWon(previousClose)}</strong>
-            이야.
-          </span>
-        )}
-        {valid && (
-          <span className="block">
-            개미의 총 매수 원금은{" "}
-            <strong className="text-[color:var(--fg)]">{formatWon(costBasis)}</strong> 정도 되는군.
-          </span>
-        )}
-      </p>
+      <form
+        onSubmit={(event) => {
+          event.preventDefault();
+          advance();
+        }}
+      >
+        {/* 키패드가 뜰 때 가려지면 안 되는 묶음 — 이 아래끝을 키패드 위로 굴려낸다. */}
+        <div ref={fieldsRef}>
+          <div className="flex gap-2">
+            <label className="flex min-w-0 flex-[8] flex-col gap-1.5">
+              {/* 라벨 오른쪽에 적은 값을 한글로 읽어준다 — 평단가는 0이 여섯 개씩 붙어
+                  눈으로 자릿수를 세기 어렵다 (24000과 240000이 한눈에 안 갈린다). */}
+              <span className="flex items-baseline justify-between gap-2 text-xs text-[color:var(--muted)]">
+                <span className="shrink-0">평단가 (원)</span>
+                <span className="min-w-0 truncate">{koreanWon(avgPrice)}</span>
+              </span>
+              <input
+                ref={priceRef}
+                className={`${FIELD_CLASS} px-4 text-lg ${
+                  keypadTarget === "price" ? "keypad-target" : ""
+                }`}
+                /* 네이티브 키보드를 안 부른다 — 커스텀 키패드가 대신한다. */
+                inputMode="none"
+                /* 시세가 오기 전 한순간만 쓰이는 자릿수 힌트다. */
+                placeholder={
+                  previousClose === null
+                    ? "74,800"
+                    : formatNumericInput(String(Math.round(previousClose)))
+                }
+                /* 들어오자마자 키패드가 떠 바로 칠 수 있게 한다 — 이 화면에서
+                   제일 먼저 할 일이 평단가를 적는 것이다. */
+                autoFocus
+                value={avgPriceInput}
+                onFocus={() => setKeypadTarget("price")}
+                /* ▾로 접은 뒤 다시 누르면 포커스가 그대로라 focus가 안 온다 — 클릭으로도 연다. */
+                onClick={() => setKeypadTarget("price")}
+                onChange={(event) =>
+                  setAvgPriceInput(capNumericInput(event.target.value, MAX_INPUT_WON))
+                }
+              />
+            </label>
 
-      {/* 입력 묶음(평단가·수량·매수 원금)과 버튼 사이 간격 24px */}
-      <div ref={submitRef} className="mt-6 flex gap-3">
-        <button className="btn-ghost flex-1" type="button" onClick={onBack}>
-          이전
-        </button>
-        <button
-          className="btn-primary flex-[2]"
-          disabled={!valid}
-          onClick={() => onSubmit(avgPrice, quantity)}
-        >
-          입력
-        </button>
-      </div>
+            <label className="flex min-w-0 flex-[2] flex-col gap-1.5">
+              <span className="text-xs text-[color:var(--muted)]">수량 (주)</span>
+              {custom ? (
+                <input
+                  className={`${FIELD_CLASS} px-2 text-center text-base ${
+                    keypadTarget === "quantity" ? "keypad-target" : ""
+                  }`}
+                  inputMode="none"
+                  placeholder="주"
+                  autoFocus
+                  value={customQuantity}
+                  onFocus={() => setKeypadTarget("quantity")}
+                  onClick={() => setKeypadTarget("quantity")}
+                  onChange={(event) =>
+                    setCustomQuantity(capNumericInput(event.target.value, MAX_INPUT_SHARES))
+                  }
+                  onBlur={() => {
+                    if (parseNumericInput(customQuantity) <= 0) setQuantitySelect("10");
+                  }}
+                />
+              ) : (
+                <QuantityPicker
+                  className={`${FIELD_CLASS} px-2 text-center text-base`}
+                  options={QUANTITY_OPTIONS}
+                  value={quantitySelect}
+                  open={quantityOpen}
+                  onOpenChange={(open) => {
+                    // 피커의 제 버튼으로 열 때도 키패드를 먼저 접는다 — 겹치면 휠이 가린다.
+                    if (open) closeKeypad();
+                    setQuantityOpen(open);
+                  }}
+                  onSelect={(next) => {
+                    setQuantitySelect(next);
+                    setQuantityPicked(true);
+                  }}
+                />
+              )}
+            </label>
+          </div>
+
+          {/*
+            전일 종가는 종목만 고르면 바로 뜨고, 매수 원금은 평단가와 수량이 다 차면 그
+            아래 줄에 붙는다. 둘 다 "지금 적는 숫자를 가늠하는 곁줄"이라 **굴려 보여주는
+            묶음 안에 들어 있어야 한다** — 밖으로 빼면 치는 동안 키패드 뒤에 깔려서,
+            정작 가늠할 때 안 보인다.
+
+            **두 줄 자리를 처음부터 비워둔다**(min-h-10). 굴리는 건 키패드가 뜨는 그
+            한 번뿐인데, 그때 곁줄은 아직 한 줄("전일 종가")이다. 평단가를 다 치면
+            둘째 줄("매수 원금")이 새로 생기면서 묶음이 한 줄만큼 아래로 밀리고, 그
+            밀린 만큼이 키패드 뒤로 들어간다 — 정작 방금 친 값의 결과가 안 보인다.
+          */}
+          <p className="mt-3 min-h-10 text-sm text-[color:var(--muted)]">
+            {previousClose !== null && (
+              <span className="block">
+                {ticker.name}의 전일 종가는{" "}
+                <strong className="text-[color:var(--fg)]">{formatWon(previousClose)}</strong>
+                이야.
+              </span>
+            )}
+            {valid && (
+              <span className="block">
+                개미의 총 매수 원금은{" "}
+                <strong className="text-[color:var(--fg)]">{formatWon(costBasis)}</strong> 정도
+                되는군.
+              </span>
+            )}
+          </p>
+        </div>
+
+        {/* 입력 묶음(평단가·수량·매수 원금)과 버튼 사이 간격 24px */}
+        <div className="mt-6 flex gap-3">
+          <button className="btn-ghost flex-1" type="button" onClick={onBack}>
+            이전
+          </button>
+          {/* 키패드의 확인 키와 **같은 말을 한다** — 자리가 둘이어도 지금 할 일은 하나다.
+              form 안이라 type을 반드시 적는다 (안 적으면 엔터가 이쪽으로 샌다). */}
+          <button className="btn-primary flex-[2]" type="submit" disabled={confirmDisabled}>
+            {confirmLabel}
+          </button>
+        </div>
+
+        {/*
+          커스텀 키패드. 확인 키가 "다음"(수량 시트를 연다) → "본전 계산 🐜"(확정)로
+          바뀌며 다음 차례를 가리킨다 — 예전 키보드 위 바(.kb-bar)가 하던 일이다.
+        */}
+        {keypadTarget !== null && (
+          <>
+            <div className="keypad-space" aria-hidden />
+            <NumericKeypad
+              value={keypadTarget === "price" ? avgPriceInput : customQuantity}
+              onChange={(draft) =>
+                keypadTarget === "price"
+                  ? setAvgPriceInput(capNumericInput(draft, MAX_INPUT_WON))
+                  : setCustomQuantity(capNumericInput(draft, MAX_INPUT_SHARES))
+              }
+              submitLabel={confirmLabel}
+              submitDisabled={confirmDisabled}
+              onSubmit={advance}
+              onDismiss={closeKeypad}
+              revealRef={fieldsRef}
+            />
+          </>
+        )}
+      </form>
     </main>
   );
 }

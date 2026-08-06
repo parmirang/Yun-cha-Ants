@@ -6,6 +6,8 @@ node_modules/
 dist/
 build/
 .next/
+# 개발 서버의 .next를 안 건드리려고 딴 데 뽑는 빌드 (NEXT_DIST_DIR)
+.next-*/
 out/
 *.tsbuildinfo
 
