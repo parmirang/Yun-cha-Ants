@@ -18,6 +18,7 @@ import { useEffect, useRef, useState } from "react";
 import { track } from "@/lib/analytics";
 import { copyText } from "@/lib/clipboard";
 import {
+  MAX_INPUT_SHARES,
   MAX_INPUT_WON,
   capNumericInput,
   formatNumericInput,
@@ -458,7 +459,9 @@ function AveragingSheet({
             placeholder={plan ? formatNumericInput(String(plan.shares)) : "10"}
             autoFocus
             value={quantityInput}
-            onChange={(event) => setQuantityInput(formatNumericInput(event.target.value))}
+            onChange={(event) =>
+              setQuantityInput(capNumericInput(event.target.value, MAX_INPUT_SHARES))
+            }
           />
         </label>
 

@@ -17,6 +17,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { track } from "@/lib/analytics";
 import {
   MAX_INPUT_MANWON,
+  MAX_INPUT_SHARES,
   MAX_INPUT_WON,
   capNumericInput,
   formatNumericInput,
@@ -640,7 +641,9 @@ function PositionStep({
               placeholder="주"
               autoFocus
               value={customQuantity}
-              onChange={(event) => setCustomQuantity(formatNumericInput(event.target.value))}
+              onChange={(event) =>
+                setCustomQuantity(capNumericInput(event.target.value, MAX_INPUT_SHARES))
+              }
               onBlur={() => {
                 if (parseNumericInput(customQuantity) <= 0) setQuantitySelect("10");
               }}
