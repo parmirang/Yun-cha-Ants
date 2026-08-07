@@ -17,27 +17,43 @@ import type { SceneBubble } from "./meme-scenes";
  */
 
 /**
- * 폰트 도트 하나가 몇 픽셀인가 (11px 격자 × 5 = 55px 글자).
+ * 폰트 도트 하나가 몇 픽셀인가 (11px 격자 × UNIT = 글자 크기).
  *
- * 1080px 폭에서 한 글자가 55px다 — 타임라인에서 절반으로 줄어도 읽힌다. 문구는 14자로
- * 묶여 있으므로(`check-lines.mjs`) 제일 긴 줄도 810px라 좌우 여백 안에 들어온다.
- * **11의 배수가 아닌 값으로 바꾸지 말 것** — 폰트 도트가 정수 픽셀에 안 떨어져 흐려진다.
+ * **11의 배수만 쓴다** — 그래야 폰트의 도트 하나가 정수 픽셀로 떨어져 안 흐려진다.
+ * 그래서 "1.5배"처럼 어중간한 배율은 없고, 한 칸씩 오르내린다 (55 → 66 → 77px).
+ *
+ * 큰 것부터 시도해서 **화면 폭에 들어가는 제일 큰 크기**를 고른다. 문구는 14자로 묶여
+ * 있지만(`check-lines.mjs`) 한글은 한 자가 온폭이라 길이가 제각각이고, 제일 큰 크기로
+ * 못 박아두면 긴 줄에서 상자가 화면 밖으로 나간다 — 그 한 줄만 한 칸 작게 그린다.
  */
-const UNIT = 5;
-const FONT_PX = 11 * UNIT;
-const FONT = `${FONT_PX}px "Galmuri11", monospace`;
-
-const PAD_X = UNIT * 3;
-const PAD_Y = UNIT * 2;
-/** 화면 좌우 여백 — 말풍선이 여기 밖으로 나가면 잘린다 */
-const MARGIN = UNIT * 8;
+const UNITS = [7, 6, 5] as const;
 
 const INK = "#1a1410";
 const PAPER = "#f3ece2";
 
-/** 지금 캔버스에 픽셀 폰트가 실렸는지. 안 실렸으면 글자가 시스템 폰트로 떨어진다. */
+const fontOf = (unit: number) => `${11 * unit}px "Galmuri11", monospace`;
+/** 화면 좌우 여백 — 말풍선이 여기 밖으로 나가면 잘린다 */
+const marginOf = (unit: number) => unit * 8;
+const padXOf = (unit: number) => unit * 3;
+
+/** 픽셀 폰트를 미리 깔아둘 때 쓰는 서체 목록 (크기마다 따로 실린다) */
+export function memeFontFaces(): string[] {
+  return UNITS.map(fontOf);
+}
+
 export function memeFontFace(): string {
-  return FONT;
+  return fontOf(UNITS[0]);
+}
+
+/** 이 줄이 여백 안에 들어가는 제일 큰 크기 */
+function fittingUnit(ctx: CanvasRenderingContext2D, text: string): number {
+  for (const unit of UNITS) {
+    ctx.font = fontOf(unit);
+    const width = ctx.measureText(text).width + padXOf(unit) * 2 + marginOf(unit) * 2;
+    if (width <= CANVAS_W) return unit;
+  }
+
+  return UNITS[UNITS.length - 1] as number;
 }
 
 export function drawBubble(ctx: CanvasRenderingContext2D, bubble: SceneBubble): void {
@@ -45,7 +61,15 @@ export function drawBubble(ctx: CanvasRenderingContext2D, bubble: SceneBubble): 
 
   ctx.save();
   ctx.globalAlpha = bubble.alpha;
-  ctx.font = FONT;
+
+  const UNIT = fittingUnit(ctx, bubble.text);
+  const FONT_PX = 11 * UNIT;
+  const PAD_X = padXOf(UNIT);
+  const PAD_Y = UNIT * 2;
+  const MARGIN = marginOf(UNIT);
+  const snap = (value: number) => Math.round(value / UNIT) * UNIT;
+
+  ctx.font = fontOf(UNIT);
   ctx.textBaseline = "top";
 
   const textWidth = Math.ceil(ctx.measureText(bubble.text).width / UNIT) * UNIT;
@@ -88,18 +112,15 @@ export function drawBubble(ctx: CanvasRenderingContext2D, bubble: SceneBubble): 
  */
 export function drawBrand(ctx: CanvasRenderingContext2D): void {
   ctx.save();
-  ctx.font = `${11 * 3}px "Galmuri11", monospace`;
+  ctx.font = fontOf(3);
   ctx.textBaseline = "alphabetic";
   ctx.textAlign = "right";
 
+  const margin = marginOf(5);
   ctx.globalAlpha = 0.55;
   ctx.fillStyle = "#000000";
-  ctx.fillText(BRAND, CANVAS_W - MARGIN + 3, CANVAS_H - MARGIN + 3);
+  ctx.fillText(BRAND, CANVAS_W - margin + 3, CANVAS_H - margin + 3);
   ctx.fillStyle = PAPER;
-  ctx.fillText(BRAND, CANVAS_W - MARGIN, CANVAS_H - MARGIN);
+  ctx.fillText(BRAND, CANVAS_W - margin, CANVAS_H - margin);
   ctx.restore();
-}
-
-function snap(value: number): number {
-  return Math.round(value / UNIT) * UNIT;
 }

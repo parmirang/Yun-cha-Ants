@@ -8,7 +8,7 @@ import { CANVAS_H, CANVAS_W, GRID_H, GRID_W, createPainter } from "@/lib/pixel-c
 import { useLockedBodyScroll } from "@/lib/use-locked-body-scroll";
 import { type VideoTake, canRecordVideo, recordCanvas } from "@/lib/video-export";
 
-import { drawBrand, drawBubble, memeFontFace } from "./meme-bubble";
+import { drawBrand, drawBubble, memeFontFaces } from "./meme-bubble";
 import { MEME_LINES, type MemeSceneId } from "./meme-lines";
 import { MEME_SCENES, findScene } from "./meme-scenes";
 
@@ -51,7 +51,10 @@ export function MemeStudio() {
     setVideo(canRecordVideo());
     track("meme_open");
 
-    if ("fonts" in document) void document.fonts.load(memeFontFace(), FONT_SAMPLE).catch(() => {});
+    // 크기마다 따로 실리므로 쓰는 크기를 모두 미리 깐다
+    if ("fonts" in document) {
+      for (const face of memeFontFaces()) void document.fonts.load(face, FONT_SAMPLE).catch(() => {});
+    }
   }, []);
 
   // 그림 한 판. 저해상도 격자에 그린 뒤 통째로 늘리고, 글자만 그 위에 얹는다.

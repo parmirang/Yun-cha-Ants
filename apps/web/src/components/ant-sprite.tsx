@@ -373,16 +373,16 @@ const FACE: readonly string[] = [
   "......obbwpgggppggpwbbHHwwwpppggpppgppppwwwo........",
   "......owwwpggpppggpwwwHHwwwpppppppppppppwwwo........",
   ".....owwwpppppppppppwwwHwwwpppppppppppppwwwo........",
-  ".....oHwwpppppppppppwwHHwwwpppppggppppppwwwo........",
-  "....oHHwwpppppppppppwwHHHwwwppppggpppppwwwo.........",
-  "...oHHHwwwpppggppppwwwHHHwwwwpppppppppwwwwo.........",
-  "...oHHHHwwpppgpppppwwHHHHHwwwwpppppppwwwwo..........",
-  "..oHHHHHwwwpppppppwwwHHHHhhwwwwpppppwwwwhho.........",
-  "..oHHHHHHwwwwpppwwwwHHHHHhhhwwwwwwwwwwwhhho.........",
-  ".oHHHHHHHHHwwwwwwwHHHHHHHhhhhhwwwwwwwhhhhhho........",
-  ".oHHHHHHHHHHHHwHHHHHHHHHHhhhhhhhhhhhhhhhhhho........",
-  ".oHHHHHHHHHHHHHHHHHHHHHHHhhhhhhhhhhhhhhhhhho........",
-  "osHHHHHHHHHHHHHHHHHHHHHHhhhhhhhhhhhhhhhhhhhho.......",
+  ".....oHwwpppppppppppwwHHLLwppppLLgppppLLwwwo........",
+  "....oHHwwpppppppppppwwHHHqLLLLLQQLLLLLQqLLo.........",
+  "...oHHHLwwLLLLLppLLLLLHHHqqqqQQQQQQQQQqqqqo.........",
+  "...oHHHHLLQQQQQLLQQqqHHHHHqqqqQQQQQQQqqqqo..........",
+  "..oHHHHHqqqQQQQQQQqqqHHHHhhqqqqQQQQQqqqqhho.........",
+  "..oHHHHHHqqqqQQQqqqqHHHHHhhhqqqqqqqqqqqhhho.........",
+  ".oHHHHHHHHHqqqqqqqHHHHHHHhhuuuqqqqqqquuuhhho........",
+  ".oHHHHHHHuuuuuquuuuuHHHHHhuuuuuuuuuuuuuuuhho........",
+  ".oHHHHHHHuuuuuuuuuuuHHHHHhhuuuuuuuuuuuuuhhho........",
+  "osHHHHHHHHHHHuuuHHHHHHHHhhhhhhhuuuuuhhhhhhhho.......",
   "oHHHHHHHHHHHHHHHHHHHHHHHhhhhhhhhhhhhhhhhhhhho.......",
   "osHHHHHHHHHHHHHHHHHHHHHhhhhhhhhhhhhhhhhhhhhhho......",
   "oshHHHHHHHHHHHHHHHHHHHhhhhhhhhhhhhhhhhhhhhhhhho.....",
@@ -456,6 +456,8 @@ const FACE_BLINK: readonly string[] = [
   "..oHHHHHHHHHHHHHHHHHHHHHHhhhhhhhhhhhhhhhhhoo........",
   ".oHHHHHHHHHHHHHHHHHHHHHHHhhhhhhhhhhhhhhhhhho........",
   ".oHHHHHHHHHHHHHHHHHHHHHHHhhhhhhhhhhhhhhhhhho........",
+  ".oHHHHHHHHHHHHHHHHHHHHHHHhhhhhhhhhhhhhhhhhho........",
+  "osHHHHHHHHHHHHHHHHHHHHHHhhhhhhhhhhhhhhhhhhhho.......",
 ];
 
 /**
@@ -486,6 +488,10 @@ export interface AntFacePalette {
   outline: string;
   body: string;
   bodyGloss: string;
+  tearPool: string;
+  tearDeep: string;
+  tearSurface: string;
+  wet: string;
 }
 
 export function antFacePalette(stage: number): AntFacePalette {
@@ -511,6 +517,16 @@ export function antFacePalette(stage: number): AntFacePalette {
     outline: hsl(hue, saturation + 10, 7),
     body: hsl(hue, saturation, lightness - 4),
     bodyGloss: hsl(hue, saturation + 6, lightness + 7),
+    /*
+     * 눈에 차오른 눈물. **껍질 단계를 안 따른다** — 눈물은 어느 개미가 울든 같은 물이고,
+     * 무대가 흘려보내는 줄기(#4a8fd8·#8fc4f0·#cfe9ff)와 같은 계열이라야 눈에서 흘러나온
+     * 물로 이어져 보인다. 흰자 위와 눈동자 위를 다른 밝기로 덮어야 잠긴 눈동자가 비친다.
+     */
+    tearPool: "#a9d6f5",
+    tearDeep: "#3a70a6",
+    tearSurface: "#e8f6ff",
+    /** 눈 밑 젖은 자리 — 파란 칠이 아니라 젖은 살이라 껍질색에 푸른 기만 섞는다 */
+    wet: hsl(hue + 190, 6, lightness + 10),
   };
 }
 
@@ -528,6 +544,10 @@ const FACE_KEY: Record<string, keyof AntFacePalette> = {
   M: "mouthLine",
   t: "body",
   T: "bodyGloss",
+  q: "tearPool",
+  Q: "tearDeep",
+  L: "tearSurface",
+  u: "wet",
 };
 
 /** 클로즈업 얼굴의 도트 좌표. `blink`면 눈 줄만 감은 것으로 바꿔 찍는다. */
