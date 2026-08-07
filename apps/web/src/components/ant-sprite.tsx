@@ -346,38 +346,54 @@ const COLOR_KEY: Record<string, keyof AntPalette> = {
  *  b  눈꺼풀·큰턱   w 흰자   p 눈동자   g 눈빛   m 다문 입
  */
 const FACE: readonly string[] = [
-  "......n..................n......",
-  ".......n................n.......",
-  "........n..............n........",
-  ".........n............n.........",
-  "..........n..........n..........",
-  "...........n........n...........",
-  "...........hhhhhhhhhh...........",
-  ".........hhhhhhhhhhhhhh.........",
-  ".......HHHHhhhhhhhhhhhhhh.......",
-  "......Hbbbbbbbhhhhbbbbbbbh......",
-  ".....HHHhwwwwhhhhhhwwwwhhhh.....",
-  "....HHHhwwwwwwhhhhwwwwwwhhhh....",
-  "....HHhwwggpppwhhwggpppwwhhh....",
-  "...hhhhwpggpppwhhwpggpppwhhhh...",
-  "...hhhhwppppppwhhwppppppwhhhh...",
-  "...hhhhwppppppwhhwppppppwhhhh...",
-  "...hhhhwwpppgwwhhwwpppgwwhhhh...",
-  "....hhhhwwpppwhhhhwpppwwhhhh....",
-  "....hhhhhwwwwhhhhhhwwwwhhhhh....",
-  ".....hhhhhhhhhhhhhhhhhhhhhh.....",
-  "......hhhhhhhhhhhhhhhhhhhh......",
-  ".......hhmmmhmmmhmmmhmmmh.......",
-  "........hhmmmhmmmhmmmhmm........",
-  ".........ssssssssssssss.........",
-  "..........bbssssssssbb..........",
-  "...........bbssssssbb...........",
-  ".............bssssb.............",
-  "................................",
-  "................................",
-  "................................",
-  "................................",
-  "................................",
+  ".....nn..................................nn.....",
+  ".....nn..................................nn.....",
+  ".......n................................n.......",
+  "........n..............................n........",
+  ".........n............................n.........",
+  "..........n..........................n..........",
+  "...........n........................n...........",
+  "............n.......................n...........",
+  ".............n.....................n............",
+  "..............n...................n.............",
+  "...............n........o........n..............",
+  "................nooooooohooooooon...............",
+  "...............oonHHHHHHHhhhhhhnoo..............",
+  "............oooHHHHHHHHHHHhhhhhhhhooo...........",
+  "...........oHHHbHHHHHHHHHHHhhhhhhbhhho..........",
+  "..........oHbbwwwbbHHHHHHHHhhhbbwwwbbho.........",
+  "........oobbwwwwwwwbbHHHHHHhbbwwwwwwwbboo.......",
+  ".......oHbwwwwwwwwwwwbHHHHHbwwwwwwwwwwwbho......",
+  ".......oHbwwwggpppwwwbHHHHHbwwwggpppwwwbho......",
+  "......oHbwwwgggppppwwwbHHHbwwwgggppppwwwbho.....",
+  ".....oHHwwwggggpppppwwwHHHwwwggggpppppwwwhho....",
+  ".....oHHwwwggggpppppwwwHHHwwwggggpppppwwwhho....",
+  "....ohHwwwwpppppppppwwwwHwwwwpppppppppwwwwhho...",
+  "....ohhHwwwpppppppppwwwHhhwwwpppppppppwwwhhho...",
+  "....ohhhwwwppppppggpwwwhhhwwwppppppggpwwwhhho...",
+  "....ohhhwwwwpppppggwwwwhhhwwwwpppppggwwwwhhho...",
+  "...ohhhhhwwwwpppppwwwwhhhhhwwwwpppppwwwwhhhhho..",
+  "....ohhhhwwwwwwwwwwwwwhhhhhwwwwwwwwwwwwwhhhho...",
+  "....ohhhhhwwwwwwwwwwwhhhhhhhwwwwwwwwwwwhhhhho...",
+  "....ohhhhhhhwwwwwwwhhhhhhhhhhhwwwwwwwhhhhhhho...",
+  "....ohhhhhhhhhhwhhhhhhhhhhhhhhhhhwhhhhhhhhhho...",
+  ".....ohhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhho....",
+  ".....ohhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhho....",
+  "......ohhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhho.....",
+  ".......ohhhhhhhhhhmmmmmmmmmmmmmhhhhhhhhhho......",
+  ".......ohhhhhhmmmmmmmmmmmmmmmmmmmmmhhhhhho......",
+  "........oohhmmmmmmmMMMMMmmmmmmmmmmMMMhhoo.......",
+  "..........oMmmmmmMMmmmmmMMMmmmmmMMmmmmo.........",
+  "...........oMMMMMmmmmmmmmmmMMMMMmmmMMo..........",
+  "............ooommmmmmmmmmmmmmmmmmmooo...........",
+  "..........oobbooosmmmmmmmmmmmmmsooobboo.........",
+  ".........obbbbo..ooooooosooooooo..obbbbo........",
+  "........obbboo..........o..........oobbbo.......",
+  "........oboo.........................oobo.......",
+  ".........o.............................o........",
+  "................................................",
+  "................................................",
+  "................................................",
 ];
 
 /**
@@ -386,25 +402,33 @@ const FACE: readonly string[] = [
  * 얼굴을 통째로 한 벌 더 두지 않는 건 **머리 윤곽이 갈라지는 걸 막기 위해서다** —
  * 두 벌을 손으로 맞춰두면 한쪽만 고쳤을 때 깜빡일 때마다 얼굴형이 미세하게 튄다.
  */
-const FACE_BLINK_FROM = 10;
+const FACE_BLINK_FROM = 14;
 const FACE_BLINK: readonly string[] = [
-  ".....HHHhhhhhhhhhhhhhhhhhhh.....",
-  "....HHHhhhhhhhhhhhhhhhhhhhhh....",
-  "....HHhhhhhppphhhhppphhhhhhh....",
-  "...hhhhhhpphhhhhhhhhhpphhhhhh...",
-  "...hhhhpphhhhhhhhhhhhhhpphhhh...",
-  "...hhhhhhhhhhhhhhhhhhhhhhhhhh...",
-  "...hhhhhhhhhhhhhhhhhhhhhhhhhh...",
-  "....hhhhhhhhhhhhhhhhhhhhhhhh....",
-  "....hhhhhhhhhhhhhhhhhhhhhhhh....",
+  "...........oHHHHHHHHHHHHHHHhhhhhhhhhho..........",
+  "..........oHHHHHHHHHHHHHHHHhhhhhhhhhhho.........",
+  "........ooHHHHHHHHHHHHHHHHHhhhhhhhhhhhhoo.......",
+  ".......oHHHHHHHHHHHHHHHHHHHHhhhhhhhhhhhhho......",
+  ".......oHHHHHHHHHHHHHHHHHHHhhhhhhhhhhhhhho......",
+  "......oHHHHHHHHHHHHHHHHHHHHhhhhhhhhhhhhhhho.....",
+  ".....oHHHHHHHHHHHHHHHHHHHHHhhhhhhhhhhhhhhhho....",
+  ".....oHHHHHHHHHHHHHHHHHHHHhhhhhhhhhhhhhhhhho....",
+  "....ohHHHHHHHHHHHHHHHHHHHhhhhhhhhhhhhhhhhhhho...",
+  "....ohhHHHHHbbbbbbbHHHHHhhhhhhbbbbbbbhhhhhhho...",
+  "....ohhhHHbbbbbbbbbbbHHhhhhhbbbbbbbbbbbhhhhho...",
+  "....ohhhbbbbHHHHHHHbbbbhhhbbbbhhhhhhhbbbbhhho...",
+  "...ohhhhbbhhhhhHhhhhhbbhhhbbhhhhhhhhhhhbbhhhho..",
+  "....ohhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhho...",
+  "....ohhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhho...",
+  "....ohhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhho...",
+  "....ohhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhho...",
 ];
 
-export const ANT_FACE_GRID = 32;
+export const ANT_FACE_GRID = 48;
 
 /** 클로즈업 얼굴에서 눈물이 쏟아지는 두 눈의 아래 끝 (얼굴 격자 기준) */
 export const ANT_FACE_EYES = [
-  { x: 10, y: 18 },
-  { x: 21, y: 18 },
+  { x: 15, y: 30 },
+  { x: 33, y: 30 },
 ] as const;
 
 export interface AntFacePalette {
@@ -417,6 +441,8 @@ export interface AntFacePalette {
   pupil: string;
   glint: string;
   mouth: string;
+  mouthLine: string;
+  outline: string;
 }
 
 export function antFacePalette(stage: number): AntFacePalette {
@@ -432,12 +458,17 @@ export function antFacePalette(stage: number): AntFacePalette {
     sclera: hsl(40, 18, 90),
     pupil: hsl(hue, 26, 13),
     glint: "#ffffff",
-    mouth: hsl(hue, 34, 8),
+    // 입술은 얼굴보다 밝고, 다문 자리를 가르는 선만 어둡다 — 둘이 같은 색이면
+    // 입이 그냥 검은 띠가 되어 다문 건지 벌린 건지 알 수 없다.
+    mouth: hsl(hue, saturation, lightness - 10),
+    mouthLine: hsl(hue, 30, 9),
+    outline: hsl(hue, saturation + 10, 7),
   };
 }
 
 const FACE_KEY: Record<string, keyof AntFacePalette> = {
   n: "antenna",
+  o: "outline",
   H: "highlight",
   h: "head",
   s: "shade",
@@ -446,6 +477,7 @@ const FACE_KEY: Record<string, keyof AntFacePalette> = {
   p: "pupil",
   g: "glint",
   m: "mouth",
+  M: "mouthLine",
 };
 
 /** 클로즈업 얼굴의 도트 좌표. `blink`면 눈 줄만 감은 것으로 바꿔 찍는다. */

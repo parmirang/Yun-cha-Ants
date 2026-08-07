@@ -588,33 +588,23 @@ function drawFlatCloud(p: Painter, cx: number, cy: number, size: number) {
    ════════════════════════════════════════════════════ */
 
 /**
- * 한 바퀴가 길다 — **멀리서 시작해 얼굴까지 들어가야** 하기 때문이다.
- * 절반은 다가가는 데 쓰고 나머지 절반을 표정에 준다.
+ * 한 바퀴에 말풍선 세 마디(`BEAT_MS` × 3). 우는 얼굴은 움직임이 크지 않아서,
+ * 이 판의 리듬은 사실상 말풍선이 만든다.
  */
 const FACE_LOOP = 7200;
-/** 얼굴 문자맵(32칸)의 배율. 3배면 96칸이라 화면 폭(108)을 거의 채운다. */
-const FACE_SCALE = 3;
-/** 탈진한 창백한 단계. 배경 대비는 눈과 파란 테두리가 맡는다. */
+/** 48칸 얼굴을 2배로 — 96칸이라 화면 폭(108)을 거의 채운다 */
+const FACE_SCALE = 2;
+const FACE_LEFT = Math.round((108 - 48 * FACE_SCALE) / 2);
+const FACE_TOP = 46;
+/** 탈진한 창백한 단계. 얼굴이 화면을 채우니 대비는 눈과 윤곽선이 맡는다. */
 const FACE_STAGE = 8;
-/**
- * 줌이 지나는 몸 배율. **정수만 쓴다** — 3.5배 같은 값을 주면 도트가 3칸·4칸으로
- * 들쭉날쭉해져 그림이 통째로 흐려진다. 계단처럼 끊어 커지는 게 도트 그림의 줌이다.
- */
-const FACE_ZOOM_STEPS = [3, 4, 5, 6, 7, 9] as const;
-/** 몸에서 얼굴로 갈아타는 구간 (루프 안에서의 위치) */
-/**
- * 겹쳐 넘기는 구간은 **짧게**. 옆뷰 몸과 정면 얼굴은 생김새가 달라서, 오래 겹쳐두면
- * 두 그림이 포개진 흐린 덩어리가 그대로 보인다. 0.4초면 "가까이 가니 얼굴이 잡혔다"로 읽힌다.
- */
-const FACE_SWAP_FROM = 0.44;
-const FACE_SWAP_TO = 0.49;
 /** 눈 아래에서 쏟아지는 줄기의 좌우 벌어짐 (얼굴 격자 기준) */
-const TEAR_LANES = [-3, 0, 3] as const;
+const TEAR_LANES = [-5, -1, 3] as const;
 
 const face: MemeScene = {
   id: "face",
   title: "클로즈업",
-  blurb: "멀리서 다가가면 표정이 보인다. 눈물이 줄줄.",
+  blurb: "우는 얼굴만 크게. 두 눈에서 눈물이 줄줄.",
   loopMs: FACE_LOOP,
 
   draw(p, frame) {
@@ -624,23 +614,20 @@ const face: MemeScene = {
     /* 차가운 새벽 방 */
     p.vGradient(0, p.h, "#0a1120", "#182742");
 
-    /*
-     * 내려꽂는 차트. **다가갈수록 옅어진다** — 카메라가 얼굴에 붙는 동안 배경까지
-     * 또렷하면 어디를 보라는 건지가 흐려진다.
-     */
-    const backdrop = lerp(0.5, 0.12, easeInOut(a / 0.6));
+    /* 내려꽂는 차트 — 얼굴 뒤로 파란 봉이 오른쪽으로 갈수록 낮아진다 */
     for (let i = 0; i < 9; i += 1) {
       const x = 6 + i * 12;
-      const top = 14 + i * 5 + osc(1, i * 0.11);
-      p.faded(backdrop, () => {
+      const top = 12 + i * 4 + osc(1, i * 0.11);
+      p.faded(0.4, () => {
         p.rect(x + 3, top - 4, 1, 4, "#5c9dff");
-        p.rect(x, top, 8, 7 + i, "#5c9dff");
-        p.rect(x + 1, top + 1, 2, 5 + i, "#8fc0ff");
+        p.rect(x, top, 8, 6 + i, "#5c9dff");
+        p.rect(x + 1, top + 1, 2, 4 + i, "#8fc0ff");
       });
     }
 
-    /* 흐느낌 — 몸이든 얼굴이든 한 칸씩 들썩인다 */
+    /* 흐느낌 — 얼굴이 한 칸 들썩인다 */
     const sob = flip2(frame.time, 400);
+    const top = FACE_TOP + (sob ? 0 : 1);
     /*
      * 눈은 1.6초마다 한 번 꽉 감긴다 (우는 얼굴이 계속 뜨고 있으면 인형처럼 보인다).
      * **깜빡임이 루프 끝에 걸리지 않게 반 박자 밀어둔다** — 마지막 프레임에서 감고
@@ -648,89 +635,33 @@ const face: MemeScene = {
      */
     const blink = (frame.time + 500) % 1600 > 1320;
 
+    /* 어깨 — 턱 아래를 받쳐준다. 없으면 머리가 허공에 떠 있다. */
+    p.disc(54, 206, 56, antFacePalette(FACE_STAGE).shade);
+    p.disc(54, 208, 56, antFacePalette(FACE_STAGE).outline);
+
+    p.sprite(antFacePixels(FACE_STAGE, blink), FACE_LEFT, top, FACE_SCALE);
+
     /*
-     * 카메라. 앞 절반은 몸(16×16)을 계단처럼 키우며 다가가고, 뒤 절반은 얼굴(32×32)을
-     * 보여준다. **갈아타는 순간을 겹쳐서 넘긴다** — 툭 바뀌면 다른 그림으로 잘린 것처럼
-     * 보이는데, 겹쳐 넘기면 "가까이 가니 이목구비가 잡힌다"로 읽힌다.
+     * 눈물은 **줄기로 흐른다.** 방울만 뚝뚝 떨어뜨리면 비 오는 그림이 되고, 우는 얼굴
+     * 밈의 그 표정은 두 눈에서 턱 아래까지 물이 이어져 있어야 나온다. 줄기 안에서 밝은
+     * 마디가 내려가며 흐르는 티를 낸다. **줄기는 얇게 둔다** — 굵으면 표정이 물에 덮인다.
      */
-    /*
-     * **처음부터 다가간다** (easeInOut이 아니라 easeOut). 양끝을 느리게 하면 앞의 1초를
-     * 콩알만 한 개미를 보며 흘려보내게 된다 — 짤은 첫 1초에 뭘 보는 판인지 알려야 한다.
-     */
-    const approach = easeOut(clamp01(a / FACE_SWAP_TO));
-    const step = FACE_ZOOM_STEPS[
-      Math.min(FACE_ZOOM_STEPS.length - 1, Math.floor(approach * FACE_ZOOM_STEPS.length))
-    ] as number;
-    const faceIn = clamp01((a - FACE_SWAP_FROM) / (FACE_SWAP_TO - FACE_SWAP_FROM));
+    for (const eye of ANT_FACE_EYES) {
+      for (const lane of TEAR_LANES) {
+        const x = FACE_LEFT + (eye.x + lane) * FACE_SCALE;
+        const from = top + eye.y * FACE_SCALE;
+        const wobble = Math.round(osc(2, (eye.x + lane) * 0.07));
 
-    /* 얼굴이 놓이는 자리 — 머리 한가운데(15.5, 16칸)를 화면 가운데에 맞춘다 */
-    const faceLeft = Math.round(54 - 15.5 * FACE_SCALE);
-    const faceTop = Math.round(96 - 16 * FACE_SCALE) + (sob ? 0 : 1);
+        p.rect(x, from, 2, p.h - from, "#4a8fd8");
+        p.rect(x, from, 1, p.h - from, "#8fc4f0");
 
-    if (faceIn < 1) {
-      /* 아직 멀다 — 온몸이 보이는 우는 개미. 머리(8, 3.5칸)를 화면 가운데에 둔다. */
-      const bodyLeft = Math.round(54 - 8 * step);
-      const bodyTop = Math.round(96 - 3.5 * step) + (sob ? 0 : 1);
-      const pose: AntPose = sob ? "cry1" : "cry2";
-
-      p.faded(1 - faceIn, () => {
-        p.sprite(antPixels(FACE_STAGE, pose), bodyLeft, bodyTop, step);
-
-        /* 멀리서는 눈물도 방울 두 개로 족하다 */
-        for (let i = 0; i < 2; i += 1) {
-          const age = (frame.time + i * 600) % 1200;
-          const x = bodyLeft + (i === 0 ? 7 : 9) * step;
-          p.rect(x, bodyTop + 4 * step + age * 0.02, Math.max(1, step / 3), step / 2, "#8fc4f0");
-        }
-      });
+        /* 흐르는 마디 — 줄기마다 시작 위치를 어긋나게 둔다 */
+        const flow = ((frame.time / 1200 + (eye.x + lane) * 0.13) % 1) * (p.h - from);
+        p.rect(x, from + flow + wobble, 2, 5, "#cfe9ff");
+      }
     }
 
-    if (faceIn > 0) {
-      p.faded(faceIn, () => {
-        /* 어깨 — 턱 아래를 받쳐준다. 없으면 머리가 허공에 떠 있다. */
-        p.disc(54, 206, 58, antFacePalette(FACE_STAGE).shade);
-
-        /*
-         * 파란 테두리. 탈진한 개미는 색이 빠져 있고 배경도 어두워서, 그냥 그리면 얼굴이
-         * 갈색 덩어리로 뭉갠다. **같은 얼굴을 한 도트 밀어 뒤에 깔아** 위 모서리에만
-         * 파란 선이 남게 한다 — 떨어지는 차트가 얼굴을 비추는 빛이 된다.
-         */
-        const rim = antFacePixels(FACE_STAGE, blink).map((pixel) => ({
-          ...pixel,
-          fill: "#4a7ab8",
-        }));
-        p.sprite(rim, faceLeft, faceTop - FACE_SCALE, FACE_SCALE);
-        p.sprite(antFacePixels(FACE_STAGE, blink), faceLeft, faceTop, FACE_SCALE);
-
-        /*
-         * 눈물은 **줄기로 흐른다.** 방울만 뚝뚝 떨어뜨리면 비 오는 그림이 되고,
-         * 우는 얼굴 밈의 그 표정은 두 눈에서 턱 아래까지 물이 이어져 있어야 나온다.
-         * 줄기 안에서 밝은 마디가 내려가며 흐르는 티를 낸다.
-         */
-        for (const eye of ANT_FACE_EYES) {
-          for (const lane of TEAR_LANES) {
-            const x = faceLeft + (eye.x + lane) * FACE_SCALE;
-            const from = faceTop + eye.y * FACE_SCALE;
-            const wobble = Math.round(osc(2, (eye.x + lane) * 0.07) * FACE_SCALE);
-
-            /* 줄기는 얇게. 얼굴 폭만큼 굵으면 표정이 물에 덮여 안 보인다. */
-            p.rect(x, from, 2, p.h - from, "#4a8fd8");
-            p.rect(x, from, 1, p.h - from, "#8fc4f0");
-
-            /* 흐르는 마디 — 줄기마다 시작 위치를 어긋나게 둔다 */
-            const flow = ((frame.time / 1200 + (eye.x + lane) * 0.13) % 1) * (p.h - from);
-            p.rect(x, from + flow + wobble, 2, FACE_SCALE * 2, "#cfe9ff");
-          }
-        }
-      });
-    }
-
-    /*
-     * 말풍선은 **얼굴이 자리를 잡은 뒤에** 뜬다 (첫 박자는 건너뛴다) — 다가가는 동안
-     * 띄우면 개미가 아직 콩알만 한데 머리 위로 말풍선만 커다랗게 뜬다.
-     */
-    const bubble = speak("face", frame, 54, faceTop + 4);
-    return { ...bubble, alpha: bubble.alpha * clamp01((a - FACE_SWAP_FROM) * 6) };
+    return speak("face", frame, 54, top - 2);
   },
 };
 
