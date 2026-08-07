@@ -11,6 +11,8 @@ import {
 import {
   ANT_EYE,
   ANT_FACE_EYES,
+  ANT_FACE_H,
+  ANT_FACE_W,
   type AntPose,
   antFacePixels,
   antPixels,
@@ -591,14 +593,18 @@ function drawFlatCloud(p: Painter, cx: number, cy: number, size: number) {
  * 이 판의 리듬은 사실상 말풍선이 만든다.
  */
 const FACE_LOOP = 7200;
-/** 48칸 얼굴을 2배로 — 96칸이라 화면 폭(108)을 거의 채운다 */
+/** 52칸 얼굴을 2배로 — 104칸이라 화면 폭(108)을 꽉 채운다 */
 const FACE_SCALE = 2;
-const FACE_LEFT = Math.round((108 - 48 * FACE_SCALE) / 2);
-const FACE_TOP = 38;
+const FACE_LEFT = Math.round((108 - ANT_FACE_W * FACE_SCALE) / 2);
+/**
+ * 맵 아래끝이 화면 아래끝과 맞도록 앉힌다 — **몸은 잘려야 한다.**
+ * 아래를 띄우면 개미가 바닥에 놓인 인형처럼 보이고, 클로즈업이 아니라 전신 컷이 된다.
+ */
+const FACE_TOP = 192 - ANT_FACE_H * FACE_SCALE;
 /** 탈진한 창백한 단계. 얼굴이 화면을 채우니 대비는 눈과 윤곽선이 맡는다. */
 const FACE_STAGE = 8;
-/** 눈 아래에서 쏟아지는 줄기의 좌우 벌어짐 (얼굴 격자 기준) */
-const TEAR_LANES = [-5, -1, 3] as const;
+/** 눈 아래에서 쏟아지는 줄기의 좌우 벌어짐 (얼굴 격자 기준) — 눈마다 넷씩 여덟 줄기 */
+const TEAR_LANES = [-6, -2, 2, 6] as const;
 
 const face: MemeScene = {
   id: "face",
@@ -644,16 +650,23 @@ const face: MemeScene = {
      */
     for (const eye of ANT_FACE_EYES) {
       for (const lane of TEAR_LANES) {
-        const x = FACE_LEFT + (eye.x + lane) * FACE_SCALE;
+        const baseX = FACE_LEFT + (eye.x + lane) * FACE_SCALE;
         const from = top + eye.y * FACE_SCALE;
-        const wobble = Math.round(osc(2, (eye.x + lane) * 0.07));
+        const phase = (eye.x + lane) * 0.8;
+        /* 줄기마다 굽이가 어긋나야 여덟 줄이 한 빗살처럼 안 보인다 */
+        const bend = (y: number) => Math.round(Math.sin(y * 0.2 + phase) * 2);
 
-        p.rect(x, from, 2, p.h - from, "#4a8fd8");
-        p.rect(x, from, 1, p.h - from, "#8fc4f0");
+        for (let y = from; y < p.h; y += 1) {
+          p.rect(baseX + bend(y), y, 2, 1, "#4a8fd8");
+          p.dot(baseX + bend(y), y, "#8fc4f0");
+        }
 
-        /* 흐르는 마디 — 줄기마다 시작 위치를 어긋나게 둔다 */
-        const flow = ((frame.time / 1200 + (eye.x + lane) * 0.13) % 1) * (p.h - from);
-        p.rect(x, from + flow + wobble, 2, 5, "#cfe9ff");
+        /* 흐르는 마디 — 줄기 안에서 밝은 토막이 내려간다 */
+        /* 한 바퀴에 여섯 번 — 초를 그대로 쓰면 루프 끝에서 마디가 순간이동한다 */
+        const flow = from + (((a * 6 + phase * 0.2) % 1) * (p.h - from));
+        for (let y = flow; y < flow + 6; y += 1) {
+          p.rect(baseX + bend(y), y, 2, 1, "#cfe9ff");
+        }
       }
     }
 
