@@ -388,11 +388,29 @@ const FACE: readonly string[] = [
   "............ooommmmmmmmmmmmmmmmmmmooo...........",
   "..........oobbooosmmmmmmmmmmmmmsooobboo.........",
   ".........obbbbo..ooooooosooooooo..obbbbo........",
-  "........obbboo..........o..........oobbbo.......",
-  "........oboo.........................oobo.......",
-  ".........o.............................o........",
-  "................................................",
-  "................................................",
+  "........obbboo........ootoo........oobbbo.......",
+  "........oboo.........ottttto.........oobo.......",
+  ".........o...........ottttto...........o........",
+  "....................ottttttto...................",
+  "....................ottttttto...................",
+  "....................ottttttto...................",
+  ".....................ottttto....................",
+  "................o...ootttttoo...o...............",
+  "...............otoootttttttttoooto..............",
+  "..............ottttttTtttttttttttto.............",
+  ".............otttttTTTTTttttttttttto............",
+  "............otttttTTTTTTTttttttttttto...........",
+  "...........otttotTTTTTTTTTtttttttottto..........",
+  "...........otttottTTTTTTTttttttttottto..........",
+  "..........otttottttTTTTTttttttttttottto.........",
+  ".........ottto.otttttTttttttttttto.ottto........",
+  ".......oottto..ottttttttttttttttto..otttoo......",
+  "......otttto...ottttttttttttttttto...otttto.....",
+  ".....ottttto....ottttttttttttttto....ottttto....",
+  ".....ottttto.....ottttttttttttto.....ottttto....",
+  ".....ottttto......ootttttttttoo......ottttto....",
+  "......ottto.........ooootoooo.........ottto.....",
+  ".......ooo..............o..............ooo......",
   "................................................",
 ];
 
@@ -423,7 +441,12 @@ const FACE_BLINK: readonly string[] = [
   "....ohhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhho...",
 ];
 
-export const ANT_FACE_GRID = 48;
+/**
+ * 클로즈업 맵의 크기. **세로가 더 길다** — 얼굴만 그리면 머리가 허공에 뜬 흉상이 되므로
+ * 목·가슴·팔까지 한 장에 담는다 (따로 두면 목에서 어긋난다).
+ */
+export const ANT_FACE_W = 48;
+export const ANT_FACE_H = 66;
 
 /** 클로즈업 얼굴에서 눈물이 쏟아지는 두 눈의 아래 끝 (얼굴 격자 기준) */
 export const ANT_FACE_EYES = [
@@ -443,6 +466,8 @@ export interface AntFacePalette {
   mouth: string;
   mouthLine: string;
   outline: string;
+  body: string;
+  bodyGloss: string;
 }
 
 export function antFacePalette(stage: number): AntFacePalette {
@@ -463,6 +488,8 @@ export function antFacePalette(stage: number): AntFacePalette {
     mouth: hsl(hue, saturation, lightness - 10),
     mouthLine: hsl(hue, 30, 9),
     outline: hsl(hue, saturation + 10, 7),
+    body: hsl(hue, saturation, lightness - 4),
+    bodyGloss: hsl(hue, saturation + 6, lightness + 7),
   };
 }
 
@@ -478,6 +505,8 @@ const FACE_KEY: Record<string, keyof AntFacePalette> = {
   g: "glint",
   m: "mouth",
   M: "mouthLine",
+  t: "body",
+  T: "bodyGloss",
 };
 
 /** 클로즈업 얼굴의 도트 좌표. `blink`면 눈 줄만 감은 것으로 바꿔 찍는다. */

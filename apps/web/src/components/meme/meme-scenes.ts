@@ -12,7 +12,6 @@ import {
   ANT_EYE,
   ANT_FACE_EYES,
   type AntPose,
-  antFacePalette,
   antFacePixels,
   antPixels,
 } from "../ant-sprite";
@@ -595,7 +594,7 @@ const FACE_LOOP = 7200;
 /** 48칸 얼굴을 2배로 — 96칸이라 화면 폭(108)을 거의 채운다 */
 const FACE_SCALE = 2;
 const FACE_LEFT = Math.round((108 - 48 * FACE_SCALE) / 2);
-const FACE_TOP = 46;
+const FACE_TOP = 38;
 /** 탈진한 창백한 단계. 얼굴이 화면을 채우니 대비는 눈과 윤곽선이 맡는다. */
 const FACE_STAGE = 8;
 /** 눈 아래에서 쏟아지는 줄기의 좌우 벌어짐 (얼굴 격자 기준) */
@@ -635,10 +634,7 @@ const face: MemeScene = {
      */
     const blink = (frame.time + 500) % 1600 > 1320;
 
-    /* 어깨 — 턱 아래를 받쳐준다. 없으면 머리가 허공에 떠 있다. */
-    p.disc(54, 206, 56, antFacePalette(FACE_STAGE).shade);
-    p.disc(54, 208, 56, antFacePalette(FACE_STAGE).outline);
-
+    /* 얼굴·목·가슴·팔이 한 장이라 여기서 몸을 따로 그리지 않는다 */
     p.sprite(antFacePixels(FACE_STAGE, blink), FACE_LEFT, top, FACE_SCALE);
 
     /*
