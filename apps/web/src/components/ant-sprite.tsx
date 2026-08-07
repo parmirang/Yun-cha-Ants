@@ -366,17 +366,17 @@ const FACE: readonly string[] = [
   "................o...........obbbbbbbbbbbbbo.........",
   ".............ooobooo....o..obbbbwwwwwwwbbbbo........",
   "...........oobbbbbbboooohoobbbbwwpppppwwbbbbo.......",
-  "..........obbbbbbbbbbbHHhhhbbbwwpgpppppwwbbbo.......",
-  ".........obbbbwwwwwbbbbHhhbbbwwggggpppppwwbbbo......",
-  ".........obbwwwpppwwwbbHHhbbbwpgggggpggppwbbbo......",
-  "........obbbwgggppppwbbbHHwwwpggggggggggppwwwo......",
-  "........obbwggggpppppwbbHHwwwppggggpggggppwwwo......",
-  "........owwwggggppggpwwwHHwwwpppggpppggpppwwwo......",
-  ".......owwwpggggppggppwwwHwwwpppppppppppppwwwo......",
-  ".......oHwwpppppppppppwwHHwwwppppggpppppppwwwo......",
-  "......oHHwwpppppppppppwwHHHwwwpppggppppppwwwo.......",
-  ".....oHHHwwwpppppppppwwwHHHwwwwppggpppppwwwwo.......",
-  ".....oHHHHwwppggpppppwwHHHHHwwwwpppppppwwwwo........",
+  "..........obbbbbbbbbbbHHhhhbbbwwpppppppwwbbbo.......",
+  ".........obbbbwwwwwbbbbHhhbbbwwpgggpppppwwbbbo......",
+  ".........obbwwwpppwwwbbHHhbbbwpggggppggppwbbbo......",
+  "........obbbwggpppppwbbbHHwwwppggggppggpppwwwo......",
+  "........obbwpgggppggpwbbHHwwwpppggpppgppppwwwo......",
+  "........owwwpggpppggpwwwHHwwwpppppppppppppwwwo......",
+  ".......owwwpppppppppppwwwHwwwpppppppppppppwwwo......",
+  ".......oHwwpppppppppppwwHHwwwpppppggppppppwwwo......",
+  "......oHHwwpppppppppppwwHHHwwwppppggpppppwwwo.......",
+  ".....oHHHwwwpppggppppwwwHHHwwwwpppppppppwwwwo.......",
+  ".....oHHHHwwpppgpppppwwHHHHHwwwwpppppppwwwwo........",
   "....oHHHHHwwwpppppppwwwHHHHhhwwwwpppppwwwwhho.......",
   "....oHHHHHHwwwwpppwwwwHHHHHhhhwwwwwwwwwwwhhho.......",
   "...oHHHHHHHHHwwwwwwwHHHHHHHhhhhhwwwwwwwhhhhhho......",
@@ -501,10 +501,13 @@ export function antFacePalette(stage: number): AntFacePalette {
     sclera: hsl(40, 18, 90),
     pupil: hsl(hue, 26, 13),
     glint: "#ffffff",
-    // 입술은 얼굴보다 밝고, 다문 자리를 가르는 선만 어둡다 — 둘이 같은 색이면
-    // 입이 그냥 검은 띠가 되어 다문 건지 벌린 건지 알 수 없다.
-    mouth: hsl(hue, saturation + 12, lightness + 6),
-    mouthLine: hsl(hue, 30, 9),
+    /*
+     * 입술은 **껍질과 다른 색**이어야 한다. 본보기 그림이 초록 얼굴에 붉은 입이라 띠가
+     * 입으로 읽히는 건데, 갈색 얼굴에 갈색 띠를 그었더니 얼굴을 가로지르는 줄무늬가 됐다.
+     * 색상환을 붉은 쪽으로 당기고 채도를 올려 껍질에서 떼어낸다.
+     */
+    mouth: hsl(hue - 10, saturation + 30, lightness - 4),
+    mouthLine: hsl(hue - 12, 30, 9),
     outline: hsl(hue, saturation + 10, 7),
     body: hsl(hue, saturation, lightness - 4),
     bodyGloss: hsl(hue, saturation + 6, lightness + 7),
