@@ -328,45 +328,52 @@ const COLOR_KEY: Record<string, keyof AntPalette> = {
  * 얼굴만 크게 잡을 때 쓰는 **두 배 해상도** 문자맵.
  *
  * 16×16 몸을 그냥 키우면 눈이 한 칸이라 표정이 없다 — 클로즈업은 도트를 키우는 게
- * 아니라 **더 잘게 쪼개는** 것이라서, 같은 옆얼굴을 32칸에 다시 그렸다.
- * 몸에서 이어지는 것: 오른쪽을 보는 옆뷰, 앞으로 뾰족한 입, 위로 뻗은 더듬이 두 개,
- * 눈이 머리의 앞쪽 위에 붙는 위치. 새로 생기는 것: 눈썹·흰자·눈동자·벌린 입.
+ * 아니라 **더 잘게 쪼개는** 것이라서, 얼굴을 32칸에 따로 그렸다.
+ *
+ * **이 얼굴만 정면이다.** 몸은 옆뷰지만, 우는 표정의 핵심은 큼직한 두 눈과 거기
+ * 박히는 흰 반짝임이라 옆에서 보면 눈이 하나뿐이라 성립하지 않는다. 정면이어도
+ * 개미로 읽히는 건 표식을 그대로 두기 때문이다: 위로 뻗은 더듬이 두 개, 아래턱의
+ * 집게(큰턱) 한 쌍, 그리고 몸과 **같은 계산에서 갈라진 껍질 색**(`antTones`).
+ *
+ * 표정은 우는 개구리 밈에서 가져왔다 — 눈을 얼굴 절반만큼 키우고, 눈동자를 꽉 채운 뒤
+ * 흰 반짝임을 큰 것·작은 것 두 개 박는다. 입은 다문 채 지그재그로 떨린다(우는 걸 참는
+ * 입). **눈물은 여기 없다** — 줄줄 흐르는 건 시간이 있어야 하는 그림이라 무대가 그린다.
  *
  * **몸(POSES)과 함께 고칠 것.** 얼굴만 고치면 짤 안에서 클로즈업 컷과 전신 컷이
  * 다른 개미가 된다.
  *
  *  .  투명   n 더듬이   H 이마(빛)   h 얼굴   s 턱(그늘)
- *  b  눈썹   w 흰자     p 눈동자     g 눈빛   m 벌린 입
+ *  b  눈꺼풀·큰턱   w 흰자   p 눈동자   g 눈빛   m 다문 입
  */
 const FACE: readonly string[] = [
-  ".......n...............n........",
-  "........n.............n.........",
-  ".........n...........n..........",
-  "..........n.........n...........",
-  "...........n.......n............",
-  "............hhhhhhh.............",
-  "..........HHHHHHhhhhh...........",
-  ".........HHHHHHhhhhhhhh.........",
-  "........HHHHHHhhhhhbbbbb........",
-  ".......HHHHHHhbbbbbbhhhhh.......",
-  "......HHHHHHhhhhwwwwhhhhhh......",
-  "......HHHHHHhhhgwwwwwhhhhhh.....",
-  ".....HHHHHHhhhwwwwwwwwhhhhh.....",
-  ".....HHHHHHhhhwwwpppwwhhhhhh....",
-  "....HHHHHHhhhhhwwpppwhhhhhhh....",
-  "....hhhhhhhhhhhhwppphhhhhhhhb...",
-  "....hhhhhhhhhhhhhhhhhhhhhhhhhhb.",
-  "....hhhhhhhhhhhhhhhhhhhhhhhhhhhb",
-  "....hhhhhhhhhhhhhhhhhhhhhhhhhhbb",
-  "....hhhhhhhhhhhhhhhhhhhhhhhhbb..",
-  ".....hhhhhhhhhhhhhhmmmmmmmmm....",
-  ".....ssssshhhhhhhhmmmmmmmm......",
-  "......ssssshhhhhhhmmmmmm........",
-  "......ssssshhhhhhhhmmmm.........",
-  ".......ssssshhhhhhhhh...........",
-  "........sssssssssss.............",
-  ".........ssssssss...............",
-  "...........ssss.................",
+  "......n..................n......",
+  ".......n................n.......",
+  "........n..............n........",
+  ".........n............n.........",
+  "..........n..........n..........",
+  "...........n........n...........",
+  "...........hhhhhhhhhh...........",
+  ".........hhhhhhhhhhhhhh.........",
+  ".......HHHHhhhhhhhhhhhhhh.......",
+  "......Hbbbbbbbhhhhbbbbbbbh......",
+  ".....HHHhwwwwhhhhhhwwwwhhhh.....",
+  "....HHHhwwwwwwhhhhwwwwwwhhhh....",
+  "....HHhwwggpppwhhwggpppwwhhh....",
+  "...hhhhwpggpppwhhwpggpppwhhhh...",
+  "...hhhhwppppppwhhwppppppwhhhh...",
+  "...hhhhwppppppwhhwppppppwhhhh...",
+  "...hhhhwwpppgwwhhwwpppgwwhhhh...",
+  "....hhhhwwpppwhhhhwpppwwhhhh....",
+  "....hhhhhwwwwhhhhhhwwwwhhhhh....",
+  ".....hhhhhhhhhhhhhhhhhhhhhh.....",
+  "......hhhhhhhhhhhhhhhhhhhh......",
+  ".......hhmmmhmmmhmmmhmmmh.......",
+  "........hhmmmhmmmhmmmhmm........",
+  ".........ssssssssssssss.........",
+  "..........bbssssssssbb..........",
+  "...........bbssssssbb...........",
+  ".............bssssb.............",
+  "................................",
   "................................",
   "................................",
   "................................",
@@ -381,21 +388,24 @@ const FACE: readonly string[] = [
  */
 const FACE_BLINK_FROM = 10;
 const FACE_BLINK: readonly string[] = [
-  "......HHHHHHhhhhhhhhhhhhhh......",
-  "......HHHHHHhhhhhhhhhhhhhhh.....",
-  ".....HHHHHHhhhpppppppphhhhh.....",
-  ".....HHHHHHhhhhphhhhhphhhhhh....",
-  "....HHHHHHhhhhhhhhhhhhhhhhhh....",
-  "....hhhhhhhhhhhhhhhhhhhhhhhhb...",
+  ".....HHHhhhhhhhhhhhhhhhhhhh.....",
+  "....HHHhhhhhhhhhhhhhhhhhhhhh....",
+  "....HHhhhhhppphhhhppphhhhhhh....",
+  "...hhhhhhpphhhhhhhhhhpphhhhhh...",
+  "...hhhhpphhhhhhhhhhhhhhpphhhh...",
+  "...hhhhhhhhhhhhhhhhhhhhhhhhhh...",
+  "...hhhhhhhhhhhhhhhhhhhhhhhhhh...",
+  "....hhhhhhhhhhhhhhhhhhhhhhhh....",
+  "....hhhhhhhhhhhhhhhhhhhhhhhh....",
 ];
 
 export const ANT_FACE_GRID = 32;
 
-/** 클로즈업 얼굴에서 눈물이 시작되는 자리 (얼굴 격자 기준, 눈 아래 앞쪽) */
-export const ANT_FACE_TEAR = { x: 15, y: 16 } as const;
-
-/** 눈물이 볼을 타고 흘러 떨어지는 턱 끝 (얼굴 격자 기준) */
-export const ANT_FACE_JAW = { x: 13, y: 24 } as const;
+/** 클로즈업 얼굴에서 눈물이 쏟아지는 두 눈의 아래 끝 (얼굴 격자 기준) */
+export const ANT_FACE_EYES = [
+  { x: 10, y: 18 },
+  { x: 21, y: 18 },
+] as const;
 
 export interface AntFacePalette {
   head: string;
@@ -422,8 +432,7 @@ export function antFacePalette(stage: number): AntFacePalette {
     sclera: hsl(40, 18, 90),
     pupil: hsl(hue, 26, 13),
     glint: "#ffffff",
-    mouth: hsl(hue, 34, 15),
-    // 눈동자에 물기를 더하고 싶으면 무대가 glint 위에 덧그린다 (눈물은 움직이므로).
+    mouth: hsl(hue, 34, 8),
   };
 }
 
