@@ -18,7 +18,6 @@ import { useEffect, useRef, useState } from "react";
 import { track } from "@/lib/analytics";
 import { copyText } from "@/lib/clipboard";
 import {
-  MAX_INPUT_SHARES,
   MAX_INPUT_WON,
   capNumericInput,
   formatNumericInput,
@@ -36,7 +35,7 @@ import { CandleScene } from "./candle-scene";
 import { Countdown } from "./countdown";
 import { nudgeTier, pickNudgeLine } from "./nudge-lines";
 import { NumericKeypad } from "./numeric-keypad";
-import { CUSTOM_QUANTITY, QUANTITY_OPTIONS, QuantityPicker } from "./quantity-picker";
+import { QUANTITY_OPTIONS, QuantityPicker } from "./quantity-picker";
 import { StageMeter } from "./stage-meter";
 import { StoryExportButton } from "./story-export";
 
@@ -191,6 +190,42 @@ export function Dashboard({
           mood={status.mood}
         />
       </div>
+
+      {/* 앱 밖(인스타 계정)으로 나가는 링크 — 공유 두 갈래보다 한 발 물러난 무게로 둔다. */}
+      <a
+        href="https://www.instagram.com/yungchaants"
+        target="_blank"
+        rel="noreferrer"
+        className="btn-ghost mt-3 flex w-full items-center justify-center gap-2"
+        style={{ color: "var(--fg)" }}
+      >
+        {/* 인스타 앱 아이콘 — 브랜드 그라데이션 타일 위에 흰 카메라 글리프. */}
+        <svg width="24" height="24" viewBox="0 0 24 24" aria-hidden>
+          <defs>
+            <radialGradient id="ig-gradient" cx="0.3" cy="1.07" r="1.2">
+              <stop offset="0" stopColor="#fdf497" />
+              <stop offset="0.05" stopColor="#fdf497" />
+              <stop offset="0.45" stopColor="#fd5949" />
+              <stop offset="0.6" stopColor="#d6249f" />
+              <stop offset="0.9" stopColor="#285aeb" />
+            </radialGradient>
+          </defs>
+          <rect x="1" y="1" width="22" height="22" rx="6" fill="url(#ig-gradient)" />
+          <rect
+            x="5.6"
+            y="5.6"
+            width="12.8"
+            height="12.8"
+            rx="3.4"
+            fill="none"
+            stroke="#fff"
+            strokeWidth="1.6"
+          />
+          <circle cx="12" cy="12" r="3" fill="none" stroke="#fff" strokeWidth="1.6" />
+          <circle cx="16.1" cy="7.9" r="1" fill="#fff" />
+        </svg>
+        영차Ants 인스타 구경가기
+      </a>
 
       <button
         className="btn-ghost mt-3 w-full"
@@ -358,28 +393,25 @@ function AveragingSheet({
    * 10주가 아무도 안 고른 채 조용히 확정된다)도 온보딩 `PositionStep`과 같은 규칙이다.
    */
   const [quantitySelect, setQuantitySelect] = useState("10");
-  const [customQuantity, setCustomQuantity] = useState("");
   const [quantityOpen, setQuantityOpen] = useState(false);
   const [quantityPicked, setQuantityPicked] = useState(false);
 
-  const custom = quantitySelect === CUSTOM_QUANTITY;
   const price = parseNumericInput(priceInput);
-  const quantity = Math.floor(
-    parseNumericInput(custom ? customQuantity : quantitySelect),
-  );
+  // 버리지도 반올림하지도 않는다 — 시트의 직접입력은 소수점 수량(0.5주)을 받는다.
+  const quantity = parseNumericInput(quantitySelect);
   const valid = price > 0 && quantity > 0;
 
   const watering = price > 0 && price < position.avgPrice;
   const plan = price > 0 ? halfwayAveragingPlan(position, price) : null;
 
   // "N주 넣어보기"가 넣는 수량(=지금 보유 수량)은 기본 목록에 없을 수 있고, 고른 뒤
-  // 단가를 바꾸면 plan이 달라져 고른 값이 목록에서 빠질 수도 있다 — 둘 다 끼워 넣어야
-  // 휠을 다시 열었을 때 고른 줄이 가운데 온다.
+  // 단가를 바꾸면 plan이 달라져 고른 값이 목록에서 빠질 수도 있다. 직접입력으로 적은
+  // 소수점 수량도 마찬가지다 — 다 끼워 넣어야 휠을 다시 열었을 때 고른 줄이 가운데 온다.
   const quantityOptions = [
     ...new Set([
       ...QUANTITY_OPTIONS,
       ...(plan ? [plan.shares] : []),
-      ...(!custom && quantity > 0 ? [quantity] : []),
+      ...(quantity > 0 ? [quantity] : []),
     ]),
   ].sort((a, b) => a - b);
 
@@ -413,10 +445,11 @@ function AveragingSheet({
   useLockedBodyScroll();
 
   /*
-   * 커스텀 키패드가 지금 편집하는 칸. 온보딩 평단가 화면과 같은 물건 — 시트가 바닥에
-   * 붙어 있어 키패드가 아랫부분을 덮으므로, 뜰 때 버튼줄까지 굴려 올려 보여준다.
+   * 커스텀 키패드의 여닫음. 온보딩 평단가 화면과 같은 물건 — 시트가 바닥에 붙어 있어
+   * 키패드가 아랫부분을 덮으므로, 뜰 때 버튼줄까지 굴려 올려 보여준다. 수량은 칸이
+   * 아니라 시트(휠·직접입력)가 통째로 받으므로 이 키패드가 편집하는 칸은 단가 하나뿐이다.
    */
-  const [keypadTarget, setKeypadTarget] = useState<"price" | "quantity" | null>(null);
+  const [keypadTarget, setKeypadTarget] = useState<"price" | null>(null);
 
   const closeKeypad = () => {
     const focused = document.activeElement;
@@ -424,9 +457,19 @@ function AveragingSheet({
     setKeypadTarget(null);
   };
 
+  const priceRef = useRef<HTMLInputElement>(null);
+
+  /*
+   * 수량 시트가 **어느 길로 열렸나** — 키패드의 "다음"으로 왔으면 시트의 [이전]이
+   * 단가 키패드를 도로 열어야 하고, 수량 칸을 직접 눌러 왔으면 시트 화면으로 돌아가면
+   * 된다 (온보딩 PositionStep과 같은 규칙).
+   */
+  const quantityFromKeypad = useRef(false);
+
   const openQuantity = () => {
     // 키패드를 먼저 접는다 — 수량 휠도 바닥에 붙어 뜨는 물건이라 겹치면 가린다.
     closeKeypad();
+    quantityFromKeypad.current = true;
     setQuantityOpen(true);
   };
 
@@ -516,6 +559,7 @@ function AveragingSheet({
             <span className="min-w-0 truncate">{koreanWon(price)}</span>
           </span>
           <input
+            ref={priceRef}
             className={`rounded-xl border border-[color:var(--line)] bg-transparent px-4 py-3 tabular-nums outline-none ${
               keypadTarget === "price" ? "keypad-target" : ""
             }`}
@@ -531,43 +575,32 @@ function AveragingSheet({
 
         <label className="mt-3 flex flex-col gap-1.5">
           <span className="text-xs text-[color:var(--muted)]">매수할 주식의 수량 (주)</span>
-          {custom ? (
-            <input
-              className={`rounded-xl border border-[color:var(--line)] bg-transparent px-4 py-3 tabular-nums outline-none ${
-                keypadTarget === "quantity" ? "keypad-target" : ""
-              }`}
-              inputMode="none"
-              placeholder={plan ? formatNumericInput(String(plan.shares)) : "10"}
-              autoFocus
-              value={customQuantity}
-              onFocus={() => setKeypadTarget("quantity")}
-              onClick={() => setKeypadTarget("quantity")}
-              onChange={(event) =>
-                setCustomQuantity(capNumericInput(event.target.value, MAX_INPUT_SHARES))
+          {/* 직접입력(소수점 포함)도 시트 안에서 받는다 — 칸에는 입력이 안 뜬다. */}
+          <QuantityPicker
+            className="rounded-xl border border-[color:var(--line)] bg-transparent px-4 py-3 text-left tabular-nums"
+            options={quantityOptions}
+            value={quantitySelect}
+            title="몇 주 더 살까?"
+            open={quantityOpen}
+            onOpenChange={(open) => {
+              // 피커의 제 버튼으로 열 때도 키패드를 먼저 접는다 — 겹치면 휠이 가린다.
+              if (open) {
+                closeKeypad();
+                quantityFromKeypad.current = false;
               }
-              onBlur={() => {
-                // 빈 채로 접으면 휠로 돌아갈 길이 없다 — 피커로 되돌린다 (온보딩과 같은 규칙).
-                if (parseNumericInput(customQuantity) <= 0) setQuantitySelect("10");
-              }}
-            />
-          ) : (
-            <QuantityPicker
-              className="rounded-xl border border-[color:var(--line)] bg-transparent px-4 py-3 text-left tabular-nums"
-              options={quantityOptions}
-              value={quantitySelect}
-              title="몇 주 더 살까?"
-              open={quantityOpen}
-              onOpenChange={(open) => {
-                // 피커의 제 버튼으로 열 때도 키패드를 먼저 접는다 — 겹치면 휠이 가린다.
-                if (open) closeKeypad();
-                setQuantityOpen(open);
-              }}
-              onSelect={(next) => {
-                setQuantitySelect(next);
-                setQuantityPicked(true);
-              }}
-            />
-          )}
+              setQuantityOpen(open);
+            }}
+            onBack={() => {
+              setQuantityOpen(false);
+              // 키패드의 "다음"으로 온 길이면 단가 키패드로 되돌린다 —
+              // focus가 나면 onFocus가 키패드를 다시 연다.
+              if (quantityFromKeypad.current) priceRef.current?.focus();
+            }}
+            onSelect={(next) => {
+              setQuantitySelect(next);
+              setQuantityPicked(true);
+            }}
+          />
         </label>
 
         <dl className="mt-4 grid grid-cols-2 gap-y-1.5 text-sm">
@@ -662,12 +695,8 @@ function AveragingSheet({
             {/* 키패드가 시트 아랫부분을 덮는 만큼 안쪽 스크롤 자리를 비워둔다. */}
             <div className="keypad-space" aria-hidden />
             <NumericKeypad
-              value={keypadTarget === "price" ? priceInput : customQuantity}
-              onChange={(draft) =>
-                keypadTarget === "price"
-                  ? setPriceInput(capNumericInput(draft, MAX_INPUT_WON))
-                  : setCustomQuantity(capNumericInput(draft, MAX_INPUT_SHARES))
-              }
+              value={priceInput}
+              onChange={(draft) => setPriceInput(capNumericInput(draft, MAX_INPUT_WON))}
               submitLabel={keypadLabel}
               submitDisabled={confirmDisabled}
               onSubmit={advance}

@@ -17,7 +17,6 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { track } from "@/lib/analytics";
 import {
   MAX_INPUT_MANWON,
-  MAX_INPUT_SHARES,
   MAX_INPUT_WON,
   capNumericInput,
   formatNumericInput,
@@ -26,16 +25,22 @@ import {
   parseNumericInput,
 } from "@/lib/format";
 import { useKeyboardInset } from "@/lib/keyboard-inset";
+import { useStoredState } from "@/lib/storage";
 import { searchTickers } from "@/lib/tickers";
 import { useQuote } from "@/lib/use-quote";
+import { z } from "zod";
 
 import { CandleScene } from "./candle-scene";
 import { Hero } from "./hero";
 import { NumericKeypad } from "./numeric-keypad";
-import { CUSTOM_QUANTITY, QUANTITY_OPTIONS, QuantityPicker } from "./quantity-picker";
+import { PrivacyNoticeSheet, todayStamp } from "./privacy-notice";
+import { QUANTITY_OPTIONS, QuantityPicker } from "./quantity-picker";
 import { TickerLogo } from "./ticker-logo";
 
 type Step = "salary" | "search" | "position";
+
+/** "오늘 다시 보지 않음"을 체크한 날의 도장 (todayStamp). 다른 날이 되면 다시 뜬다. */
+const privacyNoticeHiddenSchema = z.string();
 
 export function Onboarding({
   onComplete,
@@ -50,6 +55,19 @@ export function Onboarding({
   // 숫자 입력은 커스텀 키패드로 받으므로, 네이티브 키보드가 뜨는 건 종목 검색뿐이다 —
   // 글자 키보드가 화면을 가린 만큼 아래를 늘려(.kb-pad) 굴릴 자리를 만든다.
   useKeyboardInset();
+
+  /*
+   * 들어올 때마다 뜨는 개인정보 안내. 연봉을 적으라는 화면이 첫 화면이라, 입력을
+   * 시키기 전에 "어디로도 안 나간다"부터 답한다. "오늘 다시 보지 않음"을 체크하고
+   * 닫은 날짜가 기기에 남고, 그날 하루는 다시 안 뜬다.
+   */
+  const [noticeHiddenDate, setNoticeHiddenDate, noticeLoaded] = useStoredState(
+    "yca.privacyNoticeHiddenDate",
+    privacyNoticeHiddenSchema,
+    "",
+  );
+  // 이번 화면에서 이미 닫았나 — 체크 없이 닫아도 같은 세션에서 또 뜨진 않는다.
+  const [noticeDismissed, setNoticeDismissed] = useState(false);
 
   // 입력은 세전 연봉이고, 저장·계산에 쓰이는 시급은 실수령 기준이다.
   // 무일푼은 연봉 0으로 저장한다 — 환산은 shared가 최저임금으로 대신 처리한다.
@@ -117,6 +135,16 @@ export function Onboarding({
             });
             setTicker(selected);
             setStep("position");
+          }}
+        />
+      )}
+
+      {/* localStorage를 읽기 전(noticeLoaded 전)에 그리면 오늘 숨긴 사람에게도 깜빡 뜬다. */}
+      {noticeLoaded && !noticeDismissed && noticeHiddenDate !== todayStamp() && (
+        <PrivacyNoticeSheet
+          onClose={(hideToday) => {
+            if (hideToday) setNoticeHiddenDate(todayStamp());
+            setNoticeDismissed(true);
           }}
         />
       )}
@@ -669,7 +697,6 @@ function PositionStep({
 }) {
   const [avgPriceInput, setAvgPriceInput] = useState("");
   const [quantitySelect, setQuantitySelect] = useState("10");
-  const [customQuantity, setCustomQuantity] = useState("");
   /*
    * 수량 시트를 **바깥에서 연다.** 이 화면은 평단가를 치고 나면 곧바로 수량을 물어야
    * 이어지는데, 시트가 제 버튼으로만 열리면 그 흐름을 만들 수가 없다.
@@ -688,21 +715,26 @@ function PositionStep({
   // 평단가를 적기도 전에 손익을 흘리면 봉 없는 대기 화면과 어긋난다.
   const previousClose = useQuote(ticker.symbol)?.previousClose ?? null;
 
-  const custom = quantitySelect === CUSTOM_QUANTITY;
   const avgPrice = parseNumericInput(avgPriceInput);
-  const quantity = Math.floor(
-    parseNumericInput(custom ? customQuantity : quantitySelect),
-  );
+  // 버리지도 반올림하지도 않는다 — 직접입력은 소수점 수량(0.5주)을 받는다.
+  const quantity = parseNumericInput(quantitySelect);
   const costBasis = useMemo(() => avgPrice * quantity, [avgPrice, quantity]);
   const valid = avgPrice > 0 && quantity > 0;
+
+  // 직접입력으로 적은 수량(예: 3.5)은 기본 목록에 없다 — 끼워 넣어야 휠을 다시
+  // 열었을 때 고른 줄이 가운데 온다.
+  const quantityOptions = [
+    ...new Set([...QUANTITY_OPTIONS, ...(quantity > 0 ? [quantity] : [])]),
+  ].sort((a, b) => a - b);
 
   const priceRef = useRef<HTMLInputElement>(null);
 
   /*
-   * 커스텀 키패드가 지금 편집하는 칸. 칸의 focus가 정하고, 흐름(수량 시트 열기)과
-   * ▾가 null로 되돌린다. 두 칸이 같은 키패드를 나눠 쓰므로 "어느 칸인가"까지 쥔다.
+   * 커스텀 키패드의 여닫음. 평단가 칸의 focus가 열고, 흐름(수량 시트 열기)과 ▾가
+   * null로 되돌린다. 수량은 칸이 아니라 시트(휠·직접입력)가 통째로 받으므로
+   * 이 키패드가 편집하는 칸은 평단가 하나뿐이다.
    */
-  const [keypadTarget, setKeypadTarget] = useState<"price" | "quantity" | null>(null);
+  const [keypadTarget, setKeypadTarget] = useState<"price" | null>(null);
 
   // 키패드가 뜰 때 가려지면 안 되는 묶음 — 입력칸들과 곁줄(전일 종가·매수 원금).
   const fieldsRef = useRef<HTMLDivElement>(null);
@@ -714,9 +746,16 @@ function PositionStep({
     setKeypadTarget(null);
   };
 
+  /*
+   * 수량 시트가 **어느 길로 열렸나** — 키패드의 "다음"으로 왔으면 시트의 [이전]이
+   * 평단가 키패드를 도로 열어야 하고, 수량 칸을 직접 눌러 왔으면 페이지로 돌아가면 된다.
+   */
+  const quantityFromKeypad = useRef(false);
+
   const openQuantity = () => {
     // 키패드를 먼저 접는다 — 수량 시트도 바닥에 붙어 뜨는 물건이라 겹치면 휠이 가린다.
     closeKeypad();
+    quantityFromKeypad.current = true;
     setQuantityOpen(true);
   };
 
@@ -800,41 +839,31 @@ function PositionStep({
 
             <label className="flex min-w-0 flex-[2] flex-col gap-1.5">
               <span className="text-xs text-[color:var(--muted)]">수량 (주)</span>
-              {custom ? (
-                <input
-                  className={`${FIELD_CLASS} px-2 text-center text-base ${
-                    keypadTarget === "quantity" ? "keypad-target" : ""
-                  }`}
-                  inputMode="none"
-                  placeholder="주"
-                  autoFocus
-                  value={customQuantity}
-                  onFocus={() => setKeypadTarget("quantity")}
-                  onClick={() => setKeypadTarget("quantity")}
-                  onChange={(event) =>
-                    setCustomQuantity(capNumericInput(event.target.value, MAX_INPUT_SHARES))
+              {/* 직접입력(소수점 포함)도 시트 안에서 받는다 — 칸에는 입력이 안 뜬다. */}
+              <QuantityPicker
+                className={`${FIELD_CLASS} px-2 text-center text-base`}
+                options={quantityOptions}
+                value={quantitySelect}
+                open={quantityOpen}
+                onOpenChange={(open) => {
+                  // 피커의 제 버튼으로 열 때도 키패드를 먼저 접는다 — 겹치면 휠이 가린다.
+                  if (open) {
+                    closeKeypad();
+                    quantityFromKeypad.current = false;
                   }
-                  onBlur={() => {
-                    if (parseNumericInput(customQuantity) <= 0) setQuantitySelect("10");
-                  }}
-                />
-              ) : (
-                <QuantityPicker
-                  className={`${FIELD_CLASS} px-2 text-center text-base`}
-                  options={QUANTITY_OPTIONS}
-                  value={quantitySelect}
-                  open={quantityOpen}
-                  onOpenChange={(open) => {
-                    // 피커의 제 버튼으로 열 때도 키패드를 먼저 접는다 — 겹치면 휠이 가린다.
-                    if (open) closeKeypad();
-                    setQuantityOpen(open);
-                  }}
-                  onSelect={(next) => {
-                    setQuantitySelect(next);
-                    setQuantityPicked(true);
-                  }}
-                />
-              )}
+                  setQuantityOpen(open);
+                }}
+                onBack={() => {
+                  setQuantityOpen(false);
+                  // 키패드의 "다음"으로 온 길이면 평단가 키패드로 되돌린다 —
+                  // focus가 나면 onFocus가 키패드를 다시 연다.
+                  if (quantityFromKeypad.current) priceRef.current?.focus();
+                }}
+                onSelect={(next) => {
+                  setQuantitySelect(next);
+                  setQuantityPicked(true);
+                }}
+              />
             </label>
           </div>
 
@@ -887,12 +916,8 @@ function PositionStep({
           <>
             <div className="keypad-space" aria-hidden />
             <NumericKeypad
-              value={keypadTarget === "price" ? avgPriceInput : customQuantity}
-              onChange={(draft) =>
-                keypadTarget === "price"
-                  ? setAvgPriceInput(capNumericInput(draft, MAX_INPUT_WON))
-                  : setCustomQuantity(capNumericInput(draft, MAX_INPUT_SHARES))
-              }
+              value={avgPriceInput}
+              onChange={(draft) => setAvgPriceInput(capNumericInput(draft, MAX_INPUT_WON))}
               submitLabel={confirmLabel}
               submitDisabled={confirmDisabled}
               onSubmit={advance}

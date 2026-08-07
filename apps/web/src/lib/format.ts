@@ -118,7 +118,7 @@ export const MAX_INPUT_WON = 10_000_000_000;
 export const MAX_INPUT_MANWON = MAX_INPUT_WON / 10_000;
 
 /**
- * 수량 입력 상한 — 천만 주. 피커 목록은 1만 주에서 끝나고 그 위는 "직접 적기"로 받는데,
+ * 수량 입력 상한 — 천만 주. 피커 목록은 1만 주에서 끝나고 그 위는 "직접입력"으로 받는데,
  * 거기가 뚫려 있으면 자릿수를 잘못 친 값이 그대로 들어와 손익이 억 단위로 어긋난다.
  */
 export const MAX_INPUT_SHARES = 10_000_000;

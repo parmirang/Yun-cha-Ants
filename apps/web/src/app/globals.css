@@ -278,6 +278,75 @@ button {
   border-top-color: var(--fg);
 }
 
+/* ── 개인정보 안내 시트 ───────────────────────────── */
+
+/*
+ * 방패 둘레의 반짝임 (privacy-notice.tsx). 배경 날씨의 반짝이(.scene-spark)와
+ * 같은 색·같은 박자(keyframes 재사용)라 앱 안에서 "반짝인다"가 한 가지로 보인다.
+ */
+.shield-spark {
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border-radius: 1px;
+  background: #ffe9a8;
+  animation: scene-spark 2.4s ease-in-out infinite;
+}
+
+/* 개미 왼손의 양봉 칼 — 장대 양봉이 검이 됐다. 아래위로 흔들어 "지킨다"에 기세를 더한다. */
+.candle-sword {
+  position: absolute;
+  animation: candle-sword-wave 1.15s ease-in-out infinite;
+}
+
+/*
+ * 칼을 쥔 팔의 뻗은 토막 — 칼과 같은 박자(주기·완급)로 움직여야 한 몸으로 흔들린다.
+ *
+ * keyframes가 **따로**인 건 좌표계가 달라서다. 칼은 HTML에 떠 있어 px가 화면
+ * 픽셀이지만, 팔은 SVG 안의 <g>라 px가 viewBox **좌표 단위**로 풀린다 (여기 1단위
+ * ≈ 화면 7.7px). 같은 keyframes를 태우면 팔만 일곱 배 널뛴다 — 화면상 같은 거리
+ * (약 6px)가 되도록 값을 단위로 환산해 둘을 맞춘다.
+ */
+.candle-sword-arm {
+  animation: candle-sword-arm-wave 1.15s ease-in-out infinite;
+}
+
+@keyframes candle-sword-arm-wave {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-0.8px);
+  }
+}
+
+/*
+ * 이동량은 %가 아니라 px다 — %는 제 요소 높이 기준이라 키 큰 칼과 세 칸짜리 팔이
+ * 서로 다른 거리를 움직여, 흔들 때마다 손에서 칼이 미끄러진다.
+ */
+@keyframes candle-sword-wave {
+  0%,
+  100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-6px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .shield-spark {
+    animation: none;
+    opacity: 0.8;
+  }
+
+  .candle-sword,
+  .candle-sword-arm {
+    animation: none;
+  }
+}
+
 /* ── 배경 날씨 ────────────────────────────────────── */
 
 /*
@@ -468,11 +537,11 @@ button {
  *
  * 높이를 상수로 둔 건 `.keypad-space`가 **같은 높이를 비워둬야** 하기 때문이다 —
  * 그 자리를 안 비우면 화면 끝의 내용이 키패드 뒤에 깔린 채 굴릴 방법이 없다.
- * 접는 줄(1.5) + 간격(0.5) + 키 네 줄(4×3.25 + 3×0.5) + 위아래 패딩(0.5 + 0.625).
- * 키 높이나 간격을 바꾸면 이 값도 같이 고칠 것.
+ * 접는 줄(1.5+간격 0.5) + 키 네 줄(4×3.25 + 3×0.5) + 간격(0.5) + 버튼줄(3.25)
+ * + 위아래 패딩(0.5 + 0.625). 키·버튼 높이나 간격을 바꾸면 이 값도 같이 고칠 것.
  */
 :root {
-  --keypad-h: calc(17.625rem + env(safe-area-inset-bottom));
+  --keypad-h: calc(21.375rem + env(safe-area-inset-bottom));
 }
 
 .keypad {
@@ -503,7 +572,7 @@ button {
   gap: 0.5rem;
 }
 
-/* 키패드를 접는 ▾. 네이티브 키보드의 내리기 버튼이 하던 일이다. */
+/* 키패드를 접는 ▾ — 네이티브 키보드의 내리기 버튼이 하던 일. */
 .keypad-dismiss {
   height: 1.5rem;
   display: flex;
@@ -511,6 +580,14 @@ button {
   justify-content: center;
   border-radius: 0.5rem;
   color: var(--muted);
+}
+
+/* 키 아래 [닫기][확정] 버튼줄 — 위 숫자 패드와 **같은 3열 그리드**를 깔아 닫기는 1열,
+   확정은 2~3열을 차지한다. 열과 간격이 같아야 버튼 모서리가 키 모서리와 나란히 선다. */
+.keypad-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 0.5rem;
 }
 
 .keypad-grid {

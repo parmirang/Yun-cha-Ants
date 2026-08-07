@@ -5,8 +5,12 @@ export const positionSchema = z.object({
   name: z.string().min(1),
   /** 매수 평단가 (원) */
   avgPrice: z.number().positive(),
-  /** 보유 수량 (주) */
-  quantity: z.number().int().positive(),
+  /**
+   * 보유 수량 (주). **정수를 강제하지 않는다** — 소수점 거래(0.5주)를 받는다.
+   * 여기에 `.int()`를 되살리면 소수점 수량을 저장한 사람의 localStorage가
+   * 다음 접속에서 검증에 걸려 **통째로 초기화**된다.
+   */
+  quantity: z.number().positive(),
 });
 
 export type Position = z.infer<typeof positionSchema>;
@@ -37,7 +41,9 @@ export function averageIn(
   return {
     ...position,
     avgPrice: totalCost / totalQuantity,
-    quantity: totalQuantity,
+    // 소수점 수량은 부동소수 꼬리가 붙는다 (0.1 + 0.2 = 0.30000000000000004).
+    // 화면이 이 값을 "N주"로 그대로 적으므로 여기서 6자리로 잘라둔다.
+    quantity: Math.round(totalQuantity * 1e6) / 1e6,
   };
 }
 
