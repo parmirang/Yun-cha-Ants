@@ -271,7 +271,10 @@ function SalaryStep({
         ) : (
           <>
             계약서에 적힌 <strong className="text-[color:var(--fg)]">세전 연봉</strong>을 만원
-            단위로 넣어줘. 세금과 4대보험을 뺀 실수령 기준으로 시급을 계산할게.
+            단위로 넣어줘.
+            <br />
+            세금과 4대보험을 뺀 실수령 기준으로 시급을 계산할게.{" "}
+            <span className="text-[color:var(--fg)]">걱정마. 이 정보는 절대 공유하지 않아.</span>
           </>
         )}
       </p>
