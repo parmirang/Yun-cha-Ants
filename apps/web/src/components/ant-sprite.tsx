@@ -275,6 +275,21 @@ export interface AntPalette {
 }
 
 /**
+ * 껍질 색의 원본 값. 몸(16×16)과 얼굴(32×32)이 **같은 계산에서 갈라져야** 클로즈업으로
+ * 넘어갈 때 같은 개미로 보인다 — 색을 두 곳에서 따로 만들면 얼굴만 서서히 다른 벌레가 된다.
+ */
+function antTones(stage: number) {
+  const t = Math.min(1, Math.max(0, stage / (STAGE_COUNT - 1)));
+
+  return { t, hue: 30 - t * 18, saturation: 8 + t * 54, lightness: 33 + t * 13 };
+}
+
+/** resvg는 소수점 hue를 거부하고 fill을 검정으로 떨군다 — 성분을 반드시 반올림해서 넘긴다. */
+function hsl(h: number, s: number, l: number): string {
+  return `hsl(${Math.round(h)}, ${Math.round(s)}%, ${Math.round(l)}%)`;
+}
+
+/**
  * 단계(0~49)에 따라 개미 껍질 색을 창백한 회갈색 → 윤기나는 붉은 개미로 보간한다.
  * 손실이 클수록 탈진한 것처럼 채도가 빠지고, 수익이 클수록 불개미처럼 붉어진다.
  *
@@ -282,13 +297,7 @@ export interface AntPalette {
  * 떨군다(브라우저는 멀쩡히 그린다). 모든 성분을 정수로 반올림해서 넘긴다.
  */
 export function antPalette(stage: number): AntPalette {
-  const t = Math.min(1, Math.max(0, stage / (STAGE_COUNT - 1)));
-  const hue = 30 - t * 18;
-  const saturation = 8 + t * 54;
-  const lightness = 33 + t * 13;
-
-  const hsl = (h: number, s: number, l: number) =>
-    `hsl(${Math.round(h)}, ${Math.round(s)}%, ${Math.round(l)}%)`;
+  const { t, hue, saturation, lightness } = antTones(stage);
 
   return {
     head: hsl(hue, saturation, lightness - 5),
@@ -312,6 +321,143 @@ const COLOR_KEY: Record<string, keyof AntPalette> = {
   n: "limb",
   e: "eye",
 };
+
+/* ── 클로즈업 얼굴 (32×32) ──────────────────────────── */
+
+/**
+ * 얼굴만 크게 잡을 때 쓰는 **두 배 해상도** 문자맵.
+ *
+ * 16×16 몸을 그냥 키우면 눈이 한 칸이라 표정이 없다 — 클로즈업은 도트를 키우는 게
+ * 아니라 **더 잘게 쪼개는** 것이라서, 같은 옆얼굴을 32칸에 다시 그렸다.
+ * 몸에서 이어지는 것: 오른쪽을 보는 옆뷰, 앞으로 뾰족한 입, 위로 뻗은 더듬이 두 개,
+ * 눈이 머리의 앞쪽 위에 붙는 위치. 새로 생기는 것: 눈썹·흰자·눈동자·벌린 입.
+ *
+ * **몸(POSES)과 함께 고칠 것.** 얼굴만 고치면 짤 안에서 클로즈업 컷과 전신 컷이
+ * 다른 개미가 된다.
+ *
+ *  .  투명   n 더듬이   H 이마(빛)   h 얼굴   s 턱(그늘)
+ *  b  눈썹   w 흰자     p 눈동자     g 눈빛   m 벌린 입
+ */
+const FACE: readonly string[] = [
+  ".......n...............n........",
+  "........n.............n.........",
+  ".........n...........n..........",
+  "..........n.........n...........",
+  "...........n.......n............",
+  "............hhhhhhh.............",
+  "..........HHHHHHhhhhh...........",
+  ".........HHHHHHhhhhhhhh.........",
+  "........HHHHHHhhhhhbbbbb........",
+  ".......HHHHHHhbbbbbbhhhhh.......",
+  "......HHHHHHhhhhwwwwhhhhhh......",
+  "......HHHHHHhhhgwwwwwhhhhhh.....",
+  ".....HHHHHHhhhwwwwwwwwhhhhh.....",
+  ".....HHHHHHhhhwwwpppwwhhhhhh....",
+  "....HHHHHHhhhhhwwpppwhhhhhhh....",
+  "....hhhhhhhhhhhhwppphhhhhhhhb...",
+  "....hhhhhhhhhhhhhhhhhhhhhhhhhhb.",
+  "....hhhhhhhhhhhhhhhhhhhhhhhhhhhb",
+  "....hhhhhhhhhhhhhhhhhhhhhhhhhhbb",
+  "....hhhhhhhhhhhhhhhhhhhhhhhhbb..",
+  ".....hhhhhhhhhhhhhhmmmmmmmmm....",
+  ".....ssssshhhhhhhhmmmmmmmm......",
+  "......ssssshhhhhhhmmmmmm........",
+  "......ssssshhhhhhhhmmmm.........",
+  ".......ssssshhhhhhhhh...........",
+  "........sssssssssss.............",
+  ".........ssssssss...............",
+  "...........ssss.................",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+];
+
+/**
+ * 눈을 꽉 감은 프레임 — 눈이 있는 줄(11~18)만 갈아끼운다.
+ *
+ * 얼굴을 통째로 한 벌 더 두지 않는 건 **머리 윤곽이 갈라지는 걸 막기 위해서다** —
+ * 두 벌을 손으로 맞춰두면 한쪽만 고쳤을 때 깜빡일 때마다 얼굴형이 미세하게 튄다.
+ */
+const FACE_BLINK_FROM = 10;
+const FACE_BLINK: readonly string[] = [
+  "......HHHHHHhhhhhhhhhhhhhh......",
+  "......HHHHHHhhhhhhhhhhhhhhh.....",
+  ".....HHHHHHhhhpppppppphhhhh.....",
+  ".....HHHHHHhhhhphhhhhphhhhhh....",
+  "....HHHHHHhhhhhhhhhhhhhhhhhh....",
+  "....hhhhhhhhhhhhhhhhhhhhhhhhb...",
+];
+
+export const ANT_FACE_GRID = 32;
+
+/** 클로즈업 얼굴에서 눈물이 시작되는 자리 (얼굴 격자 기준, 눈 아래 앞쪽) */
+export const ANT_FACE_TEAR = { x: 15, y: 16 } as const;
+
+/** 눈물이 볼을 타고 흘러 떨어지는 턱 끝 (얼굴 격자 기준) */
+export const ANT_FACE_JAW = { x: 13, y: 24 } as const;
+
+export interface AntFacePalette {
+  head: string;
+  highlight: string;
+  shade: string;
+  brow: string;
+  antenna: string;
+  sclera: string;
+  pupil: string;
+  glint: string;
+  mouth: string;
+}
+
+export function antFacePalette(stage: number): AntFacePalette {
+  const { hue, saturation, lightness } = antTones(stage);
+
+  return {
+    head: hsl(hue, saturation, lightness),
+    highlight: hsl(hue, saturation, lightness + 14),
+    shade: hsl(hue, saturation, lightness - 16),
+    brow: hsl(hue, saturation, lightness - 21),
+    antenna: hsl(hue, saturation, lightness - 13),
+    // 흰자는 껍질 색을 안 따른다 — 탈진한 단계에서 흰자까지 어두워지면 눈이 사라진다.
+    sclera: hsl(40, 18, 90),
+    pupil: hsl(hue, 26, 13),
+    glint: "#ffffff",
+    mouth: hsl(hue, 34, 15),
+    // 눈동자에 물기를 더하고 싶으면 무대가 glint 위에 덧그린다 (눈물은 움직이므로).
+  };
+}
+
+const FACE_KEY: Record<string, keyof AntFacePalette> = {
+  n: "antenna",
+  H: "highlight",
+  h: "head",
+  s: "shade",
+  b: "brow",
+  w: "sclera",
+  p: "pupil",
+  g: "glint",
+  m: "mouth",
+};
+
+/** 클로즈업 얼굴의 도트 좌표. `blink`면 눈 줄만 감은 것으로 바꿔 찍는다. */
+export function antFacePixels(stage: number, blink = false): AntPixel[] {
+  const palette = antFacePalette(stage);
+  const pixels: AntPixel[] = [];
+
+  FACE.forEach((row, y) => {
+    const source =
+      blink && y >= FACE_BLINK_FROM && y < FACE_BLINK_FROM + FACE_BLINK.length
+        ? (FACE_BLINK[y - FACE_BLINK_FROM] ?? row)
+        : row;
+
+    [...source].forEach((char, x) => {
+      const key = FACE_KEY[char];
+      if (key) pixels.push({ x, y, fill: palette[key] });
+    });
+  });
+
+  return pixels;
+}
 
 export interface AntPixel {
   x: number;

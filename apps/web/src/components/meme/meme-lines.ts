@@ -21,7 +21,7 @@
  * 문구를 고치면 `pnpm --filter @yca/web font`을 다시 돌린다.
  */
 
-export type MemeSceneId = "dig" | "ride" | "flood";
+export type MemeSceneId = "dig" | "ride" | "flood" | "face" | "cushion" | "coaster";
 
 /**
  * 1. 땅파기 — **왜 파고 있는지**를 답하는 줄이다. 해는 쨍쨍하고 땀은 흐르는데
@@ -74,10 +74,64 @@ export const FLOOD_LINES: readonly string[] = [
   "여기서 헤엄쳐 나가야 해",
 ];
 
+/**
+ * 4. 얼굴 클로즈업 — 화면에 얼굴밖에 없다. **말이 상황을 혼자 설명해야** 하므로,
+ * 눈물바다(다 잃은 뒤)와 달리 **떨어지는 중**을 말한다: 지금 파랗고, 지금 녹고 있다.
+ */
+export const FACE_LINES: readonly string[] = [
+  "파랗게 물들었어",
+  "계좌가 녹아내려",
+  "차트를 못 보겠어",
+  "저점이 어디야",
+  "손절해야 하나",
+  "빨간 날이 그리워",
+  "왜 나만 파란색이야",
+  "눈물이 멈추질 않아",
+  "장 열리자마자 이래",
+  "그만 좀 떨어져라",
+];
+
+/**
+ * 5. 돈방석 — 자랑이다. **액수는 말하지 않는다** (이 앱은 금액을 화면 밖으로 안 내보내고,
+ * 짤에는 숫자가 없다). 얼마인지 대신 **얼마나 여유로운지**로 자랑한다.
+ */
+export const CUSHION_LINES: readonly string[] = [
+  "훗 별거 아니야",
+  "이게 바로 복리지",
+  "돈방석 푹신하네",
+  "앉을 자리가 넉넉해",
+  "여왕개미도 부럽대",
+  "일개미 아니고 사장",
+  "이 정도는 돼야지",
+  "더 사둘걸 그랬나",
+  "곳간이 꽉 찼어",
+  "빨간불이 예쁘다",
+];
+
+/**
+ * 6. 롤러코스터 — 여러 마리가 함께 탄다. **개미 하나의 혼잣말이 아니라 서로 지르는 소리**라
+ * 명령형이 많다 (붙잡아라·물타라·불타라). 장 시작부터 끝까지가 한 바퀴다.
+ */
+export const COASTER_LINES: readonly string[] = [
+  "장 시작한다",
+  "꽉 붙잡아",
+  "물타라 물타라",
+  "불타라 불타라",
+  "손 놓으면 끝이야",
+  "내려주세요 제발",
+  "올라간다 올라가",
+  "안전바는 어딨어",
+  "다들 살아있지?",
+  "이번 칸은 파랗다",
+];
+
 export const MEME_LINES: Readonly<Record<MemeSceneId, readonly string[]>> = {
   dig: DIG_LINES,
   ride: RIDE_LINES,
   flood: FLOOD_LINES,
+  face: FACE_LINES,
+  cushion: CUSHION_LINES,
+  coaster: COASTER_LINES,
 };
 
 /**

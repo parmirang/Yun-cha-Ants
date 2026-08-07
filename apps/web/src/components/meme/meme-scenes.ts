@@ -8,19 +8,31 @@ import {
   seededRandom,
 } from "@/lib/pixel-canvas";
 
-import { ANT_EYE, type AntPose, antPixels } from "../ant-sprite";
+import {
+  ANT_EYE,
+  ANT_FACE_JAW,
+  ANT_FACE_TEAR,
+  type AntPose,
+  antFacePalette,
+  antFacePixels,
+  antPixels,
+} from "../ant-sprite";
 import { type MemeSceneId, pickMemeLine } from "./meme-lines";
 
 /**
- * 짤 세 판. 전부 **한 격자(108×192, 9:16)** 위에 절차적으로 그려지고,
+ * 짤 여섯 판. 전부 **한 격자(108×192, 9:16)** 위에 절차적으로 그려지고,
  * 시간만 넣으면 같은 그림이 나온다 (`draw(p, { time, seed })`).
  *
  * 시간을 인자로 받는 게 규칙이다 — 내부에 타이머나 상태를 두면 미리보기에서 본 화면과
  * 녹화된 영상이 어긋난다. 무작위가 필요한 곳(별자리·흙 얼룩·땀방울)은 `seededRandom`을
  * 쓰고, 씨앗은 "한 번의 촬영"을 뜻하는 `seed` 하나에서 갈라 쓴다.
  *
- * 세 판이 공유하는 것: 개미 몸(`ant-sprite`의 문자맵), 색 규칙(수익=빨강·손실=파랑),
+ * 판이 공유하는 것: 개미 몸(`ant-sprite`의 문자맵), 색 규칙(수익=빨강·손실=파랑),
  * 말풍선 박자(`BEAT_MS`). 나머지는 판마다 다르다 — 배경도 카메라도 물리도.
+ *
+ * **흔들리는 것은 `oscillator`를 거친다** — 한 바퀴에 정수 번 돌아야 반복 재생에서
+ * 이음매가 안 보인다. 반대로 봉이 자라거나 물이 차오르는 **일회성 움직임은 예외다**:
+ * 그건 장식이 아니라 이야기라, 한 바퀴가 끝나면 처음으로 되돌아가는 게 맞다.
  */
 
 export interface SceneFrame {
@@ -68,9 +80,25 @@ function speak(scene: MemeSceneId, frame: SceneFrame, x: number, y: number): Sce
   return { text: pickMemeLine(scene, frame.seed, beat), x, y, alpha: clamp01(alpha) };
 }
 
-/** 두 프레임을 초당 몇 번 갈아끼울지 */
+/**
+ * 두 프레임을 갈아끼운다. **주기는 루프 길이를 짝수로 나눠야 한다** — 한 바퀴에 홀수 번
+ * 뒤집히면 마지막 프레임과 첫 프레임의 자세가 서로 달라 이음매에서 개미가 튄다.
+ */
 function flip2(time: number, ms: number): boolean {
   return Math.floor(time / ms) % 2 === 0;
+}
+
+const TAU = Math.PI * 2;
+
+/**
+ * 루프 안에서 **정확히 정수 번** 도는 물결을 만든다.
+ *
+ * `Math.sin(t * 3)`처럼 흐른 초를 그대로 넣으면 한 바퀴 끝에서 값이 뚝 끊긴다 —
+ * 반복 재생되는 짤에서 제일 먼저 눈에 띄는 흠이라, 흔들리는 것은 전부 이걸 거친다.
+ * (봉이 자라거나 물이 차오르는 **일회성 움직임**은 예외다. 그건 이야기라 되돌아오지 않는다.)
+ */
+function oscillator(a: number) {
+  return (cycles: number, phase = 0) => Math.sin((a * cycles + phase) * TAU);
 }
 
 /* ════════════════════════════════════════════════════
@@ -103,23 +131,23 @@ const STRIKE_Y = DIG_TOP + 10 * DIG_SCALE;
 
 const dig: MemeScene = {
   id: "dig",
-  title: "땅 파는 개미",
+  title: "땅파기",
   blurb: "해는 쨍쨍, 땀은 뻘뻘. 그런데 왜 파고 있냐면..",
   loopMs: DIG_LOOP,
 
   draw(p, frame) {
-    const t = frame.time / 1000;
+    const osc = oscillator(frame.time / DIG_LOOP);
     const strike = (frame.time % STRIKE_MS) / STRIKE_MS;
     const random = seededRandom(frame.seed + 11);
 
     /* 하늘 — 위는 파랗고 지평선은 더위로 누렇다 */
     p.vGradient(0, DIG_GROUND, "#4aa8ea", "#ffdfae");
-    drawSun(p, 22, 22, t);
+    drawSun(p, 22, 22, frame.time / DIG_LOOP);
 
     /* 지평선 위로 아지랑이. 두 줄이 서로 어긋나게 흔들린다. */
     for (let i = 0; i < 5; i += 1) {
       const y = DIG_GROUND - 14 + (i % 2) * 5;
-      const x = 6 + i * 20 + Math.round(Math.sin(t * 2.4 + i) * 2);
+      const x = 6 + i * 20 + Math.round(osc(2, i / 5) * 2);
       p.rect(x, y, 7, 1, "#ffe9c4");
     }
 
@@ -202,7 +230,7 @@ const dig: MemeScene = {
      * 두 칸으로 키워야 "땀"으로 읽힌다.
      */
     for (let i = 0; i < 3; i += 1) {
-      const age = (frame.time + i * 380) % 1140;
+      const age = (frame.time + i * 400) % 1200;
       if (age > 900) continue;
 
       const x = DIG_LEFT + 7 * DIG_SCALE - age * 0.016;
@@ -216,11 +244,12 @@ const dig: MemeScene = {
 };
 
 /** 이글거리는 해 — 살은 길이가 숨쉬듯 늘었다 줄었다 한다 */
-function drawSun(p: Painter, cx: number, cy: number, t: number) {
+function drawSun(p: Painter, cx: number, cy: number, a: number) {
   for (let i = 0; i < 12; i += 1) {
-    const angle = (Math.PI * 2 * i) / 12 + t * 0.25;
+    // 살 간격(2칸)만큼만 돌린다 — 한 바퀴에 딱 두 칸이라 끝에서 처음으로 매끄럽게 이어진다.
+    const angle = (TAU * i) / 12 + a * (TAU / 12) * 2;
     const inner = 11;
-    const outer = inner + 3 + Math.sin(t * 3 + i * 1.7) * 2;
+    const outer = inner + 3 + Math.sin((a * 3 + i * 0.27) * TAU) * 2;
     p.line(
       cx + Math.cos(angle) * inner,
       cy + Math.sin(angle) * inner,
@@ -274,13 +303,13 @@ const RIDE_MOON = -190;
 
 const ride: MemeScene = {
   id: "ride",
-  title: "탑승한 개미",
+  title: "차트 탑승",
   blurb: "차트에 올라탔다. 산과 구름을 지나 우주까지.",
   loopMs: RIDE_LOOP,
 
   draw(p, frame) {
-    const t = frame.time / 1000;
     const a = frame.time / RIDE_LOOP;
+    const osc = oscillator(a);
     /* 세계에서 화면 맨 윗줄이 놓인 자리. 값이 줄수록 올라간다. */
     const camTop = 300 - a * 640;
     const sy = (worldY: number) => worldY - camTop;
@@ -295,7 +324,7 @@ const ride: MemeScene = {
     for (let i = 0; i < 48; i += 1) {
       const x = Math.floor(starRandom() * p.w);
       const worldY = 120 - starRandom() * 580;
-      const twinkle = 0.45 + 0.55 * Math.sin(t * 2.6 + i);
+      const twinkle = 0.45 + 0.55 * osc(3, i * 0.16);
       const y = sy(worldY);
       if (y < -2 || y > p.h) continue;
 
@@ -346,7 +375,7 @@ const ride: MemeScene = {
     const cloudRandom = seededRandom(frame.seed + 23);
     for (let i = 0; i < 8; i += 1) {
       const worldY = 330 - cloudRandom() * 280;
-      const x = 6 + cloudRandom() * 92 + Math.sin(t * 0.4 + i) * 3;
+      const x = 6 + cloudRandom() * 92 + osc(1, i * 0.3) * 3;
       const size = 5 + Math.floor(cloudRandom() * 4);
       const y = sy(worldY);
       if (y < -20 || y > p.h + 20) continue;
@@ -375,8 +404,10 @@ const ride: MemeScene = {
     for (let i = 0; i < streaks; i += 1) {
       const x = Math.floor(streakRandom() * p.w);
       const length = 5 + Math.floor(streakRandom() * 9);
-      const speed = 90 + streakRandom() * 130 + a * 180;
-      const y = ((streakRandom() * p.h + t * speed) % (p.h + length)) - length;
+      // 한 바퀴에 정수 번 감기게 한다 — 임의의 속도로 흘리면 이음매에서 선들이 순간이동한다.
+      const laps = 3 + Math.floor(streakRandom() * 4);
+      const span = p.h + length;
+      const y = ((streakRandom() * span + a * laps * span) % span) - length;
       // 진하면 비로 보인다 — 스쳐 지나가는 결만 남긴다.
       p.faded(0.18, () => p.rect(x, y, 1, length, "#ffffff"));
     }
@@ -432,13 +463,13 @@ const TEAR_EVERY = 150;
 
 const flood: MemeScene = {
   id: "flood",
-  title: "눈물바다 개미",
+  title: "눈물바다",
   blurb: "울다 보니 바다가 됐다. 다 잃은 개미의 밤.",
   loopMs: FLOOD_LOOP,
 
   draw(p, frame) {
-    const t = frame.time / 1000;
     const a = frame.time / FLOOD_LOOP;
+    const osc = oscillator(a);
 
     /*
      * 밤하늘 — 대시보드 무대와 같은 톤에서 시작하되 **지평선 쪽을 밝힌다.**
@@ -450,7 +481,7 @@ const flood: MemeScene = {
     for (let i = 0; i < 26; i += 1) {
       const x = Math.floor(starRandom() * p.w);
       const y = Math.floor(starRandom() * 90);
-      p.faded(0.3 + 0.3 * Math.sin(t * 1.7 + i), () => p.dot(x, y, "#cfd8e8"));
+      p.faded(0.3 + 0.3 * osc(2, i * 0.13), () => p.dot(x, y, "#cfd8e8"));
     }
 
     /* 달은 오른쪽 위에 홀로 둔다 — 구름은 왼쪽에만 흘려 가리지 않게 한다 */
@@ -460,7 +491,7 @@ const flood: MemeScene = {
 
     const cloudRandom = seededRandom(frame.seed + 5);
     for (let i = 0; i < 3; i += 1) {
-      const x = 8 + cloudRandom() * 52 + Math.sin(t * 0.25 + i * 2) * 4;
+      const x = 8 + cloudRandom() * 52 + osc(1, i * 0.31) * 4;
       p.faded(0.9, () => drawFlatCloud(p, x, 20 + i * 18, 9 + i * 3));
     }
 
@@ -471,11 +502,11 @@ const flood: MemeScene = {
     /* 물이 차오르는 높이 — 발목에서 가슴께까지 */
     const waterY = lerp(p.h - 1, 126, easeOut(clamp01((a - 0.05) / 0.8)));
     const surfaceAt = (x: number) =>
-      waterY + Math.round(Math.sin(x * 0.22 + t * 2.2) * 1.6 + Math.sin(x * 0.11 - t * 1.4) * 0.8);
+      waterY + Math.round(Math.sin(x * 0.22 + a * TAU * 3) * 1.6 + Math.sin(x * 0.11 - a * TAU * 2) * 0.8);
 
     /* 개미 — 흐느끼느라 어깨가 들썩이고 몸이 좌우로 떨린다 */
-    const sob = flip2(frame.time, 260);
-    const shake = flip2(frame.time, 130) ? 0 : 1;
+    const sob = flip2(frame.time, 300);
+    const shake = flip2(frame.time, 150) ? 0 : 1;
     p.sprite(
       antPixels(2, sob ? "cry1" : "cry2"),
       FLOOD_LEFT + shake,
@@ -526,7 +557,7 @@ const flood: MemeScene = {
     const glintRandom = seededRandom(frame.seed + 13);
     for (let i = 0; i < 9; i += 1) {
       const base = glintRandom() * p.w;
-      const x = (base + t * (4 + glintRandom() * 6)) % p.w;
+      const x = (base + a * (1 + Math.floor(glintRandom() * 3)) * p.w) % p.w;
       const y = surfaceAt(x) + 3 + Math.floor(glintRandom() * 8);
       if (y > p.h) continue;
       p.faded(0.5, () => p.rect(x, y, 3, 1, "#7fb6e8"));
@@ -535,7 +566,7 @@ const flood: MemeScene = {
     /* 떠내려가는 파란 봉 — 잃은 것들이 물 위를 지난다. 심지를 남겨야 봉으로 읽힌다. */
     for (let i = 0; i < 2; i += 1) {
       const x = i === 0 ? 10 : 98;
-      const top = surfaceAt(x) - 7 + (flip2(frame.time + i * 400, 420) ? 0 : 1);
+      const top = surfaceAt(x) - 7 + (flip2(frame.time + i * 450, 450) ? 0 : 1);
       p.rect(x, top - 3, 1, 3, "#5c9dff");
       p.rect(x - 3, top, 6, 9, "#5c9dff");
       p.rect(x - 2, top + 1, 2, 7, "#8fc0ff");
@@ -553,7 +584,445 @@ function drawFlatCloud(p: Painter, cx: number, cy: number, size: number) {
   p.rect(cx - size, cy, size * 2, size * 0.5, "#2f3644");
 }
 
-export const MEME_SCENES: readonly MemeScene[] = [dig, ride, flood];
+/* ════════════════════════════════════════════════════
+   4. 클로즈업 — 얼굴에 눈물이 또르르
+   ════════════════════════════════════════════════════ */
+
+const FACE_LOOP = 4800;
+/** 32칸 얼굴을 3배로 — 96칸이라 화면 폭(108)을 거의 채운다 */
+const FACE_SCALE = 3;
+const FACE_LEFT = 6;
+const FACE_TOP = 66;
+/** 탈진한 창백한 단계. 얼굴이 화면을 채우니 배경 대비는 눈·눈썹이 맡는다. */
+const FACE_STAGE = 8;
+/** 눈물이 시작되는 자리와 턱 끝 — 볼을 타고 이 선을 따라 흐른다 */
+const TEAR_FROM = {
+  x: FACE_LEFT + ANT_FACE_TEAR.x * FACE_SCALE,
+  y: FACE_TOP + ANT_FACE_TEAR.y * FACE_SCALE,
+};
+const TEAR_TO = {
+  x: FACE_LEFT + ANT_FACE_JAW.x * FACE_SCALE,
+  y: FACE_TOP + ANT_FACE_JAW.y * FACE_SCALE,
+};
+const FACE_TEAR_EVERY = 800;
+
+const face: MemeScene = {
+  id: "face",
+  title: "클로즈업",
+  blurb: "얼굴만 크게. 눈물이 볼을 타고 또르르.",
+  loopMs: FACE_LOOP,
+
+  draw(p, frame) {
+    const osc = oscillator(frame.time / FACE_LOOP);
+
+    /*
+     * 차가운 새벽 방. **얼굴이 화면을 채우므로 배경은 거의 안 보인다** —
+     * 위쪽에만 떨어지는 차트를 걸고 나머지는 단색에 가깝게 둔다.
+     */
+    p.vGradient(0, p.h, "#0a1120", "#182742");
+
+    /* 내려꽂는 차트 — 파란 봉이 오른쪽으로 갈수록 낮아진다 */
+    for (let i = 0; i < 9; i += 1) {
+      const x = 6 + i * 12;
+      const top = 14 + i * 5 + osc(1, i * 0.11);
+      p.faded(0.5, () => {
+        p.rect(x + 3, top - 4, 1, 4, "#5c9dff");
+        p.rect(x, top, 8, 7 + i, "#5c9dff");
+        p.rect(x + 1, top + 1, 2, 5 + i, "#8fc0ff");
+      });
+    }
+
+    /* 흐느낌 — 얼굴 전체가 한 칸 들썩인다 */
+    const sob = flip2(frame.time, 400);
+    const top = FACE_TOP + (sob ? 0 : 1);
+    /*
+     * 눈은 1.6초마다 한 번 꽉 감긴다 (우는 얼굴이 계속 뜨고 있으면 인형처럼 보인다).
+     * **깜빡임이 루프 끝에 걸리지 않게 반 박자 밀어둔다** — 마지막 프레임에서 감고
+     * 첫 프레임에서 뜨면, 반복 재생될 때마다 이음매에서 눈이 튄다.
+     */
+    const blink = (frame.time + 500) % 1600 > 1320;
+
+    /* 어깨 — 턱 아래를 받쳐준다. 없으면 머리가 허공에 떠 있다. */
+    const shoulder = antFacePalette(FACE_STAGE).shade;
+    p.disc(54, 214, 62, shoulder);
+
+    /*
+     * 파란 테두리. 탈진한 개미는 색이 빠져 있고 배경도 어두워서, 그냥 그리면 얼굴이
+     * 갈색 덩어리로 뭉갠다. **같은 얼굴을 한 도트 밀어 뒤에 깔아** 위·오른쪽 모서리에만
+     * 파란 선이 남게 한다 — 떨어지는 차트가 얼굴을 비추는 빛이 된다.
+     */
+    const rim = antFacePixels(FACE_STAGE, blink).map((pixel) => ({ ...pixel, fill: "#4a7ab8" }));
+    p.sprite(rim, FACE_LEFT + FACE_SCALE, top - FACE_SCALE, FACE_SCALE);
+
+    p.sprite(antFacePixels(FACE_STAGE, blink), FACE_LEFT, top, FACE_SCALE);
+
+    /* 젖은 볼 — 눈 밑에 남는 짧은 자국. 방울만 있으면 그냥 비 오는 그림이 된다. */
+    p.faded(0.45, () => p.rect(TEAR_FROM.x, TEAR_FROM.y, 2, 12, "#8fc4f0"));
+
+    /* 또르르 — 볼을 따라 내려가다 턱 끝에서 떨어진다 */
+    for (let i = 0; i < 3; i += 1) {
+      const age = (frame.time + i * FACE_TEAR_EVERY) % (FACE_TEAR_EVERY * 3);
+      const roll = clamp01(age / 1500);
+      const x = lerp(TEAR_FROM.x, TEAR_TO.x, roll);
+      const fallen = Math.max(0, age - 1500);
+      const y = lerp(TEAR_FROM.y, TEAR_TO.y, roll) + 0.00055 * fallen * fallen;
+      if (y > p.h) continue;
+
+      p.rect(x, y + (sob ? 1 : 0), 2, 4, "#4a8fd8");
+      p.rect(x, y + 1 + (sob ? 1 : 0), 1, 2, "#cfe9ff");
+    }
+
+    return speak("face", frame, FACE_LEFT + 16 * FACE_SCALE, top + 2 * FACE_SCALE - 2);
+  },
+};
+
+/* ════════════════════════════════════════════════════
+   5. 돈방석 — 양옆으로 양봉이 선다
+   ════════════════════════════════════════════════════ */
+
+const CUSHION_LOOP = 4800;
+/** 동전 더미 꼭대기 = 개미가 앉는 높이 */
+const PILE_TOP = 142;
+const CUSHION_SCALE = 4;
+const CUSHION_LEFT = 54 - 8 * CUSHION_SCALE;
+/**
+ * **다리 네 줄이 더미에 묻히도록** 개미를 내려 앉힌다 (동전을 개미 위에 덮어 그린다).
+ * 서 있는 자세 그대로 두면 돈 위에 올라선 그림이라 "앉아 있다"가 안 된다.
+ */
+const CUSHION_TOP = PILE_TOP - 12 * CUSHION_SCALE;
+const CUSHION_STAGE = 49;
+
+const cushion: MemeScene = {
+  id: "cushion",
+  title: "돈방석",
+  blurb: "돈방석에 앉아 양옆으로 장대양봉. 훗.",
+  loopMs: CUSHION_LOOP,
+
+  draw(p, frame) {
+    const a = frame.time / CUSHION_LOOP;
+    const osc = oscillator(a);
+
+    /* 금빛이 도는 어두운 방 */
+    p.vGradient(0, p.h, "#3a2413", "#150d06");
+
+    /*
+     * 개미 뒤 후광. **가운데는 오히려 어둡게 판다** — 금빛을 개미 뒤까지 깔면 붉은 개미와
+     * 명도가 붙어 실루엣이 통째로 묻힌다 (한 번 그렇게 그려서 개미가 안 보였다).
+     * 빛은 테두리로 돌리고 개미는 어두운 주머니 안에 세운다.
+     */
+    p.faded(0.1, () => p.disc(54, 116, 52, "#ffd24a"));
+    p.faded(0.16, () => p.disc(54, 116, 36, "#ffd24a"));
+    p.faded(0.55, () => p.disc(54, 120, 25, "#241505"));
+
+    /*
+     * 양옆 장대양봉. **두 봉이 같이 자라되 어긋나게** 올라간다 — 나란히 같은 높이로
+     * 자라면 기둥 둘이 서 있는 그림이 되고, 오르는 느낌이 안 산다.
+     * 폭은 좁게 잡는다: 굵으면 화면 양쪽이 벽이 되어 가운데 개미가 좁은 골목에 앉는다.
+     */
+    for (let i = 0; i < 2; i += 1) {
+      const x = i === 0 ? 8 : 88;
+      const grow = easeOut(clamp01((a - i * 0.08) / 0.62));
+      const barTop = lerp(PILE_TOP - 6, 28 + i * 10, grow);
+      const height = PILE_TOP + 6 - barTop;
+
+      p.faded(0.28, () => p.rect(x - 3, barTop - 3, 18, height + 3, "#ff5c5c"));
+      p.rect(x + 5, barTop - 9, 2, 9, "#ff8f8f");
+      p.rect(x, barTop, 12, height, "#ff5c5c");
+      p.rect(x + 2, barTop + 2, 2, height - 4, "#ffb3b3");
+      p.rect(x + 10, barTop, 2, height, "#c0392b");
+    }
+
+    /*
+     * 개미 — 가끔 한쪽 팔을 들어 보인다 (훗).
+     * **테두리를 한 도트 두른다**: 붉은 개미와 금빛 후광은 명도가 비슷해서, 선이 없으면
+     * 개미가 배경에 녹아 형체만 남는다.
+     */
+    const antPose: AntPose = flip2(frame.time, 800) ? "stand" : "wave1";
+    outlined(p, antPixels(CUSHION_STAGE, antPose), CUSHION_LEFT, CUSHION_TOP, CUSHION_SCALE, "#1c1005");
+
+    /*
+     * 돈방석 — 가운데가 봉긋한 더미. 개미 다리를 덮으며 "앉은" 그림을 만든다.
+     * **바탕은 어둡게 깔고 동전만 밝게** 얹는다: 바탕까지 금색이면 노란 언덕 한 덩이가
+     * 되고, 그 위에 뿌린 동전이 언덕에 묻혀 부스러기로 보인다.
+     */
+    const pileAt = (x: number) => PILE_TOP + ((x - 54) / 54) ** 2 * 26;
+
+    for (let x = 0; x < p.w; x += 1) {
+      const surface = pileAt(x);
+      p.rect(x, surface, 1, p.h - surface, "#8a6216");
+    }
+
+    /* 낱개 동전 — 표면에 촘촘히, 아래로 갈수록 성기게 */
+    const pileRandom = seededRandom(frame.seed + 41);
+    for (let i = 0; i < 120; i += 1) {
+      const x = Math.floor(pileRandom() * p.w);
+      const depth = pileRandom() ** 2 * 36;
+      const y = pileAt(x) + 1 + depth;
+      if (y > p.h) continue;
+      drawCoin(p, x, y);
+    }
+
+    for (let i = 0; i < 4; i += 1) {
+      const x = 8 + i * 28 + Math.floor(pileRandom() * 6);
+      const y = pileAt(x) + 6 + i * 3;
+      p.rect(x, y, 13, 7, "#8fd8b0");
+      p.rect(x, y + 3, 13, 1, "#3f7a5c");
+      p.rect(x + 5, y + 2, 3, 3, "#3f7a5c");
+    }
+
+    /*
+     * 위에서 쏟아지는 동전. 화면 위쪽이 통째로 비어 있으면 개미가 바닥에 눌린 그림이 된다 —
+     * 떨어지는 것들이 그 자리를 채우고, 더미가 왜 쌓이는지도 같이 말해준다.
+     */
+    const rainRandom = seededRandom(frame.seed + 47);
+    for (let i = 0; i < 7; i += 1) {
+      const x = 12 + Math.floor(rainRandom() * 84);
+      const age = (frame.time + i * 700) % CUSHION_LOOP;
+      if (age > 2400) continue;
+
+      drawCoin(p, x, -8 + (pileAt(x) + 8) * (age / 2400) ** 2);
+    }
+
+    /* 반짝임 — 돈은 반짝여야 돈이다 */
+    const sparkRandom = seededRandom(frame.seed + 53);
+    for (let i = 0; i < 12; i += 1) {
+      const x = Math.floor(sparkRandom() * p.w);
+      const y = 40 + Math.floor(sparkRandom() * 120);
+      const phase = osc(3, i * 0.3);
+      if (phase < 0.4) continue;
+      drawSparkle(p, x, y, phase > 0.85 ? 3 : 2);
+    }
+
+    return speak(
+      "cushion",
+      frame,
+      CUSHION_LEFT + 8 * CUSHION_SCALE,
+      CUSHION_TOP + 2 * CUSHION_SCALE - 2,
+    );
+  },
+};
+
+/**
+ * 스프라이트에 한 도트짜리 테두리를 둘러 그린다.
+ *
+ * 같은 그림을 상하좌우로 **한 도트(=scale)씩** 밀어 어두운 색으로 깔고 그 위에 본 그림을
+ * 얹는다. 밀어내는 폭을 1픽셀로 잡으면 개미 도트보다 가는 선이 생겨 해상도가 어긋나 보인다.
+ */
+function outlined(
+  p: Painter,
+  pixels: readonly { x: number; y: number; fill: string }[],
+  left: number,
+  top: number,
+  scale: number,
+  color: string,
+) {
+  const shadow = pixels.map((pixel) => ({ ...pixel, fill: color }));
+
+  for (const [dx, dy] of [
+    [-1, 0],
+    [1, 0],
+    [0, -1],
+    [0, 1],
+  ] as const) {
+    p.sprite(shadow, left + dx * scale, top + dy * scale, scale);
+  }
+
+  p.sprite(pixels, left, top, scale);
+}
+
+function drawSparkle(p: Painter, cx: number, cy: number, size: number) {
+  p.rect(cx - size, cy, size * 2 + 1, 1, "#fff3b0");
+  p.rect(cx, cy - size, 1, size * 2 + 1, "#fff3b0");
+  p.dot(cx, cy, "#ffffff");
+}
+
+/* ════════════════════════════════════════════════════
+   6. 롤러코스터 — 기둥이 양봉과 음봉
+   ════════════════════════════════════════════════════ */
+
+const COASTER_LOOP = 7200;
+/**
+ * 놀이공원 바닥. **기둥이 서는 선이자 천막이 놓이는 선**이라 너무 내려 잡으면
+ * 기둥이 화면 아래 절반을 벽처럼 채워 뒤의 놀이공원이 통째로 가린다.
+ */
+const COASTER_GROUND = 156;
+/** 수레가 서 있는 화면 자리. 세계가 왼쪽으로 흐르고 수레는 제자리에 있다. */
+const CAR_X = 54;
+/**
+ * 한 바퀴에 흐르는 거리. **레일의 물결이 이 거리에서 딱 떨어져야** 시작과 끝이 이어진다 —
+ * 아무 주기나 쓰면 루프 이음매에서 레일 높이가 툭 튄다. 기둥 간격(12)도 이 값의 약수다.
+ */
+const COASTER_SPAN = 216;
+const RAIL_WAVES: readonly [number, number][] = [
+  [2, 28],
+  [5, 9],
+];
+
+/** 세계 좌표 x에서의 레일 높이 */
+function railAt(worldX: number): number {
+  return RAIL_WAVES.reduce(
+    (y, [cycles, amplitude]) =>
+      y + Math.sin((worldX / COASTER_SPAN) * cycles * Math.PI * 2) * amplitude,
+    94,
+  );
+}
+
+const coaster: MemeScene = {
+  id: "coaster",
+  title: "롤러코스터",
+  blurb: "다 같이 탑승. 기둥은 장대양봉과 장대음봉.",
+  loopMs: COASTER_LOOP,
+
+  draw(p, frame) {
+    const a = frame.time / COASTER_LOOP;
+    const osc = oscillator(a);
+    const scroll = a * COASTER_SPAN;
+
+    /* 밤의 놀이공원 */
+    p.vGradient(0, COASTER_GROUND, "#241a3f", "#5a3566");
+
+    const starRandom = seededRandom(frame.seed + 61);
+    for (let i = 0; i < 30; i += 1) {
+      const x = Math.floor(starRandom() * p.w);
+      const y = Math.floor(starRandom() * 70);
+      p.faded(0.4 + 0.4 * osc(3, i * 0.12), () => p.dot(x, y, "#ffe9c4"));
+    }
+
+    /* 전구 줄 — 처지는 곡선을 따라 색이 번갈아 켜진다 */
+    for (let i = 0; i < 13; i += 1) {
+      const x = 2 + i * 9;
+      const y = 10 + Math.sin((i / 12) * Math.PI) * 9;
+      p.dot(x, y - 1, "#6b5a7a");
+      const on = osc(4, i * 0.14) > -0.2;
+      p.faded(on ? 1 : 0.35, () =>
+        p.disc(x, y, 1, i % 3 === 0 ? "#ffd24a" : i % 3 === 1 ? "#ff8f8f" : "#8fd8b0"),
+      );
+    }
+
+    /* 대관람차 — 한 바퀴에 딱 한 번 돈다 (이음매가 안 보이게) */
+    drawFerrisWheel(p, 20, 46, 17, a * Math.PI * 2);
+
+    /* 천막 */
+    for (let i = 0; i < 4; i += 1) drawTent(p, 62 + i * 15, COASTER_GROUND, 6 + (i % 2) * 2);
+
+    /* 땅 */
+    p.rect(0, COASTER_GROUND, p.w, 2, "#6b4b7a");
+    p.rect(0, COASTER_GROUND + 2, p.w, p.h - COASTER_GROUND, "#2a2033");
+
+    /*
+     * 줄 선 개미들. 아래 띠가 비어 있으면 화면이 두 동강 나 보이고, 무엇보다
+     * **탄 개미만 있으면 놀이공원이 아니라 시험대처럼 보인다** — 기다리는 줄이 있어야 놀이기구다.
+     */
+    for (let i = 0; i < 5; i += 1) {
+      const x = 8 + i * 21;
+      const pose: AntPose = flip2(frame.time + i * 300, 600) ? "stand" : "wave1";
+      p.sprite(antPixels(20 + i * 6, pose), x, p.h - 22, 1);
+    }
+
+    /*
+     * 기둥 — 레일을 떠받치는 장대봉. **오르는 구간은 양봉(빨강), 내리는 구간은 음봉(파랑)**이라
+     * 색만 봐도 다음이 오르막인지 알 수 있다. 아래로 심지를 남겨야 봉으로 읽힌다.
+     */
+    for (let i = 0; i * 12 <= COASTER_SPAN; i += 1) {
+      const worldX = Math.ceil(scroll / 12) * 12 + i * 12;
+      const x = worldX - scroll;
+      if (x < -8 || x > p.w + 8) continue;
+
+      const top = railAt(worldX);
+      const rising = railAt(worldX + 6) < top;
+      const body = rising ? "#ff5c5c" : "#5c9dff";
+      const core = rising ? "#ff8f8f" : "#8fc0ff";
+
+      p.rect(x - 3, top, 7, COASTER_GROUND - 6 - top, body);
+      p.rect(x - 1, top + 2, 2, COASTER_GROUND - 12 - top, core);
+      p.rect(x, COASTER_GROUND - 6, 1, 6, body);
+    }
+
+    /* 레일 */
+    for (let x = -1; x <= p.w; x += 1) {
+      const y = railAt(x + scroll);
+      p.rect(x, y - 2, 1, 2, "#e8d8b0");
+      p.rect(x, y, 1, 1, "#7a6a4a");
+    }
+
+    /* 수레와 개미들 */
+    const carWorldX = scroll + CAR_X;
+    const carY = railAt(carWorldX) - 2;
+    /* 내리막이면 팔이 올라간다 — 기울기로 신남을 정한다 */
+    const dropping = railAt(carWorldX + 6) > railAt(carWorldX);
+    const bounce = flip2(frame.time, 120) ? 0 : 1;
+
+    for (let i = 0; i < 3; i += 1) {
+      const x = CAR_X - 19 + i * 19;
+      const pose: AntPose = dropping
+        ? flip2(frame.time + i * 120, 120)
+          ? "wave1"
+          : "wave2"
+        : "stand";
+
+      outlined(p, antPixels(44 - i * 10, pose), x - 16, carY - 30 + bounce, 2, "#1c1024");
+    }
+
+    /* 수레는 개미 뒤가 아니라 앞에 그린다 — 앞판이 다리를 가려야 "타고 있다"가 된다 */
+    p.rect(CAR_X - 32, carY - 12, 64, 12, "#c0392b");
+    p.rect(CAR_X - 32, carY - 9, 64, 2, "#ffd24a");
+    p.rect(CAR_X - 32, carY - 12, 64, 1, "#e05a4a");
+    p.rect(CAR_X + 30, carY - 16, 4, 4, "#c0392b");
+    p.disc(CAR_X - 20, carY + 1, 3, "#2a2033");
+    p.disc(CAR_X + 20, carY + 1, 3, "#2a2033");
+
+    /* 속도선 — 내리막에서만 그어진다 */
+    if (dropping) {
+      const streak = seededRandom(frame.seed + 71);
+      for (let i = 0; i < 7; i += 1) {
+        const x = CAR_X - 44 + Math.floor(streak() * 88);
+        const y = carY - 34 + Math.floor(streak() * 40);
+        p.faded(0.4, () => p.rect(x, y, 9, 1, "#cfe9ff"));
+      }
+    }
+
+    return speak("coaster", frame, CAR_X, carY - 34);
+  },
+};
+
+function drawFerrisWheel(p: Painter, cx: number, cy: number, r: number, angle: number) {
+  p.line(cx, cy, cx - r * 0.7, COASTER_GROUND, "#6b5a7a");
+  p.line(cx, cy, cx + r * 0.7, COASTER_GROUND, "#6b5a7a");
+
+  for (let i = 0; i < 8; i += 1) {
+    const spoke = angle + (Math.PI * 2 * i) / 8;
+    p.line(cx, cy, cx + Math.cos(spoke) * r, cy + Math.sin(spoke) * r, "#8a76a0");
+  }
+
+  /*
+   * 테두리 링. **없으면 바퀴가 아니라 폭죽으로 보인다** — 살만 그렸더니 가운데서
+   * 사방으로 뻗은 불꽃이 됐다. 링을 두르는 순간 대관람차로 읽힌다.
+   */
+  for (let i = 0; i < 48; i += 1) {
+    const around = (Math.PI * 2 * i) / 48;
+    p.dot(cx + Math.cos(around) * r, cy + Math.sin(around) * r, "#b49ec8");
+  }
+
+  /* 관람차 칸 — 살 끝마다 하나씩 */
+  for (let i = 0; i < 8; i += 1) {
+    const spoke = angle + (Math.PI * 2 * i) / 8;
+    p.disc(cx + Math.cos(spoke) * r, cy + Math.sin(spoke) * r, 1, i % 2 === 0 ? "#ffd24a" : "#ff8f8f");
+  }
+
+  p.disc(cx, cy, 2, "#e8d8b0");
+}
+
+function drawTent(p: Painter, cx: number, groundY: number, half: number) {
+  for (let row = 0; row < half * 2; row += 1) {
+    const width = (row / (half * 2)) * half;
+    const y = groundY - half * 2 + row;
+    p.rect(cx - width, y, width * 2, 1, row % 4 < 2 ? "#e8d8b0" : "#c0392b");
+  }
+
+  p.rect(cx, groundY - half * 2 - 3, 1, 3, "#6b5a7a");
+}
+
+export const MEME_SCENES: readonly MemeScene[] = [dig, ride, flood, face, cushion, coaster];
 
 export function findScene(id: MemeSceneId): MemeScene {
   return MEME_SCENES.find((scene) => scene.id === id) ?? dig;
