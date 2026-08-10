@@ -465,6 +465,95 @@ const FACE_BLINK: readonly string[] = [
  * 잘린다. 얼굴만 그리면 머리가 허공에 뜬 흉상이 되므로 몸을 같은 장에 담는다
  * (따로 두면 턱에서 어긋난다).
  */
+/**
+ * 빈 지갑을 본 놀란 얼굴. **머리·각도·몸은 우는 얼굴과 같고 눈·눈썹·입만 다르다** —
+ * 그래야 같은 개미가 표정만 바꾼 것으로 읽힌다. 흰자를 넓게 두고 눈동자를 작게 찍어
+ * 놀란 눈을 만들고(눈동자는 지갑 쪽인 아래를 본다), 눈썹은 안쪽을 치켜올리고,
+ * 입은 다문 띠가 아니라 벌어진 구멍이다.
+ */
+const FACE_SHOCK: readonly string[] = [
+  "............................................nn......",
+  "............................................nn......",
+  "....nn.....................................n........",
+  "....nn....................................n.........",
+  "......n..................................n..........",
+  "......n.................................n...........",
+  ".......n...............................n............",
+  "........n............................nn.............",
+  ".........n..........................n...............",
+  "..........n........................n................",
+  "..........n.............o.........n.................",
+  "...........n...........oboo.o..o.n..................",
+  "............n.....o.o.ooboboboobno.o..o.............",
+  "..........o.ono.ooboboboooboboonobobooboo.o.........",
+  "......o.oobobnbobobobobo..o.o.nooboboobobobo........",
+  ".....obobobobonoboo.o.o.....oobbbbbbbooobobo........",
+  ".....oboboo.o.ono..........obbwwwwwwwbboo.o.........",
+  "......o.o.....o...........obwwwwwwwwwwwbo...........",
+  "...........ooobooo....o..obwwwwwwwwwwwwwbo..........",
+  ".........oobwwwwwboooohoobwwwwwwwwwwwwwwwbo.........",
+  "........obwwwwwwwwwbHHhhhbwwwwwwwwwwwwwwwbo.........",
+  ".......obwwwwwwwwwwwbHhhbwwwwwwwwwwwwwwwwwbo........",
+  ".......owwwwwwwwwwwwwHHhwwwwwwwwwwwwwwwwwwwo........",
+  "......obwwwwwwwwwwwwwbHHwwwwwwwwwwwwwwwwwwwo........",
+  "......owwwwwwwwwwwwwwwHHwwwwwwwwppppwwwwwwwo........",
+  "......owwwwwwwwwwwwwwwHHwwwwwwwpggpppwwwwwwo........",
+  ".....owwwwwwwwppwwwwwwwHwwwwwwwpgggppwwwwwwo........",
+  ".....oHwwwwwwpgppwwwwwHHwwwwwwwppgpppwwwwwwo........",
+  "....oHHwwwwwpggpppwwwwHHHwwwwwwppppppwwwwwo.........",
+  "...oHHHwwwwwppppppwwwwHHHwwwwwwwppppwwwwwwo.........",
+  "...oHHHHwwwwwppppwwwwHHHHHwwwwwwwwwwwwwwwo..........",
+  "..oHHHHHwwwwwwppwwwwwHHHHhhwwwwwwwwwwwwwhho.........",
+  "..oHHHHHHwwwwwwwwwwwHHHHHhhhwwwwwwwwwwwhhho.........",
+  ".oHHHHHHHHHwwwwwwwHHHHHHHhhhhhwwwwwwwhhhhhho........",
+  ".oHHHHHHHHHHHHwHHHHHHHHHHhhhhhhhhhhhhhhhhhho........",
+  ".oHHHHHHHHHHHHHHHHHHHHHHHhhhhhhhhhhhhhhhhhho........",
+  "osHHHHHHHHHHHHHHHHHHHHHHhhhhhhhhhhhhhhhhhhhho.......",
+  "oHHHHHHHHHHHHHHHHHHHHHHHhhhhhhhhhhhhhhhhhhhho.......",
+  "osHHHHHHHHHHHHHHHHHHHHHhhhhhhhhhhhhhhhhhhhhhho......",
+  "oshHHHHHHHHHHHHHHHHHHHhhhhhhhhhhhhhhhhhhhhhhhho.....",
+  "oshHHHHHHHHHHHHHHHHHHHhhhhhhhhhhhhhhhhhhhhhhhho.....",
+  "oshhHHHHHHHHHHHHHHHHHhhhhhhhhhhhhhhhhhhhhhhhhhho....",
+  "sshhhhHHHHHHHHHHHHHhhhhhhhhhhhhhhhhhhhhhhhhhhhho....",
+  "oshhhhhhHHHHHHHHHhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhso...",
+  "osshhhhhhhhhHhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhho...",
+  "osshhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhso...",
+  "osshhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhso...",
+  "ossshhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhso...",
+  "ossshhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhhsso..",
+  ".ossshhhhhhhhhhhhhhhhhhhhhhhohhhhhhhhhhhhhhhhhhso...",
+  ".osssshhhhhhhhhhhhhhhhhhoooomoooohhhhhhhhhhhhhsso...",
+  ".osssshhhhhhhhhhhhhhhhoommmmmmmmmoohhhhhhhhhhhsso...",
+  "..osssshhhhhhhhhhhhhhommmmmmmmmmmmmohhhhhhhhhssso...",
+  "..ossssshhhhhhhhhhhhommmmmMMMMMmmmmmohhhhhhhhssso...",
+  "...ossssshhhhhhhhhhommmmMMMMMMMMMmmmmohhhhhhssso....",
+  "...osssssshhhhhhhhhommmMMMMMMMMMMMmmmohhhhhsssso....",
+  "....ossssssshhhhhhhommMMMMMMMMMMMMMmmohhhhsssso.....",
+  ".....osssssssshhhhhommMMMMMMMMMMMMMmmohhsssssso.....",
+  "......ossssssssshhhommmMMMMMMMMMMMmmmohsssssso......",
+  ".......ossssssssssssommMMMMMMMMMMMmmossssssso.......",
+  "........ossssssssssssommmMMMMMMMmmmossssssso........",
+  ".........ossssssssssssoommmmmmmmmoossssssso.........",
+  "..........oossssssssssssoooomoooosssssssso..........",
+  "............oossssssssssssssossssssssssoo...........",
+  "..............oosssssssssssssoooosooooo.............",
+  "...........ooottoooooosoooooottooo..................",
+  "........oootttttttttttotttttttttttooo...............",
+  "......ootttttttttttttttttttttttttttttoo.............",
+  ".....ottttttttTtttttttttttttttttttttttto............",
+  "...oottttttTTTTTTTttttttttttttttttttttttoo..........",
+  "..otttttttTTTTTTTTTttttttttttttttttttttttto.........",
+  ".otttttttTTTTTTTTTTTttttttttttttttttttttttto........",
+  "otttttttTTTTTTTTTTTTTttttttttttttttttttttttto.......",
+  "tttttttTTTTTTTTTTTTTTTttttttttttttttttttttttto......",
+  "tttttttTTTTTTTTTTTTTTTtttttttttttttttttttttttto.....",
+  "ttttttTTTTTTTTTTTTTTTTTtttttttttttttttttttttttto....",
+  "ttttttTTTTTTTTTTTTTTTTTtttttttttttttttttttttttto....",
+  "ttttttTTTTTTTTTTTTTTTTTttttttttttttttttttttttttto...",
+  "ttttttTTTTTTTTTTTTTTTTTtttttttttttttttttttttttttto..",
+  "ttttttTTTTTTTTTTTTTTTTTtttttttttttttttttttttttttto..",
+];
+
 export const ANT_FACE_W = 52;
 export const ANT_FACE_H = 80;
 
@@ -550,6 +639,21 @@ const FACE_KEY: Record<string, keyof AntFacePalette> = {
   u: "wet",
 };
 
+/** 놀란 얼굴의 도트 좌표 (빈 지갑 판) */
+export function antShockFacePixels(stage: number): AntPixel[] {
+  const palette = antFacePalette(stage);
+  const pixels: AntPixel[] = [];
+
+  FACE_SHOCK.forEach((row, y) => {
+    [...row].forEach((char, x) => {
+      const key = FACE_KEY[char];
+      if (key) pixels.push({ x, y, fill: palette[key] });
+    });
+  });
+
+  return pixels;
+}
+
 /** 클로즈업 얼굴의 도트 좌표. `blink`면 눈 줄만 감은 것으로 바꿔 찍는다. */
 export function antFacePixels(stage: number, blink = false): AntPixel[] {
   const palette = antFacePalette(stage);
@@ -568,6 +672,60 @@ export function antFacePixels(stage: number, blink = false): AntPixel[] {
   });
 
   return pixels;
+}
+
+/** 클로즈업 눈의 상태 — 정면 / 위를 흘긋 / 감음 */
+export type AntGaze = "front" | "up" | "closed";
+
+/** 눈물을 흰자로 되돌릴 때의 치환표. 눈밑 젖은 살(u)은 껍질색이 되며 옅은 눈그늘로 남는다. */
+const DRY_KEY: Record<string, string> = { q: "w", Q: "w", L: "w", u: "h" };
+/** 눈 안쪽으로 치는 글자들 — 흘긋 올라간 눈동자는 이 안에서만 그린다 */
+const EYE_CHARS = new Set(["w", "p", "g", "q", "Q", "L"]);
+/** 흘긋 볼 때 눈동자가 올라가는 칸 수 */
+const GAZE_LIFT = 2;
+
+/**
+ * 눈물을 걷어낸 클로즈업 — 짤 공장의 무념무상 판이 쓴다.
+ *
+ * 우는 얼굴(`FACE`)에서 눈에 고인 눈물(q·Q·L)을 흰자로 되돌리고, 눈밑 젖은 살(u)을
+ * 껍질색으로 말린다. **얼굴을 한 벌 더 그리지 않는다** — 두 벌을 손으로 맞춰두면
+ * 한쪽만 고쳤을 때 표정이 바뀔 때마다 얼굴형이 미세하게 튄다 (깜빡임과 같은 규칙).
+ *
+ * `gaze`가 "up"이면 눈동자와 눈빛(p·g)만 위로 올려 흘긋 위를 본다 — 비운 자리는
+ * 흰자로 메우고, **눈꺼풀 위로 나가는 도트는 버린다** (치켜뜬 눈이 아니라 슬쩍 올려다보는
+ * 눈이 되도록, 올라간 눈동자는 눈꺼풀 뒤로 숨는다).
+ */
+export function antFaceDryPixels(stage: number, gaze: AntGaze = "front"): AntPixel[] {
+  const palette = antFacePalette(stage);
+  const pixels: AntPixel[] = [];
+  const lifted: AntPixel[] = [];
+
+  FACE.forEach((row, y) => {
+    const source =
+      gaze === "closed" && y >= FACE_BLINK_FROM && y < FACE_BLINK_FROM + FACE_BLINK.length
+        ? (FACE_BLINK[y - FACE_BLINK_FROM] ?? row)
+        : row;
+
+    [...source].forEach((char, x) => {
+      const dried = DRY_KEY[char] ?? char;
+      const key = FACE_KEY[dried];
+      if (!key) return;
+
+      if (gaze === "up" && (dried === "p" || dried === "g")) {
+        pixels.push({ x, y, fill: palette.sclera });
+        const target = FACE[y - GAZE_LIFT]?.[x];
+        if (target && EYE_CHARS.has(target)) {
+          lifted.push({ x, y: y - GAZE_LIFT, fill: palette[key] });
+        }
+        return;
+      }
+
+      pixels.push({ x, y, fill: palette[key] });
+    });
+  });
+
+  /* 올라간 눈동자는 흰자를 덮어야 하므로 맨 뒤에 얹는다 */
+  return [...pixels, ...lifted];
 }
 
 export interface AntPixel {

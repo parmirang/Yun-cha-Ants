@@ -29,14 +29,21 @@ export type MemeSceneId =
   | "cushion"
   | "coaster"
   | "train"
-  | "rocket";
+  | "rocket"
+  | "zen"
+  | "wallet";
 
 /**
  * 문구 풀의 이름. **장면 하나가 풀을 둘 이상 쓸 수 있다** — 만원 열차는 봉이 오를 때와
  * 내릴 때 하는 말이 달라야 해서, 장면 안에서 풀을 갈아 끼운다. 로켓도 같다 —
  * 오르는 동안(`rocket`)과 떨어지는 동안(`rocketDown`)의 말이 다르다.
  */
-export type MemeLinePool = MemeSceneId | "trainUp" | "trainDown" | "rocketDown";
+export type MemeLinePool =
+  | MemeSceneId
+  | "trainUp"
+  | "trainDown"
+  | "rocketDown"
+  | "walletEmpty";
 
 /**
  * 1. 땅파기 — **왜 파고 있는지**를 답하는 줄이다. 해는 쨍쨍하고 땀은 흐르는데
@@ -195,8 +202,8 @@ export const ROCKET_LINES: readonly string[] = [
   "와- 화성가자!!",
   "지구야 안녕",
   "달은 그냥 지나쳐",
-  "연료는 가득이야",
-  "미장 로켓은 달라",
+  "이-얏호! 영차 영차!",
+  "스엑 발사 !! 화성 가자",
   "별이 손에 잡힐 듯",
   "정거장 없이 직행",
   "여왕개미도 태울걸",
@@ -211,10 +218,50 @@ export const ROCKET_DOWN_LINES: readonly string[] = [
   "어? 어어??",
   "연료가 없대",
   "추진이 꺼졌어",
-  "화성은 다음에..",
+  "어디까지 내려가는 거예요?",
   "누가 좀 잡아줘",
   "이거 환불 되나",
   "내리막은 빠르네",
+];
+
+/**
+ * 9. 무념무상 — 요동치는 차트 앞에서 눈만 껌뻑이는 얼굴. **밈의 대사 그대로 무심해야**
+ * 한다 — 놀라거나 우는 말이 섞이면 표정과 어긋난다. 결론은 늘 관망이다.
+ */
+export const ZEN_LINES: readonly string[] = [
+  "나는 아무런 생각이 없다.",
+  "기회를 기다리자.",
+  "생각이 없기 때문이다.",
+  "무념무상",
+  "존버는 승리한다",
+  "차트는 차트고 나는 나다",
+  "눈 뜨면 올라 있을 거다",
+  "오늘도 관망한다",
+];
+
+/**
+ * 9-1. 빈 지갑 — **지갑을 닫고 있을 때.** "있었는데요 없었습니다"의 앞쪽 절반이라
+ * 전부 과거형이다. 얼마였는지는 말하지 않는다 (짤에 금액은 안 나온다).
+ */
+export const WALLET_LINES: readonly string[] = [
+  "분명 있었는데",
+  "어제까진 있었어",
+  "여기 넣어뒀는데",
+  "월급 들어왔었는데",
+  "지갑에 있었지",
+  "많지는 않았어도",
+];
+
+/**
+ * 9-2. 빈 지갑 — **펼친 순간.** 뒤쪽 절반이라 전부 종결형이고, 짧을수록 세다.
+ */
+export const WALLET_EMPTY_LINES: readonly string[] = [
+  "없었습니다",
+  "텅 비었습니다",
+  "먼지만 있었습니다",
+  "아무것도 없네요",
+  "하나도 없었습니다",
+  "바람만 들었습니다",
 ];
 
 export const MEME_LINES: Readonly<Record<MemeLinePool, readonly string[]>> = {
@@ -229,6 +276,9 @@ export const MEME_LINES: Readonly<Record<MemeLinePool, readonly string[]>> = {
   trainDown: TRAIN_DOWN_LINES,
   rocket: ROCKET_LINES,
   rocketDown: ROCKET_DOWN_LINES,
+  zen: ZEN_LINES,
+  wallet: WALLET_LINES,
+  walletEmpty: WALLET_EMPTY_LINES,
 };
 
 /**
