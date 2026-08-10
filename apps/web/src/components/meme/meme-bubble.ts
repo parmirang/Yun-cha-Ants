@@ -1,7 +1,7 @@
 import { CANVAS_H, CANVAS_W, DOT } from "@/lib/pixel-canvas";
 import { BRAND } from "@/lib/share-copy";
 
-import type { SceneBubble } from "./meme-scenes";
+import type { SceneBubble, SceneLabel } from "./meme-scenes";
 
 /**
  * 말풍선과 서명은 **늘린 뒤 원본 해상도에 얹는다.**
@@ -103,6 +103,33 @@ export function drawBubble(ctx: CanvasRenderingContext2D, bubble: SceneBubble): 
 
   ctx.fillStyle = INK;
   ctx.fillText(bubble.text, left + PAD_X, top + PAD_Y);
+  ctx.restore();
+}
+
+/**
+ * 무대에 박히는 글자 (역 이름 간판). **상자를 안 그린다** — 간판 판때기는 무대가
+ * 도트로 그리고 여기서는 그 위에 글자만 얹는다. 판때기까지 여기서 그리면 도트 그림과
+ * 다른 해상도의 네모가 무대 한가운데에 서게 된다.
+ */
+export function drawLabels(
+  ctx: CanvasRenderingContext2D,
+  labels: readonly SceneLabel[] | undefined,
+): void {
+  if (!labels?.length) return;
+
+  ctx.save();
+  ctx.textAlign = "center";
+  ctx.textBaseline = "top";
+
+  for (const label of labels) {
+    if (label.alpha <= 0 || !label.text) continue;
+
+    ctx.globalAlpha = label.alpha;
+    ctx.font = fontOf(label.unit);
+    ctx.fillStyle = INK;
+    ctx.fillText(label.text, Math.round(label.x * DOT), Math.round(label.y * DOT));
+  }
+
   ctx.restore();
 }
 

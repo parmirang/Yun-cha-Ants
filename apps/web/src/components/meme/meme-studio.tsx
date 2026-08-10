@@ -8,14 +8,14 @@ import { CANVAS_H, CANVAS_W, GRID_H, GRID_W, createPainter } from "@/lib/pixel-c
 import { useLockedBodyScroll } from "@/lib/use-locked-body-scroll";
 import { type VideoTake, canRecordVideo, recordCanvas } from "@/lib/video-export";
 
-import { drawBrand, drawBubble, memeFontFaces } from "./meme-bubble";
+import { drawBrand, drawBubble, drawLabels, memeFontFaces } from "./meme-bubble";
 import { MEME_LINES, type MemeSceneId } from "./meme-lines";
 import { MEME_SCENES, findScene } from "./meme-scenes";
 
 /**
  * 짤 공장.
  *
- * 개미가 나오는 9:16 짤 세 판을 돌려보고 **영상으로 내보내는** 화면이다. 계산도
+ * 개미가 나오는 9:16 짤 일곱 판을 돌려보고 **영상으로 내보내는** 화면이다. 계산도
  * 시세도 없다 — 이 화면은 연봉도 평단도 안 읽는다 (그래서 온보딩을 안 거쳐도 열린다).
  *
  * 그림은 캔버스 하나에 그린다. **미리보기와 결과물이 같은 캔버스다** — 화면에 보이는
@@ -85,6 +85,7 @@ export function MemeStudio() {
 
       context.imageSmoothingEnabled = false;
       context.drawImage(world, 0, 0, CANVAS_W, CANVAS_H);
+      drawLabels(context, bubble.labels);
       drawBubble(context, bubble);
       drawBrand(context);
 
@@ -149,7 +150,7 @@ export function MemeStudio() {
         <h1 className="text-base font-bold">개미 짤 공장</h1>
       </div>
 
-      {/* 장면 고르기. 세 판이 한 화면에 나란히 있어야 뭘 만들 수 있는지가 한눈에 보인다. */}
+      {/* 장면 고르기. 판이 한 화면에 나란히 있어야 뭘 만들 수 있는지가 한눈에 보인다. */}
       <div className="mt-4 grid grid-cols-3 gap-2">
         {MEME_SCENES.map((item) => (
           <button

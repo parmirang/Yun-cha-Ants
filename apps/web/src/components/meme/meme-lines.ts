@@ -21,7 +21,22 @@
  * 문구를 고치면 `pnpm --filter @yca/web font`을 다시 돌린다.
  */
 
-export type MemeSceneId = "dig" | "ride" | "flood" | "face" | "cushion" | "coaster";
+export type MemeSceneId =
+  | "dig"
+  | "ride"
+  | "flood"
+  | "face"
+  | "cushion"
+  | "coaster"
+  | "train"
+  | "rocket";
+
+/**
+ * 문구 풀의 이름. **장면 하나가 풀을 둘 이상 쓸 수 있다** — 만원 열차는 봉이 오를 때와
+ * 내릴 때 하는 말이 달라야 해서, 장면 안에서 풀을 갈아 끼운다. 로켓도 같다 —
+ * 오르는 동안(`rocket`)과 떨어지는 동안(`rocketDown`)의 말이 다르다.
+ */
+export type MemeLinePool = MemeSceneId | "trainUp" | "trainDown" | "rocketDown";
 
 /**
  * 1. 땅파기 — **왜 파고 있는지**를 답하는 줄이다. 해는 쨍쨍하고 땀은 흐르는데
@@ -128,13 +143,92 @@ export const COASTER_LINES: readonly string[] = [
   "이번 칸은 파랗다",
 ];
 
-export const MEME_LINES: Readonly<Record<MemeSceneId, readonly string[]>> = {
+/**
+ * 7-1. 만원 열차 — 역과 탑승. 아직 차트에 오르기 전이라 **정류장에서 할 말**이다
+ * (자리·손잡이·막차). 종목 이름은 간판이 말해주므로 문구는 거들지 않는다.
+ */
+export const TRAIN_LINES: readonly string[] = [
+  "이 열차 맞나요",
+  "자리 없어도 타",
+  "밀지 마 밀지 마",
+  "놓치면 후회해",
+  "다 탔으면 출발",
+  "손잡이 꽉 잡아",
+  "만석입니다",
+  "막차는 아니겠지",
+];
+
+/**
+ * 7-2. 양봉 구간 — 열차가 오르막을 달린다. **신났지만 아직 안 내렸다**는 게 이 풀의
+ * 목소리다 (익절 얘기는 안 한다 — 그건 내리는 사람 말이고, 여긴 다 타고 있다).
+ */
+export const TRAIN_UP_LINES: readonly string[] = [
+  "이 맛에 탄다",
+  "가즈아",
+  "역시 타길 잘했어",
+  "더 밟아 주세요",
+  "창밖 좀 봐",
+  "이대로만 가자",
+  "고점은 아직이야",
+  "환승 안 해",
+];
+
+/**
+ * 7-3. 음봉 구간 — 내리막. **내리고 싶지만 열차는 안 선다.**
+ */
+export const TRAIN_DOWN_LINES: readonly string[] = [
+  "어어 내려간다",
+  "브레이크 좀요",
+  "여기서 내릴게요",
+  "손잡이 놓치겠어",
+  "이번 역 어디야",
+  "다시 올라가겠지",
+  "속이 안 좋아",
+  "왜 후진해",
+];
+
+/**
+ * 8-1. 로켓 발사 — 상승. 미장 로켓 코에 셋이 올라타고 화성으로 간다. **연료가 넉넉한 줄
+ * 아는 목소리다** — 밑도 끝도 없는 확신일수록 뒤의 추락이 웃긴다.
+ */
+export const ROCKET_LINES: readonly string[] = [
+  "와- 화성가자!!",
+  "지구야 안녕",
+  "달은 그냥 지나쳐",
+  "연료는 가득이야",
+  "미장 로켓은 달라",
+  "별이 손에 잡힐 듯",
+  "정거장 없이 직행",
+  "여왕개미도 태울걸",
+];
+
+/**
+ * 8-2. 로켓 하강 — 추진이 꺼졌다. **긴 말을 못 한다.** 떨어지는 중이라 짧은 탄식과
+ * 다급한 한마디뿐이다.
+ */
+export const ROCKET_DOWN_LINES: readonly string[] = [
+  "아...",
+  "어? 어어??",
+  "연료가 없대",
+  "추진이 꺼졌어",
+  "화성은 다음에..",
+  "누가 좀 잡아줘",
+  "이거 환불 되나",
+  "내리막은 빠르네",
+];
+
+export const MEME_LINES: Readonly<Record<MemeLinePool, readonly string[]>> = {
   dig: DIG_LINES,
   ride: RIDE_LINES,
   flood: FLOOD_LINES,
   face: FACE_LINES,
   cushion: CUSHION_LINES,
   coaster: COASTER_LINES,
+  train: TRAIN_LINES,
+  trainUp: TRAIN_UP_LINES,
+  trainDown: TRAIN_DOWN_LINES,
+  rocket: ROCKET_LINES,
+  rocketDown: ROCKET_DOWN_LINES,
 };
 
 /**
@@ -144,8 +238,8 @@ export const MEME_LINES: Readonly<Record<MemeSceneId, readonly string[]>> = {
  * **미리보기에서 본 그 말이 그대로 녹화된다.** 박자마다 다른 줄을 뽑되, 바로 앞
  * 줄과는 겹치지 않게 한 칸 밀어준다 (같은 말이 두 번 이어지면 말풍선이 안 바뀐 줄 안다).
  */
-export function pickMemeLine(scene: MemeSceneId, seed: number, beat: number): string {
-  const pool = MEME_LINES[scene];
+export function pickMemeLine(pool_: MemeLinePool, seed: number, beat: number): string {
+  const pool = MEME_LINES[pool_];
   if (pool.length === 0) return "";
 
   const start = Math.abs(Math.floor(seed));

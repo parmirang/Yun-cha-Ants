@@ -17,10 +17,10 @@ import {
   antFacePixels,
   antPixels,
 } from "../ant-sprite";
-import { type MemeSceneId, pickMemeLine } from "./meme-lines";
+import { type MemeLinePool, type MemeSceneId, pickMemeLine } from "./meme-lines";
 
 /**
- * 짤 여섯 판. 전부 **한 격자(108×192, 9:16)** 위에 절차적으로 그려지고,
+ * 짤 여덟 판. 전부 **한 격자(108×192, 9:16)** 위에 절차적으로 그려지고,
  * 시간만 넣으면 같은 그림이 나온다 (`draw(p, { time, seed })`).
  *
  * 시간을 인자로 받는 게 규칙이다 — 내부에 타이머나 상태를 두면 미리보기에서 본 화면과
@@ -49,6 +49,18 @@ export interface SceneBubble {
   y: number;
   /** 0~1. 박자마다 떴다 사라진다 */
   alpha: number;
+  /** 무대에 박히는 글자 (역 이름 간판처럼). 말풍선과 달리 상자도 꼬리도 없다. */
+  labels?: readonly SceneLabel[];
+}
+
+export interface SceneLabel {
+  text: string;
+  /** 글자 상자의 가운데 위 좌표, 격자 칸 단위 */
+  x: number;
+  y: number;
+  alpha: number;
+  /** 글자 크기 (11px 격자의 배수) */
+  unit: number;
 }
 
 export interface MemeScene {
@@ -67,7 +79,7 @@ const BEAT_MS = 2400;
 /** 떴다 사라지는 데 걸리는 시간 — 루프 끝에서 0이라 이음매에서 말풍선이 튀지 않는다. */
 const FADE_MS = 280;
 
-function speak(scene: MemeSceneId, frame: SceneFrame, x: number, y: number): SceneBubble {
+function speak(scene: MemeLinePool, frame: SceneFrame, x: number, y: number): SceneBubble {
   const beat = Math.floor(frame.time / BEAT_MS);
   const inBeat = frame.time - beat * BEAT_MS;
   const alpha =
@@ -78,6 +90,31 @@ function speak(scene: MemeSceneId, frame: SceneFrame, x: number, y: number): Sce
         : 1;
 
   return { text: pickMemeLine(scene, frame.seed, beat), x, y, alpha: clamp01(alpha) };
+}
+
+/**
+ * `speak`가 박자(BEAT_MS)로 계속 끊는 것과 달리 **막의 창(fromMs~toMs) 안에서만** 말한다.
+ * 창을 `parts`로 나눠 한 부분에 한 줄씩 — 로켓처럼 막마다 다른 풀을 쓰는 판이 부른다.
+ * 창의 양끝에서 알파가 0이라 막 전환과 루프 이음매에서 말풍선이 튀지 않는다.
+ */
+function speakWindow(
+  pool: MemeLinePool,
+  frame: SceneFrame,
+  fromMs: number,
+  toMs: number,
+  parts: number,
+  x: number,
+  y: number,
+): SceneBubble {
+  const t = frame.time;
+  if (t < fromMs || t >= toMs) return { text: "", x, y, alpha: 0 };
+
+  const span = (toMs - fromMs) / parts;
+  const index = Math.min(parts - 1, Math.floor((t - fromMs) / span));
+  const inPart = t - fromMs - index * span;
+  const alpha = clamp01(Math.min(inPart, span - inPart) / FADE_MS);
+
+  return { text: pickMemeLine(pool, frame.seed, index), x, y, alpha };
 }
 
 /**
@@ -816,6 +853,7 @@ function outlined(
   top: number,
   scale: number,
   color: string,
+  flip = false,
 ) {
   const shadow = pixels.map((pixel) => ({ ...pixel, fill: color }));
 
@@ -825,10 +863,10 @@ function outlined(
     [0, -1],
     [0, 1],
   ] as const) {
-    p.sprite(shadow, left + dx * scale, top + dy * scale, scale);
+    p.sprite(shadow, left + dx * scale, top + dy * scale, scale, flip);
   }
 
-  p.sprite(pixels, left, top, scale);
+  p.sprite(pixels, left, top, scale, flip);
 }
 
 function drawSparkle(p: Painter, cx: number, cy: number, size: number) {
@@ -1023,7 +1061,690 @@ function drawTent(p: Painter, cx: number, groundY: number, half: number) {
   p.rect(cx, groundY - half * 2 - 3, 1, 3, "#6b5a7a");
 }
 
-export const MEME_SCENES: readonly MemeScene[] = [dig, ride, flood, face, cushion, coaster];
+
+/* ════════════════════════════════════════════════════
+   7. 만원 열차 — 정류장에서 타고, 봉 라인을 달린다
+   ════════════════════════════════════════════════════ */
+
+/**
+ * 네 막이라 한 바퀴가 길다 — 도착·탑승(0~0.42) · 출발과 줌아웃(~0.55) · 주행(~1).
+ * 인스타 스토리가 15초까지 받으므로 12초는 한 편으로 들어간다.
+ */
+const TRAIN_LOOP = 12000;
+const TRAIN_BOARD_FROM = 0.16;
+const TRAIN_DEPART_FROM = 0.42;
+const TRAIN_RIDE_FROM = 0.55;
+
+/** 역 이름. **여기만 고치면 다른 종목 역이 된다.** */
+const STATION_NAME = "하이닉스";
+
+/** 열차 한 칸의 도트 크기 (칸 단위). 줌은 정수로만 밟는다 — 소수 배율은 도트를 뭉갠다. */
+const TRAIN_ZOOM = [3, 2, 1] as const;
+/** 한 칸의 길이 (유닛). 역과 주행이 같은 그림을 쓰므로 여기 하나로 정해진다. */
+const CAR_LEN = 18;
+/** 첫 문의 자리 (유닛) */
+const DOOR_AT = 5;
+/** 열차가 선 선로 높이와 승강장 윗면 — 개미는 승강장에, 열차는 그 뒤에 선다 */
+const TRAIN_BASE = 138;
+const PLATFORM_TOP = 154;
+/** 주행할 때 붙는 칸 수 */
+const TRAIN_CARS = 4;
+/** 봉 한 구간의 가로 (격자) */
+const SEG_W = 34;
+const CHART_BASE = 150;
+/**
+ * 봉 높이의 폭. **너무 크면 열차가 레일에서 뜬다** — 칸은 수평인데 선로가 가파르면
+ * 칸의 앞뒤 끝이 선로에서 벌어진다. 칸을 짧게(18유닛) 잡고 기울기를 눕혀 맞춘다.
+ */
+const CHART_AMP = 58;
+
+/**
+ * 봉의 높낮이. **오르내림을 번갈아 못 박는다** — 무작위로 두면 한 방향으로만 이어지는
+ * 판이 나오고, 그러면 "말풍선이 봉을 따라 바뀐다"는 게 화면에서 안 보인다.
+ */
+function trainPrices(seed: number): number[] {
+  const random = seededRandom(seed + 91);
+  const prices = [0.34];
+
+  for (let i = 0; i < TRAIN_CARS + 6; i += 1) {
+    const step = 0.22 + random() * 0.24;
+    const next = (prices[i] as number) + (i % 2 === 0 ? step : -step);
+    prices.push(Math.min(0.92, Math.max(0.08, next)));
+  }
+
+  return prices;
+}
+
+const train: MemeScene = {
+  id: "train",
+  title: "만원 열차",
+  blurb: "정류장에 열차가 선다. 우르르 타고, 봉 라인을 달린다.",
+  loopMs: TRAIN_LOOP,
+
+  draw(p, frame) {
+    const a = frame.time / TRAIN_LOOP;
+    const osc = oscillator(a);
+    const prices = trainPrices(frame.seed);
+
+    if (a < TRAIN_DEPART_FROM) return drawStationAct(p, frame, a, osc);
+
+    /* ── 출발 이후 — 하늘과 차트 ── */
+    p.vGradient(0, p.h, "#101c33", "#2a3f63");
+
+    const starRandom = seededRandom(frame.seed + 77);
+    for (let i = 0; i < 30; i += 1) {
+      const x = Math.floor(starRandom() * p.w);
+      const y = Math.floor(starRandom() * 90);
+      p.faded(0.3 + 0.4 * osc(3, i * 0.11), () => p.dot(x, y, "#cfd8e8"));
+    }
+
+    /* 달 — 위쪽이 통째로 비면 열차가 화면 아래에 눌린 것처럼 보인다 */
+    p.disc(84, 32, 9, "#cfd8e8");
+    p.disc(81, 29, 2, "#a8b4c8");
+    p.disc(87, 35, 3, "#a8b4c8");
+
+    /* 멀어지는 도시 — 열차가 역을 떠났다는 걸 배경이 말해준다 */
+    const cityRandom = seededRandom(frame.seed + 83);
+    for (let i = 0; i < 14; i += 1) {
+      const w = 5 + Math.floor(cityRandom() * 7);
+      const x = Math.floor(cityRandom() * p.w);
+      const h = 10 + Math.floor(cityRandom() * 26);
+      p.rect(x, p.h - 18 - h, w, h + 18, "#16243c");
+      if (i % 2 === 0) p.rect(x + 1, p.h - 16 - h, 1, 1, "#ffd24a");
+    }
+
+    /*
+     * 카메라. **두 봉 앞에서 시작한다** — 0에서 출발하면 화면 왼쪽에 레일이 없어서
+     * 열차가 허공에 뜬 것처럼 보인다.
+     *
+     * **일정한 속도로 간다.** 가속을 넣었더니 뒤쪽 봉들이 순식간에 지나가 말풍선이
+     * 뜨다 말았다 — 이 판은 봉마다 한마디씩 하는 게 전부라 구간에 같은 시간을 줘야 한다.
+     */
+    const move = clamp01((a - TRAIN_DEPART_FROM) / (1 - TRAIN_DEPART_FROM));
+    const camU = 2 + move * (TRAIN_CARS + 0.5);
+    const priceAt = (u: number) => {
+      const i = Math.max(0, Math.min(prices.length - 2, Math.floor(u)));
+      return lerp(prices[i] as number, prices[i + 1] as number, u - i);
+    };
+    const railY = (u: number) => CHART_BASE - priceAt(u) * CHART_AMP;
+    const screenX = (u: number) => 54 + (u - camU) * SEG_W;
+
+    /* ── 봉 ── */
+    for (let i = Math.floor(camU) - 2; i <= Math.floor(camU) + 3; i += 1) {
+      if (i < 0 || i > prices.length - 2) continue;
+
+      const open = railY(i);
+      const close = railY(i + 1);
+      const up = close < open;
+      const x = screenX(i + 0.5) - 9;
+      if (x < -20 || x > p.w + 20) continue;
+
+      const top = Math.min(open, close);
+      const height = Math.max(3, Math.abs(close - open));
+
+      p.rect(x + 8, top - 9, 2, height + 18, up ? "#ff8f8f" : "#8fc0ff");
+      p.rect(x, top, 18, height, up ? "#ff5c5c" : "#5c9dff");
+      p.rect(x + 3, top + 2, 4, height - 4, up ? "#ffb3b3" : "#a8ccff");
+    }
+
+    /* ── 레일 — 봉 끝을 잇는 선이 곧 선로다 ── */
+    for (let x = -1; x <= p.w; x += 1) {
+      const u = camU + (x - 54) / SEG_W;
+      if (u < 0 || u > prices.length - 1) continue;
+      const y = railY(u);
+      p.rect(x, y, 1, 2, "#e8d8b0");
+      p.rect(x, y + 2, 1, 1, "#7a6a4a");
+    }
+
+    /* ── 열차 — 칸마다 제 자리의 높이에 놓아 선로를 따라 굽는다 ── */
+    const zoom = TRAIN_ZOOM[
+      Math.min(
+        TRAIN_ZOOM.length - 1,
+        Math.floor(clamp01((a - TRAIN_DEPART_FROM) / (TRAIN_RIDE_FROM - TRAIN_DEPART_FROM)) * TRAIN_ZOOM.length),
+      )
+    ] as number;
+    const carSpan = (CAR_LEN + 2) * zoom;
+
+    for (let i = TRAIN_CARS - 1; i >= 0; i -= 1) {
+      const u = camU - (i * carSpan) / SEG_W;
+      drawTrainCar(p, screenX(u) - carSpan / 2, railY(u), zoom, {
+        packed: true,
+        lead: i === 0,
+        bob: flip2(frame.time + i * 90, 180) ? 0 : 1,
+      });
+    }
+
+    /*
+     * 말풍선은 **지금 지나는 봉의 방향**을 따른다. 오를 때와 내릴 때 할 말이 다르고,
+     * 그게 이 판의 전부다 — 박자(BEAT_MS)로 끊으면 봉이 바뀌는 순간과 어긋난다.
+     */
+    if (a < TRAIN_RIDE_FROM) {
+      return speakWindow(
+        "train",
+        frame,
+        TRAIN_DEPART_FROM * TRAIN_LOOP,
+        TRAIN_RIDE_FROM * TRAIN_LOOP,
+        1,
+        54,
+        railY(camU) - 12 * zoom,
+      );
+    }
+
+    const segment = Math.max(0, Math.min(prices.length - 2, Math.floor(camU)));
+    const rising = (prices[segment + 1] as number) > (prices[segment] as number);
+    const inSegment = camU - Math.floor(camU);
+    const fade = 0.14;
+    const alpha = clamp01(Math.min(inSegment, 1 - inSegment) / fade);
+
+    return {
+      text: pickMemeLine(rising ? "trainUp" : "trainDown", frame.seed, segment),
+      x: 54,
+      y: railY(camU) - 12 * zoom,
+      alpha,
+    };
+  },
+};
+
+/** 1막 — 정류장에 열차가 서고 개미들이 우르르 탄다 */
+function drawStationAct(
+  p: Painter,
+  frame: SceneFrame,
+  a: number,
+  osc: (cycles: number, phase?: number) => number,
+): SceneBubble {
+  /* 지하 승강장 — 벽 · 선로 · 승강장이 위에서 아래로 층을 이룬다 */
+  p.vGradient(0, TRAIN_BASE, "#161d2a", "#28323f");
+
+  /* 벽 기둥과 타일 줄눈 — 없으면 위쪽 절반이 통째로 빈 색면이 된다 */
+  for (let x = 4; x < p.w; x += 26) {
+    p.rect(x, 0, 7, TRAIN_BASE - 30, "#1f2836");
+    p.rect(x, 0, 1, TRAIN_BASE - 30, "#2c384a");
+  }
+  for (let y = 58; y < TRAIN_BASE - 30; y += 14) {
+    for (let x = 0; x < p.w; x += 6) p.rect(x, y, 4, 1, "#2c384a");
+  }
+
+  /* 역 이름 간판 — 판때기는 도트로, 글자는 늘린 뒤에 얹는다 */
+  p.rect(22, 24, 64, 3, "#7a838f");
+  p.rect(24, 27, 60, 22, "#f3ece2");
+  p.rect(24, 27, 60, 1, "#ffffff");
+  p.rect(24, 48, 60, 1, "#b6ada0");
+
+  /* 열차가 오른쪽에서 미끄러져 들어와 선다. 두 칸을 물려 화면을 채운다. */
+  const arrive = easeOut(clamp01(a / TRAIN_BOARD_FROM));
+  const lead = lerp(p.w + 30, 44, arrive);
+  const doorOpen = a > TRAIN_BOARD_FROM;
+  const packed = a > TRAIN_BOARD_FROM + 0.18;
+  const bob = arrive < 1 && flip2(frame.time, 120) ? 1 : 0;
+
+  for (const index of [1, 0]) {
+    drawTrainCar(p, lead - index * (CAR_LEN + 1) * 3, TRAIN_BASE, 3, {
+      packed,
+      lead: index === 0,
+      doorOpen,
+      bob,
+    });
+  }
+
+  /* 선로 그늘과 승강장 — 개미는 승강장(앞쪽)에 서고 열차는 그 뒤에 선다 */
+  p.rect(0, TRAIN_BASE, p.w, PLATFORM_TOP - TRAIN_BASE, "#0e131c");
+  p.rect(0, PLATFORM_TOP, p.w, 3, "#c9a83a");
+  p.rect(0, PLATFORM_TOP + 3, p.w, p.h, "#39404d");
+  for (let x = 2; x < p.w; x += 8) p.rect(x, PLATFORM_TOP + 7, 4, 1, "#2c323d");
+
+  /*
+   * 개미들 — 승강장에서 문 쪽으로 우르르 몰렸다가 하나씩 사라진다.
+   * **오르는 시늉으로 위로도 옮긴다**: 옆으로만 밀면 문을 지나쳐 걸어가는 그림이 된다.
+   */
+  const board = clamp01((a - TRAIN_BOARD_FROM) / (TRAIN_DEPART_FROM - TRAIN_BOARD_FROM));
+  const crowd = seededRandom(frame.seed + 29);
+  const door = lead + DOOR_AT * 3;
+
+  for (let i = 0; i < 10; i += 1) {
+    const start = 2 + i * 10 + crowd() * 5;
+    const enter = clamp01((board - i * 0.07) / 0.34);
+    if (enter >= 1) continue;
+
+    const pose: AntPose = flip2(frame.time + i * 60, 150) ? "crawl1" : "crawl2";
+    /* 먼저 걸어가고(0~0.65) 문 앞에서 올라탄다(0.65~1) — 처음부터 위로 끌면 날아간다 */
+    const walk = clamp01(enter / 0.65);
+    const step = clamp01((enter - 0.65) / 0.35);
+
+    p.faded(enter > 0.82 ? (1 - enter) * 5.5 : 1, () =>
+      p.sprite(
+        antPixels(22 + i * 2, pose),
+        lerp(start, door - 7, walk),
+        lerp(PLATFORM_TOP + 2, TRAIN_BASE - 6, step) - 16,
+        1,
+      ),
+    );
+  }
+
+  /* 출입문 표시등 — 출발이 가까울수록 깜빡인다 */
+  p.faded(osc(10) > 0 ? 1 : 0.2, () => p.rect(door + 3, TRAIN_BASE - 42, 4, 2, "#ff8f8f"));
+
+  /*
+   * **막의 창 안에서 두 마디** 한다. 전역 박자(`speak`)로 끊으면 막이 바뀌는 순간
+   * 말풍선이 중간에 잘려 사라진다 — 도착·탑승은 한 막이라 그 창을 그대로 쓴다.
+   */
+  const bubble = speakWindow(
+    "train",
+    frame,
+    0,
+    TRAIN_DEPART_FROM * TRAIN_LOOP,
+    2,
+    34,
+    PLATFORM_TOP - 24,
+  );
+
+  return {
+    ...bubble,
+    labels: [{ text: STATION_NAME, x: 54, y: 30, alpha: 1, unit: 5 }],
+  };
+}
+
+/**
+ * 열차 한 칸. **문과 창문이 있어야 열차로 읽힌다** — 네모에 바퀴만 달면 화물칸이 된다.
+ *
+ * 길이를 18유닛으로 잡은 건 **역과 주행이 같은 그림을 쓰기 위해서다**: 3배면 승강장에서
+ * 반 화면을 채우고, 1배면 네 칸을 이어 붙여도 화면에 들어온다. 가까울 때와 멀 때 다른
+ * 열차를 그리면 줌아웃하는 동안 열차가 다른 물건으로 바뀐다.
+ */
+function drawTrainCar(
+  p: Painter,
+  left: number,
+  baseY: number,
+  unit: number,
+  opts: { packed?: boolean; lead?: boolean; doorOpen?: boolean; bob?: number },
+) {
+  const u = (n: number) => n * unit;
+  const top = baseY - u(13) + (opts.bob ?? 0);
+
+  p.rect(left, top, u(CAR_LEN), u(12), "#d8dde6");
+  p.rect(left, top, u(CAR_LEN), u(1), "#9aa3b0");
+  p.rect(left, top + u(9), u(CAR_LEN), u(1), "#ff5c5c");
+  p.rect(left, top + u(11), u(CAR_LEN), u(1), "#7c8593");
+
+  /* 창문 — 탄 개미들이 여기로 보인다 */
+  for (const wx of [2, 8, 13]) {
+    p.rect(left + u(wx), top + u(2), u(3), u(4), "#2b3a4f");
+    if (!opts.packed) continue;
+
+    for (let k = 0; k < 2; k += 1) {
+      const hx = left + u(wx + 0.3) + k * u(1.4);
+      p.rect(hx, top + u(3), u(1.1), u(2.6), "#8a6238");
+      p.rect(hx + u(0.25), top + u(3.6), u(0.35), u(0.5), "#ffffff");
+    }
+  }
+
+  /* 문 */
+  for (const dx of [DOOR_AT, DOOR_AT + 6]) {
+    p.rect(left + u(dx), top + u(2), u(2), u(8), opts.doorOpen ? "#141a24" : "#8fb4d8");
+    if (!opts.doorOpen) p.rect(left + u(dx + 0.9), top + u(2), u(0.3), u(8), "#5f7ea0");
+  }
+
+  /* 앞칸이면 기관실 창과 전조등 */
+  if (opts.lead) {
+    p.rect(left + u(CAR_LEN - 3), top + u(2), u(2), u(4), "#38506b");
+    p.rect(left + u(CAR_LEN - 1), top + u(7), u(1), u(2), "#ffe9a8");
+  }
+
+  /* 바퀴 */
+  for (const wx of [3, 6, 12, 15]) {
+    p.rect(left + u(wx), baseY - u(1), u(2), u(1.4), "#2a2f38");
+  }
+}
+
+/* ════════════════════════════════════════════════════
+   8. 로켓 발사 — 화성 간다더니
+   ════════════════════════════════════════════════════ */
+
+/**
+ * 네 막 — 점화(~0.12) · 상승(~0.56) · 추진 꺼짐(~0.66) · 추락(~1).
+ * 상승은 탑승처럼 **하늘색을 세계 좌표로** 정한다 — 그래야 올라가는 내내 색이 이어진다.
+ * 추락은 처음으로 되돌아오지 않는다 — 한 바퀴 끝은 흠이 아니라 컷이다.
+ */
+const ROCKET_LOOP = 9600;
+/** 막 경계 (한 바퀴 안의 위치) */
+const RKT_IGNITE = 0.06;
+const RKT_LIFT = 0.12;
+/** 로켓이 화면 가운데로 올라와 멈추는 시점 — 이후는 카메라(고도)만 오른다 */
+const RKT_HOVER = 0.34;
+const RKT_CUT = 0.56;
+const RKT_DEAD = 0.64;
+const RKT_APEX = 0.66;
+
+/** 발사대가 놓인 세계 좌표와, 서 있을 때 발사대의 화면 높이 */
+const RKT_GROUND = 540;
+const RKT_PAD_Y = 160;
+/** 정점 고도와, 한 바퀴 끝까지 잃는 고도 (세계 단위) */
+const RKT_PEAK = 880;
+const RKT_FALL = 460;
+const RKT_X = 54;
+/** 로켓 전체 키 — 엔진 4 + 몸통 32 + 코 9 */
+const RKT_H = 45;
+/** 화성이 떠 있는 세계 높이 — 정점에서 화면 가운데쯤 온다. 끝내 못 닿는 목적지다. */
+const RKT_MARS = -430;
+
+const RKT_SKY: readonly [number, string][] = [
+  [-560, "#03040c"],
+  [-300, "#0a1233"],
+  [-40, "#1b4382"],
+  [220, "#2f74b8"],
+  [420, "#5fb2ee"],
+  [560, "#a2daf6"],
+];
+
+/**
+ * 코에 올라탄 세 마리. 가운데가 꼭짓점, 양옆은 코 어깨에 매달린다 — 간격을 더 벌리면
+ * 로켓 폭을 벗어나 허공에 떠 보이고, 좁히면 셋이 한 덩어리가 된다. 가운데를 마지막에
+ * 그려 앞줄로 세운다.
+ */
+const RKT_RIDERS = [
+  { dx: -10, drop: 7, stage: 36 },
+  { dx: 10, drop: 7, stage: 28 },
+  { dx: 0, drop: 2, stage: 46 },
+] as const;
+
+const rocket: MemeScene = {
+  id: "rocket",
+  title: "로켓 발사",
+  blurb: "불 뿜으며 화성으로. 연료가 다 떨어지기 전까진.",
+  loopMs: ROCKET_LOOP,
+
+  draw(p, frame) {
+    const a = frame.time / ROCKET_LOOP;
+    const osc = oscillator(a);
+
+    /* 고도 — 정점까지 차오르고, 추진이 꺼지면 가속하며 떨어진다 */
+    const climb = easeInOut(clamp01((a - 0.14) / (RKT_APEX - 0.14)));
+    const fall = clamp01((a - RKT_APEX) / (1 - RKT_APEX));
+    const alt = RKT_PEAK * climb - RKT_FALL * fall * fall;
+    const camTop = RKT_GROUND - RKT_PAD_Y - alt;
+    const sy = (worldY: number) => worldY - camTop;
+
+    /* 로켓의 화면 자리 — 이륙하면 가운데로 올라와 멈추고, 떨어지면 아래로 처진다 */
+    const bottom =
+      lerp(RKT_PAD_Y, 118, easeInOut((a - RKT_LIFT) / (RKT_HOVER - RKT_LIFT))) +
+      70 * fall * fall;
+    /* 추진 중엔 부르르 떨고, 떨어질 땐 좌우로 크게 흔들린다 */
+    const thrusting = a >= RKT_IGNITE && a < RKT_DEAD;
+    let jx = 0;
+    if (a >= RKT_APEX) jx = flip2(frame.time, 160) ? -1 : 1;
+    else if (thrusting) jx = flip2(frame.time, 100) ? 1 : 0;
+    const cx = RKT_X + jx;
+
+    /* 하늘 — 세 칸씩 끊어 칠한다. 색은 화면 위치가 아니라 세계 좌표가 정한다. */
+    for (let row = 0; row < p.h; row += 3) {
+      p.rect(0, row, p.w, 3, gradientAt(RKT_SKY, camTop + row));
+    }
+
+    /* 별 — 높이 올라갈수록 짙어진다 */
+    const starRandom = seededRandom(frame.seed + 19);
+    for (let i = 0; i < 44; i += 1) {
+      const x = Math.floor(starRandom() * p.w);
+      const worldY = 60 - starRandom() * 700;
+      const twinkle = 0.45 + 0.55 * osc(3, i * 0.16);
+      const y = sy(worldY);
+      if (y < -2 || y > p.h) continue;
+
+      p.faded(clamp01(twinkle) * clamp01((200 - camTop) / 240), () => {
+        p.dot(x, y, "#ffffff");
+        if (i % 7 === 0) {
+          p.dot(x - 1, y, "#dfe8ff");
+          p.dot(x + 1, y, "#dfe8ff");
+          p.dot(x, y - 1, "#dfe8ff");
+          p.dot(x, y + 1, "#dfe8ff");
+        }
+      });
+    }
+
+    /* 화성 — 정점에서 눈앞까지 오지만 끝내 닿지 않는다 */
+    const marsY = sy(RKT_MARS);
+    if (marsY > -16 && marsY < p.h + 16) {
+      p.faded(0.16, () => p.disc(86, marsY, 9, "#d8542f"));
+      p.disc(86, marsY, 7, "#d8542f");
+      p.disc(83, marsY - 2, 2, "#a83c22");
+      p.disc(89, marsY + 3, 3, "#a83c22");
+      p.dot(83, marsY - 5, "#f0906a");
+    }
+
+    /* 구름 — 이륙하며 아래로 스쳐 내려간다 */
+    const cloudRandom = seededRandom(frame.seed + 23);
+    for (let i = 0; i < 7; i += 1) {
+      const worldY = 430 - cloudRandom() * 280;
+      const x = 6 + cloudRandom() * 92 + osc(1, i * 0.3) * 3;
+      const size = 4 + Math.floor(cloudRandom() * 4);
+      const y = sy(worldY);
+      if (y < -20 || y > p.h + 20) continue;
+      drawCloud(p, x, y, size);
+    }
+
+    /* 신기루 얼굴 — 추락하는 하늘에 우는 얼굴이 흐리게 비친다 */
+    const mirage = clamp01((a - 0.7) / 0.08) * clamp01((0.985 - a) / 0.045);
+    if (mirage > 0) drawMirageFace(p, a, osc, mirage);
+
+    /* ── 발사대 — 이륙하면 통째로 화면 아래로 빠진다 ── */
+    const groundY = sy(RKT_GROUND);
+    if (groundY < p.h) {
+      p.rect(0, groundY, p.w, 3, "#5a6a4a");
+      p.rect(0, groundY + 3, p.w, p.h - groundY - 3, "#3c4a34");
+      /* 콘크리트 패드와 로켓 밑 화염 배출구 */
+      p.rect(26, groundY, 56, 4, "#7d8694");
+      p.rect(26, groundY, 56, 1, "#9aa3b0");
+      p.rect(44, groundY + 1, 20, 3, "#2a2f38");
+
+      /* 발사탑 — 가로대와 빗대가 있어야 철탑으로 읽힌다 */
+      const towerTop = groundY - 54;
+      p.rect(70, towerTop, 2, 54, "#4a5568");
+      p.rect(78, towerTop, 2, 54, "#4a5568");
+      for (let yy = towerTop; yy < groundY - 8; yy += 9) {
+        p.rect(70, yy, 10, 1, "#5a6578");
+        p.line(70, yy + 9, 79, yy, "#3c4658");
+      }
+      p.faded(osc(8) > 0 ? 1 : 0.25, () => p.rect(74, towerTop - 3, 2, 2, "#ff5c5c"));
+
+      /* 거치대 — 이륙하면 로켓만 떠난다 */
+      if (a < RKT_LIFT) {
+        p.rect(RKT_X - 10, RKT_PAD_Y - 3, 3, 3, "#5a6578");
+        p.rect(RKT_X + 7, RKT_PAD_Y - 3, 3, 3, "#5a6578");
+      }
+
+      /* 점화 수증기 — 로켓을 안 따라가고 발사대에 남아 옆으로 퍼진다 */
+      for (let i = 0; i < 6; i += 1) {
+        const age = clamp01((a - RKT_IGNITE - i * 0.015) / 0.3);
+        if (age <= 0 || age >= 1) continue;
+        const dir = i % 2 === 0 ? 1 : -1;
+        const x = RKT_X + dir * (8 + age * 34 + i);
+        const y = groundY - 2 - age * 6 - (i % 3);
+        p.faded(0.5 * (1 - age), () => p.disc(x, y, 3 + age * 6, "#dfe4ea"));
+      }
+    }
+
+    /* 속도선 — 오를 때는 아래로, 떨어질 때는 위로 스친다. 막에 갇혀 있어 이음매와 무관하다. */
+    const rush = clamp01((a - 0.18) / 0.1) * clamp01((RKT_CUT + 0.04 - a) / 0.08);
+    const plunge = clamp01((a - 0.72) / 0.08) * clamp01((0.99 - a) / 0.05);
+    if (rush > 0 || plunge > 0) {
+      const streakRandom = seededRandom(frame.seed + 43);
+      for (let i = 0; i < 14; i += 1) {
+        const x = Math.floor(streakRandom() * p.w);
+        const length = 6 + Math.floor(streakRandom() * 8);
+        const laps = 3 + Math.floor(streakRandom() * 4);
+        const span = p.h + length;
+        const travel = (streakRandom() * span + a * laps * span) % span;
+        if (rush > 0) p.faded(0.2 * rush, () => p.rect(x, travel - length, 1, length, "#ffffff"));
+        if (plunge > 0)
+          p.faded(0.2 * plunge, () => p.rect(x, span - travel - length, 1, length, "#cfe9ff"));
+      }
+    }
+
+    /* 불꽃과 배기 불티 */
+    const flameLen = rocketFlameLength(a, frame.time);
+    if (flameLen > 1) drawRocketFlame(p, cx, bottom, flameLen);
+
+    if (a >= RKT_LIFT && a < RKT_CUT) {
+      const spark = seededRandom(frame.seed + 37);
+      for (let i = 0; i < 4; i += 1) {
+        const phase = ((frame.time + i * 240) % 480) / 480;
+        const x = cx - 5 + Math.floor(spark() * 10);
+        const y = bottom + flameLen + 2 + phase * 12;
+        p.faded(1 - phase, () => p.dot(x, y, i % 2 === 0 ? "#ffd24a" : "#ff8f3f"));
+      }
+    }
+
+    /*
+     * 꺼진 엔진에서 새는 연기. 로켓은 떨어지고 연기는 그 자리에 남아야 해서,
+     * **뿜은 순간의 로켓 위치**를 같은 공식으로 되짚어 그 자리에 그린다 (상태를 안 쥔다).
+     */
+    if (a >= RKT_DEAD) {
+      for (let i = 0; i < 4; i += 1) {
+        const emit = RKT_DEAD + 0.01 + i * 0.055;
+        const age = (a - emit) / 0.22;
+        if (age <= 0 || age >= 1) continue;
+        const emitBottom = 118 + 70 * clamp01((emit - RKT_APEX) / (1 - RKT_APEX)) ** 2;
+        const x = RKT_X + (i % 2 === 0 ? -3 : 3) * (1 + age);
+        const y = emitBottom + 2 - age * 26;
+        p.faded(0.4 * (1 - age), () => p.disc(x, y, 2 + age * 4, "#aab4c2"));
+      }
+    }
+
+    /* 로켓과 올라탄 셋 */
+    drawRocketShip(p, cx, bottom);
+
+    const noseTip = bottom - RKT_H;
+    const panic = a >= RKT_CUT;
+    RKT_RIDERS.forEach((rider, i) => {
+      /* 오를 땐 느긋하게 손 흔들고, 추진이 꺼지면 빠르게 허우적대며 이리저리 돌아본다 */
+      const pose: AntPose = panic
+        ? flip2(frame.time + i * 70, 150)
+          ? "wave1"
+          : "wave2"
+        : flip2(frame.time + i * 150, 300)
+          ? "wave1"
+          : "wave2";
+      const flip = panic ? flip2(frame.time + i * 240, 480) : rider.dx < 0;
+      const jitter = panic && flip2(frame.time + i * 80, 160) ? 1 : 0;
+
+      outlined(
+        p,
+        antPixels(rider.stage, pose),
+        cx + rider.dx - 8 + jitter,
+        noseTip + rider.drop - 16,
+        1,
+        "#141a26",
+        flip,
+      );
+    });
+
+    /* 말풍선 — 오를 땐 환호, 떨어질 땐 탄식. 엔진이 꺼지는 사이는 말을 잃는다. */
+    if (frame.time < 6200) {
+      return speakWindow("rocket", frame, 1450, 5250, 2, RKT_X, noseTip - 16);
+    }
+    return speakWindow("rocketDown", frame, 7000, 9350, 1, RKT_X, noseTip - 16);
+  },
+};
+
+/** 불꽃 길이. 점화 때 자라고, 추진 중엔 일렁이고, 꺼질 땐 짧아지며 켜졌다 꺼졌다 한다. */
+function rocketFlameLength(a: number, time: number): number {
+  if (a < RKT_IGNITE || a >= RKT_DEAD) return 0;
+  if (a < RKT_LIFT) return 16 * easeOut((a - RKT_IGNITE) / (RKT_LIFT - RKT_IGNITE));
+  if (a < RKT_CUT) return flip2(time, 100) ? 16 : 13;
+
+  /* 마지막 기침 */
+  if (!flip2(time, 120)) return 0;
+  return lerp(12, 3, (a - RKT_CUT) / (RKT_DEAD - RKT_CUT));
+}
+
+/** 노즐 불꽃 — 겉주황·속노랑·심흰색 세 겹이 아래로 좁아진다 */
+function drawRocketFlame(p: Painter, cx: number, top: number, len: number) {
+  const layer = (l: number, halfWidth: number, color: string) => {
+    for (let i = 0; i < l; i += 1) {
+      const half = Math.max(1, Math.round(halfWidth * (1 - i / l)));
+      p.rect(cx - half, top + i, half * 2, 1, color);
+    }
+  };
+
+  layer(len, 6, "#ff8f3f");
+  layer(len * 0.72, 4, "#ffd24a");
+  layer(len * 0.4, 2, "#fff3b0");
+}
+
+/**
+ * 로켓 본체. 흰 원통에 검은 단 띠, 그리드핀, 성조기 — **미장 로켓이라는 표식은 국기
+ * 하나로 끝낸다.** 장면에 글자·숫자를 안 넣는 규칙이라 이름은 안 적는다.
+ */
+function drawRocketShip(p: Painter, cx: number, bottom: number) {
+  /* 엔진부 — 노즐 세 개 */
+  p.rect(cx - 6, bottom - 4, 12, 4, "#3a4250");
+  for (const nx of [-5, -1, 3]) p.rect(cx + nx, bottom - 1, 2, 2, "#242a34");
+
+  /* 몸통 — 왼쪽에 하이라이트, 오른쪽에 그늘을 세워 원통으로 만든다 */
+  p.rect(cx - 7, bottom - 36, 14, 32, "#e8ecf2");
+  p.rect(cx - 6, bottom - 36, 1, 32, "#ffffff");
+  p.rect(cx + 4, bottom - 36, 3, 32, "#c2cad6");
+
+  /* 단 사이 검은 띠와 접힌 그리드핀 */
+  p.rect(cx - 7, bottom - 22, 14, 3, "#20242c");
+  p.rect(cx - 9, bottom - 34, 2, 4, "#8a93a2");
+  p.rect(cx + 7, bottom - 34, 2, 4, "#8a93a2");
+
+  /* 성조기 */
+  p.rect(cx - 4, bottom - 31, 2, 2, "#2b4a9e");
+  p.rect(cx - 2, bottom - 31, 5, 1, "#d84040");
+  p.rect(cx - 2, bottom - 30, 5, 1, "#ffffff");
+  p.rect(cx - 4, bottom - 29, 7, 1, "#d84040");
+
+  /* 코 — 위로 갈수록 좁아진다 */
+  for (let i = 0; i < 9; i += 1) {
+    const half = Math.max(1, Math.round((7 * (i + 2)) / 10));
+    p.rect(cx - half, bottom - RKT_H + i, half * 2, 1, i < 2 ? "#c2cad6" : "#e8ecf2");
+  }
+}
+
+/**
+ * 추락하는 하늘에 비치는 우는 얼굴. 클로즈업의 그 문자맵(`antFacePixels`)을 **반투명으로만**
+ * 얹는다 — 도트에는 블러가 없으니 신기루는 투명도와 ±1도트 흔들림으로 만든다. 색을 여기서
+ * 새로 만들지 않아야 클로즈업 판과 같은 개미로 읽힌다.
+ * 눈물은 두 눈에서 시차를 두고 볼을 타고 또르르 내려간다.
+ */
+function drawMirageFace(
+  p: Painter,
+  a: number,
+  osc: (cycles: number, phase?: number) => number,
+  alpha: number,
+) {
+  const left = Math.round((p.w - ANT_FACE_W) / 2) + Math.round(osc(2, 0.35));
+  const top = 14;
+
+  p.faded(alpha * (0.3 + 0.04 * osc(3, 0.6)), () => p.sprite(antFacePixels(20), left, top, 1));
+
+  ANT_FACE_EYES.forEach((eye, i) => {
+    const roll = clamp01((a - 0.74 - i * 0.07) / 0.16);
+    if (roll <= 0) return;
+
+    const x = left + eye.x + (i === 0 ? -1 : 1);
+    const from = top + eye.y + 2;
+    const dropY = from + roll * 24;
+
+    /* 지나온 자국을 얇게 남겨야 "흘러내린" 게 보인다 */
+    p.faded(alpha * 0.35, () => p.rect(x, from, 1, dropY - from, "#8fc4f0"));
+    p.faded(alpha * 0.8, () => {
+      p.rect(x, dropY, 2, 3, "#4a8fd8");
+      p.rect(x, dropY + 1, 1, 2, "#cfe9ff");
+    });
+  });
+}
+
+export const MEME_SCENES: readonly MemeScene[] = [
+  dig,
+  ride,
+  flood,
+  face,
+  cushion,
+  coaster,
+  train,
+  rocket,
+];
 
 export function findScene(id: MemeSceneId): MemeScene {
   return MEME_SCENES.find((scene) => scene.id === id) ?? dig;
