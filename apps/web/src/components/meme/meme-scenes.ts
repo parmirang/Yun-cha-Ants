@@ -1089,30 +1089,57 @@ const TRAIN_BASE = 138;
 const PLATFORM_TOP = 154;
 /** 주행할 때 붙는 칸 수 */
 const TRAIN_CARS = 4;
-/** 봉 한 구간의 가로 (격자) */
-const SEG_W = 34;
+/**
+ * 구간의 가로(=지나는 데 걸리는 시간)와 오르내림.
+ *
+ * **오르막과 내리막을 다르게 잡는다** — 오래 걸려 많이 오르고, 짧은 사이에 더 많이
+ * 떨어진다. 카메라는 일정한 속도라 가로가 곧 시간이라, 이 두 상수가 "천천히 올라가서
+ * 순식간에 무너진다"를 만든다.
+ */
+const RISE_W = 52;
+const RISE_DY = 0.38;
+const FALL_W = 15;
+const FALL_DY = 0.46;
 const CHART_BASE = 150;
 /**
  * 봉 높이의 폭. **너무 크면 열차가 레일에서 뜬다** — 칸은 수평인데 선로가 가파르면
  * 칸의 앞뒤 끝이 선로에서 벌어진다. 칸을 짧게(18유닛) 잡고 기울기를 눕혀 맞춘다.
  */
-const CHART_AMP = 58;
+const CHART_AMP = 86;
+
+interface ChartPoint {
+  /** 세계 가로 좌표 (1 = 격자 한 칸) */
+  x: number;
+  /** 높이 0~1 */
+  y: number;
+}
 
 /**
- * 봉의 높낮이. **오르내림을 번갈아 못 박는다** — 무작위로 두면 한 방향으로만 이어지는
+ * 봉의 꺾은선. **오르내림을 번갈아 못 박는다** — 무작위로 두면 한 방향으로만 이어지는
  * 판이 나오고, 그러면 "말풍선이 봉을 따라 바뀐다"는 게 화면에서 안 보인다.
+ * 가로는 구간마다 다르다 (오르막은 길게, 내리막은 짧게).
  */
-function trainPrices(seed: number): number[] {
+function trainChart(seed: number): ChartPoint[] {
   const random = seededRandom(seed + 91);
-  const prices = [0.34];
+  const points: ChartPoint[] = [{ x: 0, y: 0.24 }];
 
-  for (let i = 0; i < TRAIN_CARS + 6; i += 1) {
-    const step = 0.22 + random() * 0.24;
-    const next = (prices[i] as number) + (i % 2 === 0 ? step : -step);
-    prices.push(Math.min(0.92, Math.max(0.08, next)));
+  for (let i = 0; i < 9; i += 1) {
+    const rising = i % 2 === 0;
+    const previous = points[i] as ChartPoint;
+    const width = rising
+      ? RISE_W * (0.8 + random() * 0.45)
+      : FALL_W * (0.75 + random() * 0.5);
+    const delta = rising
+      ? RISE_DY * (0.75 + random() * 0.5)
+      : -FALL_DY * (0.8 + random() * 0.55);
+
+    points.push({
+      x: previous.x + width,
+      y: Math.min(0.94, Math.max(0.06, previous.y + delta)),
+    });
   }
 
-  return prices;
+  return points;
 }
 
 const train: MemeScene = {
@@ -1124,7 +1151,7 @@ const train: MemeScene = {
   draw(p, frame) {
     const a = frame.time / TRAIN_LOOP;
     const osc = oscillator(a);
-    const prices = trainPrices(frame.seed);
+    const chart = trainChart(frame.seed);
 
     if (a < TRAIN_DEPART_FROM) return drawStationAct(p, frame, a, osc);
 
@@ -1154,70 +1181,92 @@ const train: MemeScene = {
     }
 
     /*
-     * 카메라. **두 봉 앞에서 시작한다** — 0에서 출발하면 화면 왼쪽에 레일이 없어서
-     * 열차가 허공에 뜬 것처럼 보인다.
+     * 카메라. **한 구간 앞에서 시작한다** — 0에서 출발하면 화면 왼쪽에 레일이 없어서
+     * 열차가 허공에 뜬 것처럼 보인다. 세계 한 칸이 격자 한 칸이라 가로는 그대로 쓴다.
      *
-     * **일정한 속도로 간다.** 가속을 넣었더니 뒤쪽 봉들이 순식간에 지나가 말풍선이
-     * 뜨다 말았다 — 이 판은 봉마다 한마디씩 하는 게 전부라 구간에 같은 시간을 줘야 한다.
+     * **속도는 일정하다.** 가속을 넣었더니 뒤쪽 구간이 순식간에 지나가 말풍선이 뜨다
+     * 말았다. 대신 구간의 가로가 제각각이라, 같은 속도로 가도 오르막은 오래 걸리고
+     * 내리막은 순식간에 끝난다 — 그게 이 판이 노리는 리듬이다.
      */
     const move = clamp01((a - TRAIN_DEPART_FROM) / (1 - TRAIN_DEPART_FROM));
-    const camU = 2 + move * (TRAIN_CARS + 0.5);
-    const priceAt = (u: number) => {
-      const i = Math.max(0, Math.min(prices.length - 2, Math.floor(u)));
-      return lerp(prices[i] as number, prices[i + 1] as number, u - i);
+    const first = chart[1] as ChartPoint;
+    const last = chart[chart.length - 2] as ChartPoint;
+    const camX = lerp(first.x, last.x, move);
+
+    const segmentAt = (worldX: number) => {
+      for (let i = 0; i < chart.length - 1; i += 1) {
+        if (worldX < (chart[i + 1] as ChartPoint).x) return Math.max(0, i);
+      }
+      return chart.length - 2;
     };
-    const railY = (u: number) => CHART_BASE - priceAt(u) * CHART_AMP;
-    const screenX = (u: number) => 54 + (u - camU) * SEG_W;
+    const priceAt = (worldX: number) => {
+      const i = segmentAt(worldX);
+      const from = chart[i] as ChartPoint;
+      const to = chart[i + 1] as ChartPoint;
+      return lerp(from.y, to.y, (worldX - from.x) / (to.x - from.x));
+    };
+    const railY = (worldX: number) => CHART_BASE - priceAt(worldX) * CHART_AMP;
+    /** 화면에서의 기울기 (내려갈수록 +) — 열차를 이만큼 기울여 레일에 앉힌다 */
+    const slopeAt = (worldX: number) => {
+      const i = segmentAt(worldX);
+      const from = chart[i] as ChartPoint;
+      const to = chart[i + 1] as ChartPoint;
+      return (-(to.y - from.y) * CHART_AMP) / (to.x - from.x);
+    };
+    const screenX = (worldX: number) => 54 + (worldX - camX);
 
     /* ── 봉 ── */
-    for (let i = Math.floor(camU) - 2; i <= Math.floor(camU) + 3; i += 1) {
-      if (i < 0 || i > prices.length - 2) continue;
+    for (let i = 0; i < chart.length - 1; i += 1) {
+      const from = chart[i] as ChartPoint;
+      const to = chart[i + 1] as ChartPoint;
+      const width = Math.max(6, Math.min(18, (to.x - from.x) * 0.55));
+      const cx = screenX((from.x + to.x) / 2);
+      if (cx < -24 || cx > p.w + 24) continue;
 
-      const open = railY(i);
-      const close = railY(i + 1);
+      const open = CHART_BASE - from.y * CHART_AMP;
+      const close = CHART_BASE - to.y * CHART_AMP;
       const up = close < open;
-      const x = screenX(i + 0.5) - 9;
-      if (x < -20 || x > p.w + 20) continue;
-
       const top = Math.min(open, close);
       const height = Math.max(3, Math.abs(close - open));
 
-      p.rect(x + 8, top - 9, 2, height + 18, up ? "#ff8f8f" : "#8fc0ff");
-      p.rect(x, top, 18, height, up ? "#ff5c5c" : "#5c9dff");
-      p.rect(x + 3, top + 2, 4, height - 4, up ? "#ffb3b3" : "#a8ccff");
+      p.rect(cx - 1, top - 8, 2, height + 16, up ? "#ff8f8f" : "#8fc0ff");
+      p.rect(cx - width / 2, top, width, height, up ? "#ff5c5c" : "#5c9dff");
+      p.rect(cx - width / 2 + 2, top + 2, Math.max(2, width * 0.25), height - 4, up ? "#ffb3b3" : "#a8ccff");
     }
 
     /* ── 레일 — 봉 끝을 잇는 선이 곧 선로다 ── */
     for (let x = -1; x <= p.w; x += 1) {
-      const u = camU + (x - 54) / SEG_W;
-      if (u < 0 || u > prices.length - 1) continue;
-      const y = railY(u);
+      const worldX = camX + (x - 54);
+      if (worldX < 0 || worldX > last.x + FALL_W) continue;
+      const y = railY(worldX);
       p.rect(x, y, 1, 2, "#e8d8b0");
       p.rect(x, y + 2, 1, 1, "#7a6a4a");
     }
 
-    /* ── 열차 — 칸마다 제 자리의 높이에 놓아 선로를 따라 굽는다 ── */
+    /* ── 열차 — 칸마다 제 자리의 높이와 기울기로 놓아 선로를 따라간다 ── */
     const zoom = TRAIN_ZOOM[
       Math.min(
         TRAIN_ZOOM.length - 1,
-        Math.floor(clamp01((a - TRAIN_DEPART_FROM) / (TRAIN_RIDE_FROM - TRAIN_DEPART_FROM)) * TRAIN_ZOOM.length),
+        Math.floor(
+          clamp01((a - TRAIN_DEPART_FROM) / (TRAIN_RIDE_FROM - TRAIN_DEPART_FROM)) *
+            TRAIN_ZOOM.length,
+        ),
       )
     ] as number;
     const carSpan = (CAR_LEN + 2) * zoom;
 
     for (let i = TRAIN_CARS - 1; i >= 0; i -= 1) {
-      const u = camU - (i * carSpan) / SEG_W;
-      drawTrainCar(p, screenX(u) - carSpan / 2, railY(u), zoom, {
+      const worldX = camX - i * carSpan;
+      if (worldX < 0) continue;
+
+      drawTrainCar(p, screenX(worldX) - carSpan / 2, railY(worldX), zoom, {
         packed: true,
         lead: i === 0,
         bob: flip2(frame.time + i * 90, 180) ? 0 : 1,
+        slope: slopeAt(worldX),
       });
     }
 
-    /*
-     * 말풍선은 **지금 지나는 봉의 방향**을 따른다. 오를 때와 내릴 때 할 말이 다르고,
-     * 그게 이 판의 전부다 — 박자(BEAT_MS)로 끊으면 봉이 바뀌는 순간과 어긋난다.
-     */
     if (a < TRAIN_RIDE_FROM) {
       return speakWindow(
         "train",
@@ -1226,21 +1275,32 @@ const train: MemeScene = {
         TRAIN_RIDE_FROM * TRAIN_LOOP,
         1,
         54,
-        railY(camU) - 12 * zoom,
+        railY(camX) - 13 * zoom,
       );
     }
 
-    const segment = Math.max(0, Math.min(prices.length - 2, Math.floor(camU)));
-    const rising = (prices[segment + 1] as number) > (prices[segment] as number);
-    const inSegment = camU - Math.floor(camU);
-    const fade = 0.14;
-    const alpha = clamp01(Math.min(inSegment, 1 - inSegment) / fade);
+    /*
+     * 말풍선은 **지금 지나는 구간의 방향**을 따른다. 오를 때와 내릴 때 할 말이 다르고,
+     * 그게 이 판의 전부다 — 박자(BEAT_MS)로 끊으면 구간이 바뀌는 순간과 어긋난다.
+     * 내리막은 순식간이라 페이드도 그 길이에 맞춰 줄인다 (안 그러면 뜨다 만다).
+     */
+    /*
+     * **말풍선은 한 박자 늦게 따라온다.** 내리막은 순식간이라 구간에 딱 맞춰 띄우면
+     * 뜨다 만다 — 조금 뒤처져 읽으면 떨어지는 동안 떴다가 바닥에 닿고 나서 사라진다.
+     * 사라지는 속도도 구간 길이가 아니라 **지나온 거리**로 재야 길고 짧은 구간이
+     * 같은 리듬으로 뜬다.
+     */
+    const readAt = camX - 8;
+    const segment = segmentAt(readAt);
+    const from = chart[segment] as ChartPoint;
+    const to = chart[segment + 1] as ChartPoint;
+    const edge = Math.min(readAt - from.x, to.x - readAt);
 
     return {
-      text: pickMemeLine(rising ? "trainUp" : "trainDown", frame.seed, segment),
+      text: pickMemeLine(to.y > from.y ? "trainUp" : "trainDown", frame.seed, segment),
       x: 54,
-      y: railY(camU) - 12 * zoom,
-      alpha,
+      y: railY(camX) - 13 * zoom,
+      alpha: clamp01(edge / 5),
     };
   },
 };
@@ -1265,10 +1325,10 @@ function drawStationAct(
   }
 
   /* 역 이름 간판 — 판때기는 도트로, 글자는 늘린 뒤에 얹는다 */
-  p.rect(22, 24, 64, 3, "#7a838f");
-  p.rect(24, 27, 60, 22, "#f3ece2");
-  p.rect(24, 27, 60, 1, "#ffffff");
-  p.rect(24, 48, 60, 1, "#b6ada0");
+  p.rect(14, 20, 80, 3, "#7a838f");
+  p.rect(16, 23, 76, 30, "#f3ece2");
+  p.rect(16, 23, 76, 1, "#ffffff");
+  p.rect(16, 52, 76, 1, "#b6ada0");
 
   /* 열차가 오른쪽에서 미끄러져 들어와 선다. 두 칸을 물려 화면을 채운다. */
   const arrive = easeOut(clamp01(a / TRAIN_BOARD_FROM));
@@ -1339,7 +1399,8 @@ function drawStationAct(
 
   return {
     ...bubble,
-    labels: [{ text: STATION_NAME, x: 54, y: 30, alpha: 1, unit: 5 }],
+    /* 역 이름은 이 판의 제목이라 말풍선보다 크게 (11의 배수라 88px) */
+    labels: [{ text: STATION_NAME, x: 54, y: 33, alpha: 1, unit: 8 }],
   };
 }
 
@@ -1355,43 +1416,63 @@ function drawTrainCar(
   left: number,
   baseY: number,
   unit: number,
-  opts: { packed?: boolean; lead?: boolean; doorOpen?: boolean; bob?: number },
+  opts: { packed?: boolean; lead?: boolean; doorOpen?: boolean; bob?: number; slope?: number },
 ) {
   const u = (n: number) => n * unit;
   const top = baseY - u(13) + (opts.bob ?? 0);
 
-  p.rect(left, top, u(CAR_LEN), u(12), "#d8dde6");
-  p.rect(left, top, u(CAR_LEN), u(1), "#9aa3b0");
-  p.rect(left, top + u(9), u(CAR_LEN), u(1), "#ff5c5c");
-  p.rect(left, top + u(11), u(CAR_LEN), u(1), "#7c8593");
+  /*
+   * **기울여 그린다.** 칸을 수평 네모로 두면 가파른 구간에서 앞뒤 끝이 레일에서 떠오른다.
+   * 도트 그림은 회전을 못 하므로, 세로 한 줄씩 제 자리의 높이만큼 내려 찍어 평행사변형을
+   * 만든다 — 한 줄의 폭이 도트 하나(unit)라 계단이 그림의 해상도와 어긋나지 않는다.
+   */
+  /*
+   * 기울기는 **가둬 쓴다.** 도트 그림은 회전을 못 해 세로로 밀어 흉내 내는데, 밀기는
+   * 길이를 늘이므로 급경사를 그대로 먹이면 칸이 사선 얼룩으로 늘어난다. 여기서 잘린
+   * 만큼은 레일과 벌어지지만, 그런 구간은 순식간에 지나가서 눈에 안 띈다.
+   */
+  const slope = Math.max(-1.15, Math.min(1.15, opts.slope ?? 0));
+  const middle = left + u(CAR_LEN) / 2;
+  const slant = (x: number, y: number, w: number, h: number, color: string) => {
+    for (let cut = 0; cut < w; cut += unit) {
+      const column = Math.min(unit, w - cut);
+      const offset = Math.round((slope * (x + cut + column / 2 - middle)) / unit) * unit;
+      p.rect(x + cut, y + offset, column, h, color);
+    }
+  };
+
+  slant(left, top, u(CAR_LEN), u(12), "#d8dde6");
+  slant(left, top, u(CAR_LEN), u(1), "#9aa3b0");
+  slant(left, top + u(9), u(CAR_LEN), u(1), "#ff5c5c");
+  slant(left, top + u(11), u(CAR_LEN), u(1), "#7c8593");
 
   /* 창문 — 탄 개미들이 여기로 보인다 */
   for (const wx of [2, 8, 13]) {
-    p.rect(left + u(wx), top + u(2), u(3), u(4), "#2b3a4f");
+    slant(left + u(wx), top + u(2), u(3), u(4), "#2b3a4f");
     if (!opts.packed) continue;
 
     for (let k = 0; k < 2; k += 1) {
       const hx = left + u(wx + 0.3) + k * u(1.4);
-      p.rect(hx, top + u(3), u(1.1), u(2.6), "#8a6238");
-      p.rect(hx + u(0.25), top + u(3.6), u(0.35), u(0.5), "#ffffff");
+      slant(hx, top + u(3), u(1.1), u(2.6), "#8a6238");
+      slant(hx + u(0.25), top + u(3.6), u(0.35), u(0.5), "#ffffff");
     }
   }
 
   /* 문 */
   for (const dx of [DOOR_AT, DOOR_AT + 6]) {
-    p.rect(left + u(dx), top + u(2), u(2), u(8), opts.doorOpen ? "#141a24" : "#8fb4d8");
-    if (!opts.doorOpen) p.rect(left + u(dx + 0.9), top + u(2), u(0.3), u(8), "#5f7ea0");
+    slant(left + u(dx), top + u(2), u(2), u(8), opts.doorOpen ? "#141a24" : "#8fb4d8");
+    if (!opts.doorOpen) slant(left + u(dx + 0.9), top + u(2), u(0.3), u(8), "#5f7ea0");
   }
 
   /* 앞칸이면 기관실 창과 전조등 */
   if (opts.lead) {
-    p.rect(left + u(CAR_LEN - 3), top + u(2), u(2), u(4), "#38506b");
-    p.rect(left + u(CAR_LEN - 1), top + u(7), u(1), u(2), "#ffe9a8");
+    slant(left + u(CAR_LEN - 3), top + u(2), u(2), u(4), "#38506b");
+    slant(left + u(CAR_LEN - 1), top + u(7), u(1), u(2), "#ffe9a8");
   }
 
   /* 바퀴 */
   for (const wx of [3, 6, 12, 15]) {
-    p.rect(left + u(wx), baseY - u(1), u(2), u(1.4), "#2a2f38");
+    slant(left + u(wx), baseY - u(1), u(2), u(1.4), "#2a2f38");
   }
 }
 
@@ -1421,8 +1502,22 @@ const RKT_PAD_Y = 160;
 const RKT_PEAK = 880;
 const RKT_FALL = 460;
 const RKT_X = 54;
-/** 로켓 전체 키 — 엔진 4 + 몸통 32 + 코 9 */
-const RKT_H = 45;
+/** 로켓 전체 키 — 엔진 4 + 몸통 36 + 코 9. 몸통은 세로 워드마크가 들어가는 길이다. */
+const RKT_H = 49;
+
+/**
+ * 몸통에 세로로 새기는 SPACEX 워드마크 (한 글자 7×5). 진짜 팰컨 9도 부스터에 세로로
+ * 적는다 — 몸통이 14칸이라 가로로는 여섯 글자가 못 들어가고, 세로가 크게 쓰는 유일한
+ * 길이다. 마지막 X만 회색인 건 로고의 회색 스우시 흉내다.
+ */
+const RKT_WORDMARK: readonly (readonly string[])[] = [
+  [".111111", "11.....", ".11111.", ".....11", "111111."], // S
+  ["111111.", "11...11", "111111.", "11.....", "11....."], // P
+  [".11111.", "11...11", "1111111", "11...11", "11...11"], // A
+  [".111111", "11.....", "11.....", "11.....", ".111111"], // C
+  ["1111111", "11.....", "11111..", "11.....", "1111111"], // E
+  ["11...11", ".11.11.", "..111..", ".11.11.", "11...11"], // X
+];
 /** 화성이 떠 있는 세계 높이 — 정점에서 화면 가운데쯤 온다. 끝내 못 닿는 목적지다. */
 const RKT_MARS = -430;
 
@@ -1441,8 +1536,8 @@ const RKT_SKY: readonly [number, string][] = [
  * 그려 앞줄로 세운다.
  */
 const RKT_RIDERS = [
-  { dx: -10, drop: 7, stage: 36 },
-  { dx: 10, drop: 7, stage: 28 },
+  { dx: -12, drop: 8, stage: 36 },
+  { dx: 12, drop: 8, stage: 28 },
   { dx: 0, drop: 2, stage: 46 },
 ] as const;
 
@@ -1670,8 +1765,10 @@ function drawRocketFlame(p: Painter, cx: number, top: number, len: number) {
 }
 
 /**
- * 로켓 본체. 흰 원통에 검은 단 띠, 그리드핀, 성조기 — **미장 로켓이라는 표식은 국기
- * 하나로 끝낸다.** 장면에 글자·숫자를 안 넣는 규칙이라 이름은 안 적는다.
+ * 로켓 본체. 흰 원통에 그리드핀, 그리고 세로로 크게 새긴 SPACEX 워드마크 — **미장
+ * 로켓이라는 표식은 이 로고가 맡는다.** 짤에 못 넣는 건 손익 숫자지 간판 글자가 아니다
+ * (만원 열차의 역 이름과 같은 결). 검은 단 띠와 성조기는 워드마크에 자리를 내줬다 —
+ * 14칸 몸통에 셋을 다 넣으면 서로를 가린다.
  */
 function drawRocketShip(p: Painter, cx: number, bottom: number) {
   /* 엔진부 — 노즐 세 개 */
@@ -1679,20 +1776,24 @@ function drawRocketShip(p: Painter, cx: number, bottom: number) {
   for (const nx of [-5, -1, 3]) p.rect(cx + nx, bottom - 1, 2, 2, "#242a34");
 
   /* 몸통 — 왼쪽에 하이라이트, 오른쪽에 그늘을 세워 원통으로 만든다 */
-  p.rect(cx - 7, bottom - 36, 14, 32, "#e8ecf2");
-  p.rect(cx - 6, bottom - 36, 1, 32, "#ffffff");
-  p.rect(cx + 4, bottom - 36, 3, 32, "#c2cad6");
+  p.rect(cx - 7, bottom - 40, 14, 36, "#e8ecf2");
+  p.rect(cx - 6, bottom - 40, 1, 36, "#ffffff");
+  p.rect(cx + 4, bottom - 40, 3, 36, "#c2cad6");
 
-  /* 단 사이 검은 띠와 접힌 그리드핀 */
-  p.rect(cx - 7, bottom - 22, 14, 3, "#20242c");
-  p.rect(cx - 9, bottom - 34, 2, 4, "#8a93a2");
-  p.rect(cx + 7, bottom - 34, 2, 4, "#8a93a2");
+  /* 접힌 그리드핀 */
+  p.rect(cx - 9, bottom - 38, 2, 4, "#8a93a2");
+  p.rect(cx + 7, bottom - 38, 2, 4, "#8a93a2");
 
-  /* 성조기 */
-  p.rect(cx - 4, bottom - 31, 2, 2, "#2b4a9e");
-  p.rect(cx - 2, bottom - 31, 5, 1, "#d84040");
-  p.rect(cx - 2, bottom - 30, 5, 1, "#ffffff");
-  p.rect(cx - 4, bottom - 29, 7, 1, "#d84040");
+  /* 워드마크 — 몸통 한가운데 기둥(cx-3~cx+3)에 위에서 아래로 */
+  const logoTop = bottom - 39;
+  RKT_WORDMARK.forEach((letter, index) => {
+    const ink = index === RKT_WORDMARK.length - 1 ? "#8a93a2" : "#123d6e";
+    letter.forEach((row, ry) => {
+      [...row].forEach((char, col) => {
+        if (char === "1") p.dot(cx - 3 + col, logoTop + index * 6 + ry, ink);
+      });
+    });
+  });
 
   /* 코 — 위로 갈수록 좁아진다 */
   for (let i = 0; i < 9; i += 1) {
@@ -1716,7 +1817,8 @@ function drawMirageFace(
   const left = Math.round((p.w - ANT_FACE_W) / 2) + Math.round(osc(2, 0.35));
   const top = 14;
 
-  p.faded(alpha * (0.3 + 0.04 * osc(3, 0.6)), () => p.sprite(antFacePixels(20), left, top, 1));
+  /* 얼굴은 흐려야 신기루다 — 대신 눈물은 밝게 세워 여기만 또렷이 읽히게 한다 */
+  p.faded(alpha * (0.2 + 0.03 * osc(3, 0.6)), () => p.sprite(antFacePixels(20), left, top, 1));
 
   ANT_FACE_EYES.forEach((eye, i) => {
     const roll = clamp01((a - 0.74 - i * 0.07) / 0.16);
@@ -1724,11 +1826,11 @@ function drawMirageFace(
 
     const x = left + eye.x + (i === 0 ? -1 : 1);
     const from = top + eye.y + 2;
-    const dropY = from + roll * 24;
+    const dropY = from + roll * 32;
 
     /* 지나온 자국을 얇게 남겨야 "흘러내린" 게 보인다 */
-    p.faded(alpha * 0.35, () => p.rect(x, from, 1, dropY - from, "#8fc4f0"));
-    p.faded(alpha * 0.8, () => {
+    p.faded(alpha * 0.45, () => p.rect(x, from, 1, dropY - from, "#8fc4f0"));
+    p.faded(alpha * 0.9, () => {
       p.rect(x, dropY, 2, 3, "#4a8fd8");
       p.rect(x, dropY + 1, 1, 2, "#cfe9ff");
     });
