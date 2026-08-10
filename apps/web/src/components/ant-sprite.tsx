@@ -882,6 +882,31 @@ function liftMouthCorners(grid: string[][]): void {
   }
 }
 
+/* ── 도트 랩으로 여는 창구 ──────────────────────────── */
+
+/**
+ * 문자맵과 색표를 **읽기 전용으로** 내보낸다. 도트 랩(`/pixel-lab`)이 여기 있는 자세를
+ * 불러다 고치고, 새로 그린 걸 같은 모양의 코드로 뱉기 위해 쓴다.
+ *
+ * **몸은 여전히 이 파일에만 있다.** 랩은 그림을 복제하지 않고 이 창구로 읽어갈 뿐이라,
+ * 자세를 고치면 앱 개미도 랩 개미도 같이 바뀐다 — 랩이 제 사본을 들고 있으면 둘이 갈린다.
+ */
+export const ANT_POSE_IDS = Object.keys(POSES) as AntPose[];
+
+export function antPoseRows(pose: AntPose): readonly string[] {
+  return POSES[pose];
+}
+
+/** 클로즈업 얼굴 맵. 눈만 갈아끼우는 깜빡임 조각(FACE_BLINK)은 반쪽이라 안 낸다. */
+export const ANT_FACE_ROWS: Readonly<Record<"cry" | "shock", readonly string[]>> = {
+  cry: FACE,
+  shock: FACE_SHOCK,
+};
+
+/** 문자 → 색 이름. 랩의 팔레트가 이 표를 그대로 쓴다 (색표를 두 벌 두지 않는다). */
+export const ANT_COLOR_KEY: Readonly<Record<string, keyof AntPalette>> = COLOR_KEY;
+export const ANT_FACE_KEY: Readonly<Record<string, keyof AntFacePalette>> = FACE_KEY;
+
 export interface AntPixel {
   x: number;
   y: number;
