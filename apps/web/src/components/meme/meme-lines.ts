@@ -31,6 +31,8 @@ export type MemeSceneId =
   | "train"
   | "rocket"
   | "zen"
+  | "stoic"
+  | "hodl"
   | "wallet";
 
 /**
@@ -240,6 +242,38 @@ export const ZEN_LINES: readonly string[] = [
 ];
 
 /**
+ * 10. 안 울어 — 하강 차트 앞에서 눈물이 고인다. **울고 있다고 말하지 않는다** — 화면이
+ * 이미 그렁한 눈을 보여주므로, 말은 그걸 부정하는 쪽이라야 웃긴다 (눈에 뭐가 들어갔다,
+ * 하품했다). 무념무상(관망)과 달리 여기는 **변명**이다.
+ */
+export const STOIC_LINES: readonly string[] = [
+  "안 우는 거야",
+  "눈에 뭐 들어갔어",
+  "하품한 거라니까",
+  "원래 눈물이 많아",
+  "괜찮아 진짜로",
+  "모니터가 너무 밝아",
+  "이 정도로 안 울어",
+  "먼지 좀 많네",
+];
+
+/**
+ * 11. 존버 중 — 상승 차트 앞에서 새어 나오는 웃음. **긍정하면서 계속 들고 간다**는 게
+ * 이 풀이다 — 익절 얘기는 안 한다 (파는 순간 존버가 아니다). 자랑하는 돈방석과 달리
+ * 여기는 **버틴 게 옳았다**는 안도다.
+ */
+export const HODL_LINES: readonly string[] = [
+  "거봐 오른다니까",
+  "안 팔길 잘했지",
+  "존버는 옳았다",
+  "이제 시작이야",
+  "기다린 보람 있네",
+  "더 갈 거야 안 팔아",
+  "웃음이 나오네",
+  "버틴 사람이 이긴다",
+];
+
+/**
  * 9-1. 빈 지갑 — **지갑을 닫고 있을 때.** "있었는데요 없었습니다"의 앞쪽 절반이라
  * 전부 과거형이다. 얼마였는지는 말하지 않는다 (짤에 금액은 안 나온다).
  */
@@ -277,6 +311,8 @@ export const MEME_LINES: Readonly<Record<MemeLinePool, readonly string[]>> = {
   rocket: ROCKET_LINES,
   rocketDown: ROCKET_DOWN_LINES,
   zen: ZEN_LINES,
+  stoic: STOIC_LINES,
+  hodl: HODL_LINES,
   wallet: WALLET_LINES,
   walletEmpty: WALLET_EMPTY_LINES,
 };

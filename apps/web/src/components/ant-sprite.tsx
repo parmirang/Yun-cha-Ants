@@ -495,15 +495,15 @@ const FACE_SHOCK: readonly string[] = [
   "........obwwwwwwwwwbHHhhhbwwwwwwwwwwwwwwwbo.........",
   ".......obwwwwwwwwwwwbHhhbwwwwwwwwwwwwwwwwwbo........",
   ".......owwwwwwwwwwwwwHHhwwwwwwwwwwwwwwwwwwwo........",
-  "......obwwwwwwwwwwwwwbHHwwwwwwwwwwwwwwwwwwwo........",
-  "......owwwwwwwwwwwwwwwHHwwwwwwwwppppwwwwwwwo........",
-  "......owwwwwwwwwwwwwwwHHwwwwwwwpggpppwwwwwwo........",
-  ".....owwwwwwwwppwwwwwwwHwwwwwwwpgggppwwwwwwo........",
-  ".....oHwwwwwwpgppwwwwwHHwwwwwwwppgpppwwwwwwo........",
-  "....oHHwwwwwpggpppwwwwHHHwwwwwwppppppwwwwwo.........",
-  "...oHHHwwwwwppppppwwwwHHHwwwwwwwppppwwwwwwo.........",
-  "...oHHHHwwwwwppppwwwwHHHHHwwwwwwwwwwwwwwwo..........",
-  "..oHHHHHwwwwwwppwwwwwHHHHhhwwwwwwwwwwwwwhho.........",
+  "......obwwwwwwwwwwwwwbHHwwwwwwwwppppwwwwwwwo........",
+  "......owwwwwwwwwwwwwwwHHwwwwwwwppppppwwwwwwo........",
+  "......owwwwwwwwwwwwwwwHHwwwwwwppggppppwwwwwo........",
+  ".....owwwwwwwppppwwwwwwHwwwwwwppggppppwwwwwo........",
+  ".....oHwwwwwpggpppwwwwHHwwwwwwppppppppwwwwwo........",
+  "....oHHwwwwwpggpppwwwwHHHwwwwwwpppppppwwwwo.........",
+  "...oHHHwwwwwppppppwwwwHHHwwwwwwppppppwwwwwo.........",
+  "...oHHHHwwwwppppppwwwHHHHHwwwwwwwpppwwwwwo..........",
+  "..oHHHHHwwwwwppppwwwwHHHHhhwwwwwwwwwwwwwhho.........",
   "..oHHHHHHwwwwwwwwwwwHHHHHhhhwwwwwwwwwwwhhho.........",
   ".oHHHHHHHHHwwwwwwwHHHHHHHhhhhhwwwwwwwhhhhhho........",
   ".oHHHHHHHHHHHHwHHHHHHHHHHhhhhhhhhhhhhhhhhhho........",
@@ -554,6 +554,31 @@ const FACE_SHOCK: readonly string[] = [
   "ttttttTTTTTTTTTTTTTTTTTtttttttttttttttttttttttttto..",
 ];
 
+/** 놀란 얼굴이 눈을 감은 프레임 — 눈이 있는 줄만 갈아끼운다 (우는 얼굴과 같은 방식) */
+const FACE_SHOCK_BLINK_FROM = 15;
+const FACE_SHOCK_BLINK: readonly string[] = [
+  ".....obobobobonoboo.o.o.....oohhhhhhhooobobo........",
+  ".....oboboo.o.ono..........ohhhhhhhhhhhoo.o.........",
+  "......o.o.....o...........ohhhhhhhhhhhhho...........",
+  "...........oooHooo....o..ohhhhhhhhhhhhhhho..........",
+  ".........ooHHHHHHHoooohoohhhhhhhhhhhhhhhhho.........",
+  "........oHHHHHHHHHHHHHhhhhhhhhhhhhhhhhhhhho.........",
+  ".......oHHHHHHHHHHHHHHhhhhhhhhhhhhhhhhhhhhho........",
+  ".......oHHHHHHHHHHHHHHHhhhhhhhhhhhhhhhhhhhho........",
+  "......oHHHHHHHHHHHHHHHHHhhhhhhhhhhhhhhhhhhho........",
+  "......oHHHHHHHHHHHHHHHHHhhhhhhhhhhhhhhhhhhho........",
+  "......oHHHHHHHHHHHHHHHHHHhhhhhbbbbbbbhhhhhho........",
+  ".....oHHHHHHHHHHHHHHHHHHHhhhbbbbbbbbbbbhhhho........",
+  ".....oHHHHHbbbbbbbHHHHHHHhbbbbhhhhhhhbbbbhho........",
+  "....oHHHHbbbbbbbbbbbHHHHHbbbhhhhhhhhhhhbbbo.........",
+  "...oHHHbbbbHHHHHHHbbbbHHHbhhhhhhhhhhhhhhhbo.........",
+  "...oHHHbbHHHHHHHHHHHbbHHHHhhhhhhhhhhhhhhho..........",
+  "..oHHHHHHHHHHHHHHHHHHHHHHhhhhhhhhhhhhhhhhho.........",
+  "..oHHHHHHHHHHHHHHHHHHHHHHhhhhhhhhhhhhhhhhho.........",
+  ".oHHHHHHHHHHHHHHHHHHHHHHHhhhhhhhhhhhhhhhhhho........",
+  ".oHHHHHHHHHHHHHHHHHHHHHHHhhhhhhhhhhhhhhhhhho........",
+];
+
 export const ANT_FACE_W = 52;
 export const ANT_FACE_H = 80;
 
@@ -581,6 +606,8 @@ export interface AntFacePalette {
   tearDeep: string;
   tearSurface: string;
   wet: string;
+  blush: string;
+  blushLine: string;
 }
 
 export function antFacePalette(stage: number): AntFacePalette {
@@ -616,6 +643,12 @@ export function antFacePalette(stage: number): AntFacePalette {
     tearSurface: "#e8f6ff",
     /** 눈 밑 젖은 자리 — 파란 칠이 아니라 젖은 살이라 껍질색에 푸른 기만 섞는다 */
     wet: hsl(hue + 190, 6, lightness + 10),
+    /*
+     * 상기된 볼. **입술과 같은 방식으로 껍질에서 떼어낸다** — 색상환을 붉은 쪽으로
+     * 당기고 채도를 올린다. 딴 색을 새로 지어내면 볼만 다른 재질로 보인다.
+     */
+    blush: hsl(hue - 6, saturation + 32, lightness + 5),
+    blushLine: hsl(hue - 8, saturation + 40, lightness - 2),
   };
 }
 
@@ -640,12 +673,17 @@ const FACE_KEY: Record<string, keyof AntFacePalette> = {
 };
 
 /** 놀란 얼굴의 도트 좌표 (빈 지갑 판) */
-export function antShockFacePixels(stage: number): AntPixel[] {
+export function antShockFacePixels(stage: number, blink = false): AntPixel[] {
   const palette = antFacePalette(stage);
   const pixels: AntPixel[] = [];
 
   FACE_SHOCK.forEach((row, y) => {
-    [...row].forEach((char, x) => {
+    const source =
+      blink && y >= FACE_SHOCK_BLINK_FROM && y < FACE_SHOCK_BLINK_FROM + FACE_SHOCK_BLINK.length
+        ? (FACE_SHOCK_BLINK[y - FACE_SHOCK_BLINK_FROM] ?? row)
+        : row;
+
+    [...source].forEach((char, x) => {
       const key = FACE_KEY[char];
       if (key) pixels.push({ x, y, fill: palette[key] });
     });
@@ -677,55 +715,171 @@ export function antFacePixels(stage: number, blink = false): AntPixel[] {
 /** 클로즈업 눈의 상태 — 정면 / 위를 흘긋 / 감음 */
 export type AntGaze = "front" | "up" | "closed";
 
-/** 눈물을 흰자로 되돌릴 때의 치환표. 눈밑 젖은 살(u)은 껍질색이 되며 옅은 눈그늘로 남는다. */
-const DRY_KEY: Record<string, string> = { q: "w", Q: "w", L: "w", u: "h" };
+/** 눈에 고인 눈물을 이루는 글자들 */
+const TEAR_CHARS = new Set(["q", "Q", "L"]);
+/** 고인 눈물이 놓이는 줄 범위 (얼굴 격자). **아래부터 차오른다.** */
+const TEAR_TOP = 27;
+const TEAR_BOTTOM = 33;
 /** 눈 안쪽으로 치는 글자들 — 흘긋 올라간 눈동자는 이 안에서만 그린다 */
-const EYE_CHARS = new Set(["w", "p", "g", "q", "Q", "L"]);
+const EYE_CHARS = new Set(["w", "p", "g"]);
+/** 입술 띠 — 입꼬리는 이 안에서만 움직인다 (밖으로 나가면 얼굴 윤곽이 뚫린다) */
+const LIP_CHARS = new Set(["m", "M"]);
+/** 볼을 칠할 수 있는 살 글자 */
+const SKIN_CHARS = new Set(["h", "H", "s"]);
 /** 흘긋 볼 때 눈동자가 올라가는 칸 수 */
 const GAZE_LIFT = 2;
+/** 입꼬리가 올라가는 최대 칸 수 */
+const SMILE_LIFT = 4;
+/** 볼 홍조가 앉는 자리 — 가까운 볼(왼쪽)과 먼 볼(오른쪽), 3/4 각도라 크기가 다르다 */
+const BLUSH: readonly { cx: number; cy: number; rx: number; ry: number }[] = [
+  { cx: 10, cy: 42, rx: 7, ry: 3.6 },
+  { cx: 38, cy: 41, rx: 6, ry: 3 },
+];
+
+/** 표정을 얹는 값들. 아무것도 안 주면 눈물도 미소도 없는 맨 얼굴이다. */
+export interface AntFaceMood {
+  /** 눈에 고이는 눈물 (0~1). **흐르지는 않는다** — 흐르는 눈물은 무대가 그린다. */
+  welling?: number;
+  /** 입꼬리를 올린다 */
+  smile?: boolean;
+  /** 볼이 발그레 상기된다 */
+  blush?: boolean;
+}
 
 /**
- * 눈물을 걷어낸 클로즈업 — 짤 공장의 무념무상 판이 쓴다.
+ * 눈물이 흐르지 않는 클로즈업 — 짤 공장의 책상 세 판(무념무상·안 울어·존버 중)이 쓴다.
  *
- * 우는 얼굴(`FACE`)에서 눈에 고인 눈물(q·Q·L)을 흰자로 되돌리고, 눈밑 젖은 살(u)을
- * 껍질색으로 말린다. **얼굴을 한 벌 더 그리지 않는다** — 두 벌을 손으로 맞춰두면
- * 한쪽만 고쳤을 때 표정이 바뀔 때마다 얼굴형이 미세하게 튄다 (깜빡임과 같은 규칙).
+ * 우는 얼굴(`FACE`)에서 눈물을 걷어낸 뒤 표정을 다시 얹는다. **얼굴을 표정마다 한 벌씩
+ * 그리지 않는다** — 여러 벌을 손으로 맞춰두면 한쪽만 고쳤을 때 표정이 바뀔 때마다
+ * 얼굴형이 미세하게 튄다 (깜빡임 프레임과 같은 규칙). 그래서 여기서 하는 일은 전부
+ * **원본 맵을 제자리에서 고쳐 쓰는 것**이고, 고칠 수 없는 자리(윤곽 밖·입술 밖)는
+ * 건드리지 않아 실루엣이 늘 같다.
  *
- * `gaze`가 "up"이면 눈동자와 눈빛(p·g)만 위로 올려 흘긋 위를 본다 — 비운 자리는
- * 흰자로 메우고, **눈꺼풀 위로 나가는 도트는 버린다** (치켜뜬 눈이 아니라 슬쩍 올려다보는
- * 눈이 되도록, 올라간 눈동자는 눈꺼풀 뒤로 숨는다).
+ * - `gaze` — "up"이면 눈동자와 눈빛(p·g)만 위로 올려 흘긋 위를 본다. 비운 자리는 흰자로
+ *   메우고 **눈꺼풀 위로 나가는 도트는 버린다** (치켜뜬 눈이 아니라 슬쩍 올려다보는 눈).
+ * - `mood.welling` — 눈물이 **아래부터** 찬다. 0이면 마른 눈, 1이면 원본만큼 그렁하다.
+ *   눈 밑 젖은 살(u)은 늘 말린다 — 아직 한 방울도 안 흘렀기 때문이다.
+ * - `mood.smile` — 입술 띠 안에서 입꼬리만 들어 올린다.
+ * - `mood.blush` — 두 볼의 살색을 붉은 쪽으로 갈아 끼운다.
  */
-export function antFaceDryPixels(stage: number, gaze: AntGaze = "front"): AntPixel[] {
+export function antFaceCalmPixels(
+  stage: number,
+  gaze: AntGaze = "front",
+  mood: AntFaceMood = {},
+): AntPixel[] {
   const palette = antFacePalette(stage);
+
+  /* 감은 눈이면 눈 줄만 갈아끼운 뒤, 이 격자 위에서만 표정을 고친다 */
+  const source = FACE.map((row, y) =>
+    gaze === "closed" && y >= FACE_BLINK_FROM && y < FACE_BLINK_FROM + FACE_BLINK.length
+      ? [...(FACE_BLINK[y - FACE_BLINK_FROM] ?? row)]
+      : [...row],
+  );
+
+  /* 1. 눈물 — 차오른 높이 아래만 남기고 나머지는 흰자로, 볼은 마른 살로 */
+  const fill = Math.min(1, Math.max(0, mood.welling ?? 0));
+  const waterline = TEAR_TOP + Math.round((1 - fill) * (TEAR_BOTTOM - TEAR_TOP + 1));
+  const grid = source.map((row, y) =>
+    row.map((char) => {
+      if (char === "u") return "h";
+      if (TEAR_CHARS.has(char)) return fill > 0 && y >= waterline ? char : "w";
+      return char;
+    }),
+  );
+
+  /* 2. 미소 — 입술 띠 안에서 양 끝을 들어 올린다 */
+  if (mood.smile) liftMouthCorners(grid);
+
+  /* 3. 도트로 편다. 흘긋 올라간 눈동자만 맨 뒤로 미뤄 흰자를 덮게 한다. */
   const pixels: AntPixel[] = [];
   const lifted: AntPixel[] = [];
 
-  FACE.forEach((row, y) => {
-    const source =
-      gaze === "closed" && y >= FACE_BLINK_FROM && y < FACE_BLINK_FROM + FACE_BLINK.length
-        ? (FACE_BLINK[y - FACE_BLINK_FROM] ?? row)
-        : row;
-
-    [...source].forEach((char, x) => {
-      const dried = DRY_KEY[char] ?? char;
-      const key = FACE_KEY[dried];
+  grid.forEach((row, y) => {
+    row.forEach((char, x) => {
+      const key = FACE_KEY[char];
       if (!key) return;
 
-      if (gaze === "up" && (dried === "p" || dried === "g")) {
+      if (gaze === "up" && (char === "p" || char === "g")) {
         pixels.push({ x, y, fill: palette.sclera });
-        const target = FACE[y - GAZE_LIFT]?.[x];
+        const target = grid[y - GAZE_LIFT]?.[x];
         if (target && EYE_CHARS.has(target)) {
           lifted.push({ x, y: y - GAZE_LIFT, fill: palette[key] });
         }
         return;
       }
 
-      pixels.push({ x, y, fill: palette[key] });
+      pixels.push({ x, y, fill: blushAt(palette, key, char, x, y, mood.blush) });
     });
   });
 
-  /* 올라간 눈동자는 흰자를 덮어야 하므로 맨 뒤에 얹는다 */
   return [...pixels, ...lifted];
+}
+
+/** 볼 안쪽의 살 도트만 붉게 갈아 끼운다 — 그 밖은 원래 색 그대로 */
+function blushAt(
+  palette: AntFacePalette,
+  key: keyof AntFacePalette,
+  char: string,
+  x: number,
+  y: number,
+  on: boolean | undefined,
+): string {
+  if (!on || !SKIN_CHARS.has(char)) return palette[key];
+
+  for (const cheek of BLUSH) {
+    const dx = (x - cheek.cx) / cheek.rx;
+    const dy = (y - cheek.cy) / cheek.ry;
+    const d = dx * dx + dy * dy;
+    if (d > 1) continue;
+    /* 가운데를 한 톤 더 진하게 — 한 색으로 채우면 볼에 스티커를 붙인 것처럼 보인다 */
+    return d < 0.34 ? palette.blushLine : palette.blush;
+  }
+
+  return palette[key];
+}
+
+/**
+ * 입꼬리 올리기. 입술 띠(m·M) 안에서 **입술선(M)만** 위로 민다 — 양 끝일수록 많이,
+ * 가운데는 그대로라 선이 활처럼 휜다.
+ *
+ * **띠 밖으로는 한 도트도 안 나간다.** 올라갈 자리가 입술이 아니면 그 도트는 제자리에
+ * 둔다 — 얼굴선이나 윤곽을 뚫으면 웃는 게 아니라 얼굴이 찢어진 그림이 된다.
+ */
+function liftMouthCorners(grid: string[][]): void {
+  const line: { x: number; y: number }[] = [];
+  grid.forEach((row, y) =>
+    row.forEach((char, x) => {
+      if (char === "M") line.push({ x, y });
+    }),
+  );
+  if (line.length === 0) return;
+
+  const xs = line.map((cell) => cell.x);
+  const left = Math.min(...xs);
+  const right = Math.max(...xs);
+  if (right === left) return;
+
+  /* 원본을 그대로 두고 읽어야 한다 — 옮긴 도트를 다시 읽으면 선이 계단째 밀린다 */
+  const before = grid.map((row) => [...row]);
+  for (const cell of line) {
+    const row = grid[cell.y];
+    if (row) row[cell.x] = "m";
+  }
+
+  for (const cell of line) {
+    const t = (cell.x - left) / (right - left);
+    /*
+     * 양 끝(t=0·1)에서 최대, 한가운데(t=0.5)에서 0. **지수를 낮춰 더 휘게 만들지 말 것** —
+     * 1.3제곱으로 눕혀봤더니 이웃한 칸끼리 들리는 높이가 계속 달라져, 입술선이 휘는 게
+     * 아니라 **점선처럼 끊어졌다.** 이 선은 눕다시피 한 구간이 길어서 한 칸만 어긋나도
+     * 조각난다. 제곱으로 두면 가운데가 평평해 선이 이어지고, 세기는 `SMILE_LIFT`로 키운다.
+     */
+    const lift = Math.round(SMILE_LIFT * (2 * t - 1) ** 2);
+    const up = cell.y - lift;
+    const target = lift > 0 && LIP_CHARS.has(before[up]?.[cell.x] ?? "") ? up : cell.y;
+    const row = grid[target];
+    if (row) row[cell.x] = "M";
+  }
 }
 
 export interface AntPixel {

@@ -13,9 +13,10 @@ import {
   ANT_FACE_EYES,
   ANT_FACE_H,
   ANT_FACE_W,
+  type AntFaceMood,
   type AntGaze,
   type AntPose,
-  antFaceDryPixels,
+  antFaceCalmPixels,
   antFacePalette,
   antFacePixels,
   antPixels,
@@ -1892,9 +1893,14 @@ function drawMirageFace(
 }
 
 /* ════════════════════════════════════════════════════
-   9. 무념무상 — 차트 앞에서 생각이 없다
+   9~11. 책상 세 판 — 같은 얼굴, 다른 차트
    ════════════════════════════════════════════════════ */
 
+/**
+ * 어두운 방 · 흰 모니터 · 클로즈업 얼굴. **세 판이 이 무대 하나를 공유하고 다른 건
+ * 차트 방향과 표정뿐이다** (무념무상=요동·무표정, 안 울어=하강·눈물, 존버 중=상승·미소).
+ * 무대를 세 벌 그리면 셋이 서서히 다른 방이 되고, 탭을 오갈 때 그게 그대로 보인다.
+ */
 const ZEN_LOOP = 7200;
 /**
  * 눈 연기 대본 — [ms, 상태]. 껌뻑임 셋, 흘긋(모니터 쪽) 둘, 그리고 마지막엔 스르르
@@ -1959,6 +1965,94 @@ function zenGazeAt(time: number): AntGaze {
   return state;
 }
 
+/** 추세 판에서 봉 한 칸이 밀려 내려가는(올라가는) 높이 */
+const ZEN_DRIFT = 3.2;
+
+/**
+ * 책상 무대 — 방 · 모니터 · 흐르는 봉. `trend`가 0이면 요동, -1이면 하강, +1이면 상승.
+ *
+ * **추세 판은 카메라가 최신 봉을 따라간다.** 봉이 한 칸 흐를 때 화면도 그만큼 위아래로
+ * 밀려서, 끝없이 내려가는(올라가는) 계단이 된다 — 그래서 값이 화면 밖으로 달아나지도,
+ * 어딘가에서 되돌아오지도 않는다. **한 칸마다 그림이 제자리로 돌아오므로 이음매가 없다**:
+ * 추세를 좌표에 그냥 쌓았다면 한 바퀴 끝에서 차트가 통째로 튀었을 자리다.
+ */
+function drawDesk(p: Painter, frame: SceneFrame, trend: -1 | 0 | 1): void {
+  const osc = oscillator(frame.time / ZEN_LOOP);
+
+  /* 어두운 방 — 모니터가 유일한 광원이다 */
+  p.vGradient(0, p.h, "#0d0f1a", "#20242e");
+
+  /* 모니터 뒤 빛무리 — 숨쉬듯 밝기가 흔들린다. 빛깔은 장이 정한다 (수익=빨강·손실=파랑). */
+  const glow = trend > 0 ? "#e8a0a0" : trend < 0 ? "#8fb4e8" : "#9fc0e8";
+  p.faded(0.1 + 0.03 * osc(2), () => p.disc(54, 31, 52, glow));
+
+  /* 모니터 — 베젤 · 흰 화면 · 전원 불 */
+  p.rect(ZEN_MON.x, ZEN_MON.y, ZEN_MON.w, ZEN_MON.h, "#2a2f38");
+  p.rect(ZEN_MON.x + 1, ZEN_MON.y + 1, ZEN_MON.w - 2, 1, "#3a4250");
+  const sx = ZEN_MON.x + 3;
+  const sy = ZEN_MON.y + 3;
+  const sw = ZEN_MON.w - 6;
+  const sh = ZEN_MON.h - 6;
+  p.rect(sx, sy, sw, sh, "#f4f6f9");
+  p.dot(ZEN_MON.x + ZEN_MON.w - 5, ZEN_MON.y + ZEN_MON.h - 2, "#8fd8b0");
+
+  /* 눈금줄 — 흰 바탕만 있으면 차트가 아니라 그냥 판때기다 */
+  for (const line of [10, 20, 30]) p.rect(sx, sy + line, sw, 1, "#e2e7ef");
+
+  /*
+   * 봉 — 오른쪽에서 왼쪽으로 하염없이 흐른다. 위치는 스크롤에서만 나오므로
+   * 상태가 없고, 화면 밖으로 나가는 조각은 클리핑이 잘라낸다.
+   */
+  const prices = zenPrices(frame.seed);
+  const scroll = frame.time / ZEN_CANDLE_MS;
+  const slide = scroll - Math.floor(scroll);
+  /* 요동 판은 화면을 꽉 채우고, 추세 판은 계단을 따라가느라 잔물결만 남긴다 */
+  const swing = trend === 0 ? sh - 10 : 9;
+  const yAt = (j: number) => {
+    const slot = Math.floor(scroll) + j;
+    const idx = ((slot % ZEN_CANDLES) + ZEN_CANDLES) % ZEN_CANDLES;
+    const wobble = ((prices[idx] as number) - 0.5) * swing;
+    if (trend === 0) return sy + sh / 2 + wobble;
+
+    const base = trend < 0 ? sy + 7 : sy + sh - 7;
+    return base - trend * (j - slide) * ZEN_DRIFT + wobble;
+  };
+
+  p.clipped(sx, sy, sw, sh, () => {
+    for (let j = -1; j <= Math.ceil(sw / 7); j += 1) {
+      const slot = Math.floor(scroll) + j;
+      const idx = ((slot % ZEN_CANDLES) + ZEN_CANDLES) % ZEN_CANDLES;
+      const openY = yAt(j);
+      const closeY = yAt(j + 1);
+      const x = sx + j * 7 - Math.round(slide * 7);
+
+      /* 화면에서 위로 갈수록 비싼 값이라, 종가가 더 위면 양봉이다 */
+      const up = closeY < openY;
+      const top = Math.min(openY, closeY);
+      const height = Math.max(2, Math.abs(closeY - openY));
+      const wickRandom = seededRandom(frame.seed + 67 + idx * 13);
+      const wickTop = 1 + wickRandom() * 4;
+      const wickBottom = 1 + wickRandom() * 4;
+      const color = up ? "#ff5c5c" : "#5c9dff";
+
+      p.rect(x + 2, top - wickTop, 1, height + wickTop + wickBottom, color);
+      p.rect(x, top, 5, height, color);
+      p.rect(x + 1, top + 1, 1, Math.max(1, height - 2), up ? "#ffb3b3" : "#a8ccff");
+    }
+  });
+}
+
+/** 얼굴을 앉힌다 — 숨은 아주 얕게 쉬고, 눈은 대본대로 껌뻑이고 흘긋대다 감는다. */
+function drawDeskFace(p: Painter, frame: SceneFrame, mood: AntFaceMood): void {
+  const breathe = flip2(frame.time, 1800) ? 0 : 1;
+  p.sprite(
+    antFaceCalmPixels(ZEN_STAGE, zenGazeAt(frame.time), mood),
+    2,
+    ZEN_FACE_TOP + breathe,
+    2,
+  );
+}
+
 const zen: MemeScene = {
   id: "zen",
   title: "무념무상",
@@ -1966,63 +2060,55 @@ const zen: MemeScene = {
   loopMs: ZEN_LOOP,
 
   draw(p, frame) {
-    const a = frame.time / ZEN_LOOP;
-    const osc = oscillator(a);
-
-    /* 어두운 방 — 모니터가 유일한 광원이다 */
-    p.vGradient(0, p.h, "#0d0f1a", "#20242e");
-
-    /* 모니터 뒤 빛무리 — 숨쉬듯 밝기가 흔들린다 */
-    p.faded(0.1 + 0.03 * osc(2), () => p.disc(54, 31, 52, "#9fc0e8"));
-
-    /* 모니터 — 베젤 · 흰 화면 · 전원 불 */
-    p.rect(ZEN_MON.x, ZEN_MON.y, ZEN_MON.w, ZEN_MON.h, "#2a2f38");
-    p.rect(ZEN_MON.x + 1, ZEN_MON.y + 1, ZEN_MON.w - 2, 1, "#3a4250");
-    const sx = ZEN_MON.x + 3;
-    const sy = ZEN_MON.y + 3;
-    const sw = ZEN_MON.w - 6;
-    const sh = ZEN_MON.h - 6;
-    p.rect(sx, sy, sw, sh, "#f4f6f9");
-    p.dot(ZEN_MON.x + ZEN_MON.w - 5, ZEN_MON.y + ZEN_MON.h - 2, "#8fd8b0");
-
-    /* 눈금줄 — 흰 바탕만 있으면 차트가 아니라 그냥 판때기다 */
-    for (const line of [10, 20, 30]) p.rect(sx, sy + line, sw, 1, "#e2e7ef");
-
-    /*
-     * 봉 — 오른쪽에서 왼쪽으로 하염없이 흐른다. 위치는 스크롤에서만 나오므로
-     * 상태가 없고, 화면 밖으로 나가는 조각은 클리핑이 잘라낸다.
-     */
-    const prices = zenPrices(frame.seed);
-    const scroll = frame.time / ZEN_CANDLE_MS;
-    const yOf = (v: number) => sy + 3 + (1 - v) * (sh - 6);
-
-    p.clipped(sx, sy, sw, sh, () => {
-      for (let j = -1; j <= Math.ceil(sw / 7); j += 1) {
-        const slot = Math.floor(scroll) + j;
-        const idx = ((slot % ZEN_CANDLES) + ZEN_CANDLES) % ZEN_CANDLES;
-        const open = prices[idx] as number;
-        const close = prices[(idx + 1) % ZEN_CANDLES] as number;
-        const x = sx + j * 7 - Math.round((scroll % 1) * 7);
-
-        const up = close > open;
-        const top = Math.min(yOf(open), yOf(close));
-        const height = Math.max(2, Math.abs(yOf(close) - yOf(open)));
-        const wickRandom = seededRandom(frame.seed + 67 + idx * 13);
-        const wickTop = 1 + wickRandom() * 4;
-        const wickBottom = 1 + wickRandom() * 4;
-        const color = up ? "#ff5c5c" : "#5c9dff";
-
-        p.rect(x + 2, top - wickTop, 1, height + wickTop + wickBottom, color);
-        p.rect(x, top, 5, height, color);
-        p.rect(x + 1, top + 1, 1, Math.max(1, height - 2), up ? "#ffb3b3" : "#a8ccff");
-      }
-    });
-
-    /* 얼굴 — 눈 대본대로 껌뻑이고 흘긋대다 감는다. 숨은 아주 얕게 쉰다. */
-    const breathe = flip2(frame.time, 1800) ? 0 : 1;
-    p.sprite(antFaceDryPixels(ZEN_STAGE, zenGazeAt(frame.time)), 2, ZEN_FACE_TOP + breathe, 2);
+    drawDesk(p, frame, 0);
+    drawDeskFace(p, frame, {});
 
     return speak("zen", frame, 54, 84);
+  },
+};
+
+/* ── 10. 안 울어 — 하염없이 내려가는 차트, 고이기만 하는 눈물 ── */
+
+const stoic: MemeScene = {
+  id: "stoic",
+  title: "안 울어",
+  blurb: "차트는 계속 흘러내리고, 눈물은 고이기만 한다.",
+  loopMs: ZEN_LOOP,
+
+  draw(p, frame) {
+    drawDesk(p, frame, -1);
+
+    /*
+     * 눈물은 **차오르기만 하고 안 흐른다.** 차오르는 데 시간이 걸려야 "참는 중"으로
+     * 읽히는데, 그러면 한 바퀴 끝에서 그렁한 눈이 갑자기 마른 눈으로 튄다 —
+     * 그래서 **눈을 감는 마지막 구간(5900ms~)에 맞춰 되돌린다.** 감은 눈에는 눈물
+     * 도트가 없어 되돌아가는 게 안 보이고, 다음 바퀴는 마른 눈에서 다시 시작한다.
+     */
+    const welling = easeOut(clamp01((frame.time - 700) / 4600)) * 0.9;
+    drawDeskFace(p, frame, { welling });
+
+    return speak("stoic", frame, 54, 84);
+  },
+};
+
+/* ── 11. 존버 중 — 올라가는 차트, 새어 나오는 웃음 ── */
+
+const hodl: MemeScene = {
+  id: "hodl",
+  title: "존버 중",
+  blurb: "차트가 올라간다. 입꼬리도 같이 올라간다.",
+  loopMs: ZEN_LOOP,
+
+  draw(p, frame) {
+    drawDesk(p, frame, 1);
+    /*
+     * 미소와 홍조는 **한 바퀴 내내 그대로 둔다.** 차오르는 눈물과 달리 이건 눈꺼풀
+     * 뒤로 숨길 수가 없어서(볼은 눈을 감아도 보인다), 시간을 따라 짙어지게 하면
+     * 루프 이음매에서 볼빛이 툭 꺼진다.
+     */
+    drawDeskFace(p, frame, { smile: true, blush: true });
+
+    return speak("hodl", frame, 54, 84);
   },
 };
 
@@ -2034,9 +2120,14 @@ const zen: MemeScene = {
 /** 한 바퀴에 "닫았다 폈다"를 두 번. 같은 농담을 두 번 보여줘야 리듬이 생긴다. */
 const WALLET_LOOP = 9600;
 const WALLET_CYCLE = WALLET_LOOP / 2;
-const WALLET_SCALE = 2;
-const WALLET_LEFT = Math.round((108 - ANT_FACE_W * WALLET_SCALE) / 2);
-const WALLET_TOP = 20;
+/**
+ * **개미를 한 배로 줄였다.** 두 배로 그리면 얼굴이 화면을 다 먹어, 몸을 틀어 지갑을
+ * 들어올릴 자리가 안 나온다. 도트 크기도 무대(10px)와 같아져 지갑과 한 해상도가 된다.
+ */
+const WALLET_SCALE = 1;
+/** 몸을 왼쪽으로 튼 자세라 얼굴도 왼쪽에 앉는다 (사진처럼 지갑은 오른쪽 위로) */
+const WALLET_LEFT = 8;
+const WALLET_TOP = 34;
 const WALLET_STAGE = 20;
 /**
  * 얼굴 맵에서 **머리까지만** 쓴다. 몸까지 그리면 얼굴이 화면을 다 먹어 지갑이 턱 밑에
@@ -2044,8 +2135,8 @@ const WALLET_STAGE = 20;
  */
 const WALLET_HEAD_ROWS = 64;
 /** 지갑이 놓이는 자리 (가슴 앞) */
-const PURSE_X = 54;
-const PURSE_Y = 160;
+const PURSE_X = 74;
+const PURSE_Y = 112;
 
 const wallet: MemeScene = {
   id: "wallet",
@@ -2077,14 +2168,34 @@ const wallet: MemeScene = {
             ? 1
             : 1 - easeInOut((phase - 0.92) / 0.08);
 
-    /* 어깨 — 잘라낸 몸 대신 무대가 받쳐준다 */
+    /*
+     * 몸통 — **왼쪽으로 튼 자세**다. 얼굴 아래 그대로 두면 정면으로 선 개미가 되고,
+     * 그러면 지갑을 두 손으로 들어올릴 자리가 안 생긴다. 어깨를 왼쪽으로 밀고 오른쪽
+     * 어깨를 앞으로 내밀어, 그쪽 팔이 지갑을 받치게 한다.
+     */
     const tone = antFacePalette(WALLET_STAGE);
-    p.disc(54, 232, 76, tone.body);
-    p.faded(0.5, () => p.disc(28, 228, 40, tone.bodyGloss));
-    p.disc(54, 234, 76, tone.outline);
+    /*
+     * 턱 바로 아래에서 시작해야 머리가 몸에 붙는다 — 띄우면 얼굴만 공중에 뜬다.
+     * **윤곽을 먼저 깔고 몸을 그 위에 얹는다.** 반대로 하면 윤곽 원이 몸을 통째로
+     * 덮어 검은 덩어리가 된다 (한 번 그렇게 나왔다).
+     */
+    const torso = (cx: number, cy: number, rx: number, ry: number, color: string) => {
+      for (let dy = -ry; dy <= ry; dy += 1) {
+        const halfWidth = rx * Math.sqrt(Math.max(0, 1 - (dy / ry) ** 2));
+        p.rect(cx - halfWidth, cy + dy, halfWidth * 2, 1, color);
+      }
+    };
+
+    /* 원으로 그리면 턱까지 닿게 하려다 몸이 화면을 다 먹는다 — 타원이라야 어깨 폭이 산다 */
+    torso(32, 182, 42, 88, tone.outline);
+    torso(32, 180, 42, 88, tone.body);
+    p.faded(0.4, () => p.disc(14, 168, 26, tone.bodyGloss));
+
+    /* 눈은 2.4초마다 한 번 깜빡인다 — 놀란 채로 굳어 있으면 인형처럼 보인다 */
+    const blink = (frame.time + 700) % 2400 > 2130;
 
     p.sprite(
-      antShockFacePixels(WALLET_STAGE).filter((pixel) => pixel.y <= WALLET_HEAD_ROWS),
+      antShockFacePixels(WALLET_STAGE, blink).filter((pixel) => pixel.y <= WALLET_HEAD_ROWS),
       WALLET_LEFT,
       WALLET_TOP,
       WALLET_SCALE,
@@ -2102,7 +2213,7 @@ const wallet: MemeScene = {
 
     return {
       text: pickMemeLine(said ? "wallet" : "walletEmpty", frame.seed, cycle),
-      x: 54,
+      x: 32,
       y: WALLET_TOP - 2,
       alpha: clamp01(Math.min(settle, leaving)),
     };
@@ -2120,54 +2231,65 @@ function drawPurse(
   cy: number,
   open: number,
   time: number,
-  tone: { body: string; outline: string },
+  tone: { body: string; outline: string; bodyGloss: string },
 ) {
-  const half = Math.round(lerp(13, 31, open));
-  const height = 34;
-  const top = cy - height / 2;
+  /*
+   * **위아래로 펼친다.** 좌우로 펼치면 지갑이 화면을 가로지르는 띠가 되고, 무엇보다
+   * 개미가 정면으로 서서 두 손을 벌린 자세가 된다 — 사진처럼 몸을 틀어 한 손은 위,
+   * 한 손은 아래를 잡는 자세라야 "펼쳐 보이는" 그림이 나온다.
+   */
+  const width = 34;
+  const half = Math.round(lerp(9, 24, open));
+  const left = cx - width / 2;
 
   /*
-   * 쥔 팔 — 지갑보다 먼저 그려 손이 지갑을 앞에서 잡게 한다.
-   * **굵게 짧게.** 가늘게 그었더니 팔이 아니라 더듬이처럼 보였다.
+   * 팔 — 지갑보다 먼저 그린다. **굵고 짧게**: 가늘고 길게 그으면 팔이 아니라 막대기로
+   * 보인다. 위쪽 팔은 어깨에서 올라와 지갑 윗단을, 아래쪽 팔은 몸통 앞에서 아랫단을 잡는다.
    */
-  for (const side of [-1, 1] as const) {
-    const hx = cx + side * (half - 2);
-    for (let thickness = 0; thickness < 5; thickness += 1) {
-      p.line(hx, top + 18 + thickness, cx + side * 40, cy + 22 + thickness, tone.body);
+  for (const [handY, fromX, fromY] of [
+    [cy - half + 3, 44, 118],
+    [cy + half - 3, 50, 150],
+  ] as const) {
+    /* 몸통과 같은 색이면 팔이 통째로 묻힌다 — 밝게 칠하고 아래위로 선을 둘러 떼어낸다 */
+    p.line(left + 4, handY - 4, fromX, fromY - 4, tone.outline);
+    for (let thickness = 0; thickness < 6; thickness += 1) {
+      p.line(left + 4, handY + thickness - 3, fromX, fromY + thickness - 3, tone.bodyGloss);
     }
-    p.line(hx, top + 23, cx + side * 40, cy + 27, tone.outline);
+    p.line(left + 4, handY + 3, fromX, fromY + 3, tone.outline);
   }
 
-  /* 가죽 — 펴지면 넓어지는 한 장. 접힌 자국이 가운데를 지난다. */
-  p.rect(cx - half, top, half * 2, height, "#6b4a2e");
-  p.rect(cx - half, top, half * 2, 3, "#8a6238");
-  p.rect(cx - half, top + height - 3, half * 2, 3, "#4a3018");
-  p.rect(cx - half, top, 2, height, "#4a3018");
-  p.rect(cx + half - 2, top, 2, height, "#4a3018");
-  for (let x = cx - half + 3; x < cx + half - 2; x += 4) p.dot(x, top + 4, "#a8814e");
+  /* 가죽 — 펴지면 위아래로 길어지는 한 장 */
+  p.rect(left, cy - half, width, half * 2, "#6b4a2e");
+  p.rect(left, cy - half, width, 2, "#8a6238");
+  p.rect(left, cy + half - 2, width, 2, "#4a3018");
+  p.rect(left, cy - half, 2, half * 2, "#8a6238");
+  p.rect(left + width - 2, cy - half, 2, half * 2, "#4a3018");
+  for (let y = cy - half + 3; y < cy + half - 2; y += 4) p.dot(left + 3, y, "#a8814e");
 
   /*
-   * 속 — **펴지면 이쪽이 주인공이다.** 한때 가죽을 안쪽까지 덮어 그렸더니, 활짝 편
-   * 지갑인데도 갈색 판때기 두 장으로 보여서 "비었다"가 안 읽혔다.
+   * 속 — **펴지면 이쪽이 주인공이다.** 가죽을 안쪽까지 덮어 그렸더니 활짝 편 지갑인데도
+   * 갈색 판때기로 보여서 "비었다"가 안 읽혔다.
    */
   const inner = Math.round((half - 5) * open);
   if (inner > 1) {
-    p.rect(cx - inner, top + 4, inner * 2, height - 8, "#241708");
+    p.rect(left + 4, cy - inner, width - 8, inner * 2, "#241708");
     /* 카드 자리 — 칸은 있는데 아무것도 안 꽂혀 있다 */
     for (const side of [-1, 1] as const) {
-      const slot = cx + side * Math.round(inner * 0.5);
-      p.rect(slot - Math.round(inner * 0.34), top + 9, Math.round(inner * 0.68), 2, "#3d2a14");
-      p.rect(slot - Math.round(inner * 0.34), top + 16, Math.round(inner * 0.68), 2, "#3d2a14");
+      const slot = cy + side * Math.round(inner * 0.5);
+      p.rect(left + 8, slot - 1, width - 16, 2, "#3d2a14");
     }
   }
-  p.rect(cx - 1, top - 1, 2, height + 2, "#3c2612");
+  /* 접힌 자국은 가로로 지난다 (위아래로 펴지므로) */
+  p.rect(left, cy - 1, width, 2, "#3c2612");
 
-  /* 쥔 손 — 지갑 양끝을 잡고 벌어진 만큼 따라 벌어진다 */
+  /* 쥔 손 — 위아래 끝을 잡고 벌어진 만큼 따라 벌어진다 */
   for (const side of [-1, 1] as const) {
-    const hx = cx + side * (half + 1);
-    p.rect(hx - 4, top + 12, 8, 12, tone.body);
-    p.rect(hx - 4, top + 12, 8, 3, "#a8814e");
-    p.rect(hx - 4, top + 23, 8, 1, tone.outline);
+    const hy = cy + side * (half - 2);
+    p.rect(left - 2, hy - 5, 14, 10, tone.body);
+    p.rect(left - 2, hy - 5, 14, 2, "#a8814e");
+    p.rect(left - 2, hy + 4, 14, 1, tone.outline);
+    /* 엄지 — 지갑 앞면을 짚는다 */
+    p.rect(left + 6, hy - 2, 5, 4, tone.body);
   }
 
   /* 펴진 뒤엔 먼지만 날린다 */
@@ -2175,7 +2297,7 @@ function drawPurse(
     for (let i = 0; i < 4; i += 1) {
       const age = (time + i * 600) % 2400;
       p.faded(clamp01(1 - age / 2400) * 0.85, () =>
-        p.dot(cx - 9 + i * 6, top - 2 - age * 0.014, "#8a7a62"),
+        p.dot(left + 8 + i * 6, cy - 6 - age * 0.014, "#8a7a62"),
       );
     }
   }
@@ -2191,6 +2313,8 @@ export const MEME_SCENES: readonly MemeScene[] = [
   train,
   rocket,
   zen,
+  stoic,
+  hodl,
   wallet,
 ];
 
