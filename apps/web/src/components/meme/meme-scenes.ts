@@ -1087,8 +1087,8 @@ const DOOR_AT = 5;
 /** 열차가 선 선로 높이와 승강장 윗면 — 개미는 승강장에, 열차는 그 뒤에 선다 */
 const TRAIN_BASE = 138;
 const PLATFORM_TOP = 154;
-/** 주행할 때 붙는 칸 수 */
-const TRAIN_CARS = 4;
+/** 주행할 때 붙는 칸 수. **둘이면 족하다** — 길수록 곡선에서 레일과 어긋난 게 눈에 띈다. */
+const TRAIN_CARS = 2;
 /**
  * 구간의 가로(=지나는 데 걸리는 시간)와 오르내림.
  *
@@ -1096,16 +1096,28 @@ const TRAIN_CARS = 4;
  * 떨어진다. 카메라는 일정한 속도라 가로가 곧 시간이라, 이 두 상수가 "천천히 올라가서
  * 순식간에 무너진다"를 만든다.
  */
-const RISE_W = 52;
-const RISE_DY = 0.38;
-const FALL_W = 15;
-const FALL_DY = 0.46;
+/**
+ * 구간 가로. **한 화면(108칸)에 꼭지가 둘까지만** 보이도록 오르막+내리막 한 쌍을
+ * 화면 폭 언저리로 잡는다 — 좁게 두면 오르내림이 서너 개씩 겹쳐 무슨 움직임인지 안 읽힌다.
+ *
+ * 오르막은 **눕혀야 한다**: 칸을 곧게 그리므로 기울기가 세면 레일이 칸을 관통한다.
+ * 반대로 내리막은 거의 절벽으로 세운다 — 그러면 칸이 곧은 채로 뚝 떨어져서, 기울일
+ * 필요가 아예 없어지고 낙차도 제일 크게 보인다.
+ */
+const RISE_W = 95;
+const RISE_DY = 0.32;
+const FALL_W = 10;
+const FALL_DY = 0.44;
 const CHART_BASE = 150;
 /**
  * 봉 높이의 폭. **너무 크면 열차가 레일에서 뜬다** — 칸은 수평인데 선로가 가파르면
  * 칸의 앞뒤 끝이 선로에서 벌어진다. 칸을 짧게(18유닛) 잡고 기울기를 눕혀 맞춘다.
  */
-const CHART_AMP = 86;
+/**
+ * 봉 높이의 폭. 낙폭을 키워달라는 요청으로 1.5배 올렸다 (86 → 129).
+ * 기울기가 가팔라진 만큼 구간 가로도 같이 넓혀야 칸이 레일에서 안 뜬다.
+ */
+const CHART_AMP = 129;
 
 interface ChartPoint {
   /** 세계 가로 좌표 (1 = 격자 한 칸) */
@@ -1190,7 +1202,8 @@ const train: MemeScene = {
      */
     const move = clamp01((a - TRAIN_DEPART_FROM) / (1 - TRAIN_DEPART_FROM));
     const first = chart[1] as ChartPoint;
-    const last = chart[chart.length - 2] as ChartPoint;
+    /** 한 바퀴에 지나는 구간 수 — 오르막 둘·내리막 둘이면 이야기가 한 번 완결된다 */
+    const last = chart[5] as ChartPoint;
     const camX = lerp(first.x, last.x, move);
 
     const segmentAt = (worldX: number) => {
@@ -1206,13 +1219,6 @@ const train: MemeScene = {
       return lerp(from.y, to.y, (worldX - from.x) / (to.x - from.x));
     };
     const railY = (worldX: number) => CHART_BASE - priceAt(worldX) * CHART_AMP;
-    /** 화면에서의 기울기 (내려갈수록 +) — 열차를 이만큼 기울여 레일에 앉힌다 */
-    const slopeAt = (worldX: number) => {
-      const i = segmentAt(worldX);
-      const from = chart[i] as ChartPoint;
-      const to = chart[i + 1] as ChartPoint;
-      return (-(to.y - from.y) * CHART_AMP) / (to.x - from.x);
-    };
     const screenX = (worldX: number) => 54 + (worldX - camX);
 
     /* ── 봉 ── */
@@ -1263,7 +1269,6 @@ const train: MemeScene = {
         packed: true,
         lead: i === 0,
         bob: flip2(frame.time + i * 90, 180) ? 0 : 1,
-        slope: slopeAt(worldX),
       });
     }
 
@@ -1416,7 +1421,7 @@ function drawTrainCar(
   left: number,
   baseY: number,
   unit: number,
-  opts: { packed?: boolean; lead?: boolean; doorOpen?: boolean; bob?: number; slope?: number },
+  opts: { packed?: boolean; lead?: boolean; doorOpen?: boolean; bob?: number },
 ) {
   const u = (n: number) => n * unit;
   const top = baseY - u(13) + (opts.bob ?? 0);
@@ -1427,19 +1432,13 @@ function drawTrainCar(
    * 만든다 — 한 줄의 폭이 도트 하나(unit)라 계단이 그림의 해상도와 어긋나지 않는다.
    */
   /*
-   * 기울기는 **가둬 쓴다.** 도트 그림은 회전을 못 해 세로로 밀어 흉내 내는데, 밀기는
-   * 길이를 늘이므로 급경사를 그대로 먹이면 칸이 사선 얼룩으로 늘어난다. 여기서 잘린
-   * 만큼은 레일과 벌어지지만, 그런 구간은 순식간에 지나가서 눈에 안 띈다.
+   * **칸은 곧게 그린다.** 한때 세로로 밀어 기울였는데(도트 그림은 회전을 못 한다),
+   * 밀기는 길이를 늘여서 칸이 사선 얼룩으로 늘어났다 — 열차가 열차로 안 보이면
+   * 기울기를 맞춘 보람이 없다. 대신 봉을 넓게 잡아 기울기를 눕히고, 레일을 칸보다
+   * 먼저 그려 **칸 밑에서 가려지게** 둔다. 그러면 어긋난 만큼이 눈에 안 걸린다.
    */
-  const slope = Math.max(-1.15, Math.min(1.15, opts.slope ?? 0));
-  const middle = left + u(CAR_LEN) / 2;
-  const slant = (x: number, y: number, w: number, h: number, color: string) => {
-    for (let cut = 0; cut < w; cut += unit) {
-      const column = Math.min(unit, w - cut);
-      const offset = Math.round((slope * (x + cut + column / 2 - middle)) / unit) * unit;
-      p.rect(x + cut, y + offset, column, h, color);
-    }
-  };
+  const slant = (x: number, y: number, w: number, h: number, color: string) =>
+    p.rect(x, y, w, h, color);
 
   slant(left, top, u(CAR_LEN), u(12), "#d8dde6");
   slant(left, top, u(CAR_LEN), u(1), "#9aa3b0");
@@ -1494,6 +1493,8 @@ const RKT_HOVER = 0.34;
 const RKT_CUT = 0.56;
 const RKT_DEAD = 0.64;
 const RKT_APEX = 0.66;
+/** 정점에서 코가 옆으로 넘어가 있는 구간 — 이 시점을 지나면 180도 뒤집혀 떨어진다 */
+const RKT_TIP = 0.71;
 
 /** 발사대가 놓인 세계 좌표와, 서 있을 때 발사대의 화면 높이 */
 const RKT_GROUND = 540;
@@ -1690,6 +1691,7 @@ const rocket: MemeScene = {
     /*
      * 꺼진 엔진에서 새는 연기. 로켓은 떨어지고 연기는 그 자리에 남아야 해서,
      * **뿜은 순간의 로켓 위치**를 같은 공식으로 되짚어 그 자리에 그린다 (상태를 안 쥔다).
+     * 뒤집히는 동안 엔진 끝이 위로 넘어가므로 몸통 가운데 높이에 걸어둔다.
      */
     if (a >= RKT_DEAD) {
       for (let i = 0; i < 4; i += 1) {
@@ -1698,44 +1700,78 @@ const rocket: MemeScene = {
         if (age <= 0 || age >= 1) continue;
         const emitBottom = 118 + 70 * clamp01((emit - RKT_APEX) / (1 - RKT_APEX)) ** 2;
         const x = RKT_X + (i % 2 === 0 ? -3 : 3) * (1 + age);
-        const y = emitBottom + 2 - age * 26;
+        const y = emitBottom - RKT_H / 2 - age * 26;
         p.faded(0.4 * (1 - age), () => p.disc(x, y, 2 + age * 4, "#aab4c2"));
       }
     }
 
-    /* 로켓과 올라탄 셋 */
-    drawRocketShip(p, cx, bottom);
+    /*
+     * 로켓과 올라탄 셋. 정점을 지나면 축이 넘어간다 — 옆모습 한 박자(side)를 거쳐
+     * 코가 아래를 보며(down) 떨어진다. 회전 중심이 몸통 가운데라 자세가 바뀌어도 안 튄다.
+     */
+    const ccy = bottom - RKT_H / 2;
+    const attitude: RocketAttitude =
+      a < RKT_APEX ? "up" : a < RKT_TIP ? "side" : "down";
+    drawRocketShip(p, cx, ccy, attitude);
 
     const noseTip = bottom - RKT_H;
-    const panic = a >= RKT_CUT;
-    RKT_RIDERS.forEach((rider, i) => {
-      /* 오를 땐 느긋하게 손 흔들고, 추진이 꺼지면 빠르게 허우적대며 이리저리 돌아본다 */
-      const pose: AntPose = panic
-        ? flip2(frame.time + i * 70, 150)
-          ? "wave1"
-          : "wave2"
-        : flip2(frame.time + i * 150, 300)
-          ? "wave1"
-          : "wave2";
-      const flip = panic ? flip2(frame.time + i * 240, 480) : rider.dx < 0;
-      const jitter = panic && flip2(frame.time + i * 80, 160) ? 1 : 0;
+    if (attitude === "up") {
+      const panic = a >= RKT_CUT;
+      RKT_RIDERS.forEach((rider, i) => {
+        /* 오를 땐 느긋하게 손 흔들고, 추진이 꺼지면 빠르게 허우적대며 이리저리 돌아본다 */
+        const pose: AntPose = panic
+          ? flip2(frame.time + i * 70, 150)
+            ? "wave1"
+            : "wave2"
+          : flip2(frame.time + i * 150, 300)
+            ? "wave1"
+            : "wave2";
+        const flip = panic ? flip2(frame.time + i * 240, 480) : rider.dx < 0;
+        const jitter = panic && flip2(frame.time + i * 80, 160) ? 1 : 0;
 
-      outlined(
-        p,
-        antPixels(rider.stage, pose),
-        cx + rider.dx - 8 + jitter,
-        noseTip + rider.drop - 16,
-        1,
-        "#141a26",
-        flip,
-      );
-    });
+        outlined(
+          p,
+          antPixels(rider.stage, pose),
+          cx + rider.dx - 8 + jitter,
+          noseTip + rider.drop - 16,
+          1,
+          "#141a26",
+          flip,
+        );
+      });
+    } else {
+      /*
+       * 뒤집힌 뒤 — 꼭대기가 된 면(옆구리 → 엔진 꽁무니) 위를 우왕좌왕 뛰어다닌다.
+       * 삼각파로 갔다 되돌아오고, 가는 방향을 따라 몸도 뒤집는다. 셋의 위상을 어긋나게
+       * 두어 서로 스쳐 지나가야 갈팡질팡으로 읽힌다.
+       */
+      const surfaceY = attitude === "side" ? ccy - 7 : ccy - RKT_H / 2;
+      const range = attitude === "side" ? 22 : 12;
+      RKT_RIDERS.forEach((rider, i) => {
+        const run = ((frame.time + i * 400) % 1200) / 1200;
+        const tri = run < 0.5 ? run * 2 : 2 - run * 2;
+        const off = Math.round((tri - 0.5) * range);
+        const base = attitude === "side" ? rider.dx : Math.round(rider.dx / 2);
+        const crawl: AntPose = flip2(frame.time + i * 60, 120) ? "crawl1" : "crawl2";
 
-    /* 말풍선 — 오를 땐 환호, 떨어질 땐 탄식. 엔진이 꺼지는 사이는 말을 잃는다. */
+        outlined(
+          p,
+          antPixels(rider.stage, crawl),
+          cx + base + off - 8,
+          surfaceY - 16,
+          1,
+          "#141a26",
+          run >= 0.5,
+        );
+      });
+    }
+
+    /* 말풍선 — 오를 땐 환호, 떨어질 땐 탄식. 엔진이 꺼지고 뒤집히는 사이는 말을 잃는다. */
     if (frame.time < 6200) {
       return speakWindow("rocket", frame, 1450, 5250, 2, RKT_X, noseTip - 16);
     }
-    return speakWindow("rocketDown", frame, 7000, 9350, 1, RKT_X, noseTip - 16);
+    /* 하강은 늘 down 자세라 개미들이 선 엔진 꽁무니 위에 단다 */
+    return speakWindow("rocketDown", frame, 7000, 9350, 1, RKT_X, ccy - RKT_H / 2 - 18);
   },
 };
 
@@ -1764,41 +1800,55 @@ function drawRocketFlame(p: Painter, cx: number, top: number, len: number) {
   layer(len * 0.4, 2, "#fff3b0");
 }
 
+/** 로켓의 자세 — 서 있다가(up), 정점에서 옆으로 넘어가(side), 코를 아래로 떨어진다(down) */
+type RocketAttitude = "up" | "side" | "down";
+
 /**
  * 로켓 본체. 흰 원통에 그리드핀, 그리고 세로로 크게 새긴 SPACEX 워드마크 — **미장
  * 로켓이라는 표식은 이 로고가 맡는다.** 짤에 못 넣는 건 손익 숫자지 간판 글자가 아니다
  * (만원 열차의 역 이름과 같은 결). 검은 단 띠와 성조기는 워드마크에 자리를 내줬다 —
  * 14칸 몸통에 셋을 다 넣으면 서로를 가린다.
+ *
+ * 좌표는 **로켓 로컬**(u: 가로 -7~7, v: 엔진 끝 0 → 코끝 RKT_H)로 적고, 자세가 화면
+ * 좌표로 돌린다 — 뒤집힌 로켓을 딴 그림으로 그리면 두 로켓이 서서히 다른 물건이 된다.
+ * 회전 중심은 몸통 한가운데(cx, cy)라 자세가 바뀌어도 로켓이 튀지 않는다.
+ * 180도로 돌면 워드마크도 거꾸로 선다 — 그게 뒤집힌 티다.
  */
-function drawRocketShip(p: Painter, cx: number, bottom: number) {
-  /* 엔진부 — 노즐 세 개 */
-  p.rect(cx - 6, bottom - 4, 12, 4, "#3a4250");
-  for (const nx of [-5, -1, 3]) p.rect(cx + nx, bottom - 1, 2, 2, "#242a34");
+function drawRocketShip(p: Painter, cx: number, cy: number, attitude: RocketAttitude) {
+  const H2 = RKT_H / 2;
+  const rect = (u: number, v: number, du: number, dv: number, color: string) => {
+    if (attitude === "up") p.rect(cx + u, cy + H2 - v - dv, du, dv, color);
+    else if (attitude === "down") p.rect(cx - u - du, cy - H2 + v, du, dv, color);
+    else p.rect(cx - H2 + v, cy + u, dv, du, color);
+  };
 
-  /* 몸통 — 왼쪽에 하이라이트, 오른쪽에 그늘을 세워 원통으로 만든다 */
-  p.rect(cx - 7, bottom - 40, 14, 36, "#e8ecf2");
-  p.rect(cx - 6, bottom - 40, 1, 36, "#ffffff");
-  p.rect(cx + 4, bottom - 40, 3, 36, "#c2cad6");
+  /* 엔진부 — 노즐 세 개 */
+  rect(-6, 0, 12, 4, "#3a4250");
+  for (const nx of [-5, -1, 3]) rect(nx, -1, 2, 2, "#242a34");
+
+  /* 몸통 — 한쪽에 하이라이트, 반대쪽에 그늘을 세워 원통으로 만든다 */
+  rect(-7, 4, 14, 36, "#e8ecf2");
+  rect(-6, 4, 1, 36, "#ffffff");
+  rect(4, 4, 3, 36, "#c2cad6");
 
   /* 접힌 그리드핀 */
-  p.rect(cx - 9, bottom - 38, 2, 4, "#8a93a2");
-  p.rect(cx + 7, bottom - 38, 2, 4, "#8a93a2");
+  rect(-9, 34, 2, 4, "#8a93a2");
+  rect(7, 34, 2, 4, "#8a93a2");
 
-  /* 워드마크 — 몸통 한가운데 기둥(cx-3~cx+3)에 위에서 아래로 */
-  const logoTop = bottom - 39;
+  /* 워드마크 — 몸통 한가운데 기둥(u -3~3)에 코 쪽부터 아래로 */
   RKT_WORDMARK.forEach((letter, index) => {
     const ink = index === RKT_WORDMARK.length - 1 ? "#8a93a2" : "#123d6e";
     letter.forEach((row, ry) => {
       [...row].forEach((char, col) => {
-        if (char === "1") p.dot(cx - 3 + col, logoTop + index * 6 + ry, ink);
+        if (char === "1") rect(-3 + col, 38 - index * 6 - ry, 1, 1, ink);
       });
     });
   });
 
-  /* 코 — 위로 갈수록 좁아진다 */
+  /* 코 — 끝으로 갈수록 좁아진다 */
   for (let i = 0; i < 9; i += 1) {
     const half = Math.max(1, Math.round((7 * (i + 2)) / 10));
-    p.rect(cx - half, bottom - RKT_H + i, half * 2, 1, i < 2 ? "#c2cad6" : "#e8ecf2");
+    rect(-half, RKT_H - 1 - i, half * 2, 1, i < 2 ? "#c2cad6" : "#e8ecf2");
   }
 }
 
