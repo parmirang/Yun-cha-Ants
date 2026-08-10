@@ -1924,35 +1924,148 @@ const ZEN_GAZE: readonly (readonly [number, AntGaze])[] = [
   [5150, "front"],
   [5900, "closed"],
 ];
-/** 모니터 베젤 바깥 상자 */
-const ZEN_MON = { x: 16, y: 8, w: 76, h: 46 } as const;
+/**
+ * 모니터 베젤 바깥 상자. **화면 밖으로 넘겨 잡는다** — 좌우와 위를 프레임에 딱 맞추면
+ * 베젤 두께만큼 흰 화면이 안쪽으로 밀려 위에 띠가 남는다. 넘겨 잡아야 베젤이 잘리면서
+ * 차트가 폭을 꽉 채우고 위쪽 여백이 사라진다.
+ */
+const ZEN_MON = { x: -3, y: -5, w: 114, h: 60 } as const;
 /**
  * 얼굴은 2배(104칸)로 화면 폭을 채우고, 눈이 화면 한가운데 오도록 앉힌다 —
  * 아래(입 밑의 몸)는 잘린다. 클로즈업 판과 같은 규칙이다.
  */
 const ZEN_FACE_TOP = 56;
 const ZEN_STAGE = 20;
-/** 봉 하나가 흐르는 시간 — 열두 개가 한 바퀴에 딱 맞물려 스크롤에 이음매가 없다 */
+/**
+ * 봉 하나가 흐르는 시간. 한 바퀴에 들어가는 봉 수가 곧 수열 길이라, 스크롤이 한 바퀴
+ * 돌면 봉이 제자리로 맞물린다.
+ *
+ * **화면에 보이는 봉보다 수열이 길어야 한다.** 짧으면 한 화면 안에서 같은 봉이 두 번
+ * 보이고, 벽지처럼 반복되는 게 그대로 눈에 띈다.
+ *
+ * 그래서 **이 값이 곧 속도의 하한이다** — 반복이 안 보이려면 한 바퀴에 적어도 화면
+ * 하나만큼은 흘러야 한다. 모니터를 폭 가득 키웠을 때 한 번 걸렸던 자리인데(그때는 얇은
+ * 봉이 열여섯 칸씩 들어와 400ms까지 몰렸다), 봉을 굵혀 아홉 칸만 들이면서 도로 느긋해졌다.
+ */
 const ZEN_CANDLE_MS = 600;
 const ZEN_CANDLES = ZEN_LOOP / ZEN_CANDLE_MS;
+/**
+ * 봉 하나가 차지하는 가로 (몸통 9 + 사이 3).
+ *
+ * **굵게 잡은 건 장대봉을 세우기 위해서다.** 추세 판에서 봉 몸통은 "카메라가 따라
+ * 내려간 높이 + 값이 움직인 폭"인데, 한 화면에 봉이 많으면 카메라 낙폭을 잘게 쪼개야
+ * 계단이 화면에 들어온다. 그러면 장대봉을 세울 밑천이 없어 **꼬리만 무성한 차트**가 된다.
+ * 봉을 굵게 해 한 화면에 아홉 개만 들이면 칸당 낙폭을 두 배로 줄 수 있다.
+ */
+const ZEN_PITCH = 12;
 
 /**
- * 원형 수열 — 봉 j의 몸통은 v[j]→v[j+1]이고 마지막은 처음으로 감긴다. 그래서
- * 무한 스크롤이 어디서 이어 붙어도 표가 안 난다. 오르내림을 번갈아 못 박아
- * 빨강·파랑이 골고루 나오게 한다 (드라마틱한 건 진폭이 맡는다).
+ * 봉 한 벌. **원형 수열이라 마지막 봉 다음이 처음 봉이고**, 그래서 무한 스크롤이
+ * 어디서 이어 붙어도 표가 안 난다.
+ *
+ * 시가와 종가를 따로 들고 있는 건 **갭을 그리기 위해서다** — 값 하나를 이웃과 나눠 쓰면
+ * 봉과 봉 사이가 늘 붙어 있어, 값을 되돌릴 자리가 봉 몸통밖에 없다 (`zenChart` 참고).
+ *
+ * **한 칸씩 번갈아 오르내리게 두지 말 것.** 예전엔 방향을 못 박아 빨강·파랑이 골고루
+ * 나오게 했는데, 그러면 톱니 무늬가 되어 **차트가 아니라 지그재그 무늬**로 보인다.
+ * 지금은 방향이 한두 칸씩 이어지기도 하고(연속 양봉·음봉), 큰 봉 사이에 도지가 섞인다 —
+ * 골고루 나오는 건 방향을 뒤집는 빈도가 맡고, 변주는 길이와 크기가 맡는다.
  */
-function zenPrices(seed: number): number[] {
+interface ZenChart {
+  /** 봉 i의 시가 */
+  open: number[];
+  /** 봉 i의 종가. 보통 다음 봉의 시가와 같지만, **갭이 나면 벌어진다** */
+  close: number[];
+  /** 봉 i가 꼬리 없이 꽉 찬 장대봉인가 */
+  bare: boolean[];
+}
+
+function zenChart(seed: number, trend: -1 | 0 | 1, swing: number): ZenChart {
   const random = seededRandom(seed + 53);
-  const prices: number[] = [];
-  let level = 0.5;
+  const open: number[] = [];
+  const close: number[] = [];
+  const bare: boolean[] = [];
+  /** 추세선(요동 판은 화면 한가운데)에서 벗어난 칸수. **아래가 +다.** */
+  let offset = 0;
+  let dir = 1;
+  let run = 0;
+  /** 이번 무리가 추세 쪽으로 민 칸수 — 무리 끝에서 갭으로 되돌린다 */
+  let pushed = 0;
 
   for (let i = 0; i < ZEN_CANDLES; i += 1) {
-    const step = 0.26 + random() * 0.4;
-    level = Math.min(0.92, Math.max(0.08, level + (i % 2 === 0 ? step : -step)));
-    prices.push(level);
+    open.push(offset);
+
+    /** 이 봉이 값을 옮기는 칸수 (화면 기준, 아래가 +) */
+    let move: number;
+    /** 이 봉과 다음 봉 사이가 벌어지는 칸수 — 몸통으로 안 그려지는 몫이다 */
+    let gap = 0;
+    let solid: boolean;
+
+    if (trend === 0) {
+      /* 요동 판 — 방향이 한 칸에서 세 칸까지 이어지고, 민짜와 꼬리 봉이 번갈아 선다 */
+      solid = (i % 2 === 0) !== (random() < 0.16);
+      if (run <= 0) {
+        run = 1 + Math.floor(random() * 3);
+        dir = -dir;
+      }
+      run -= 1;
+      move = dir * (solid ? 0.45 + random() * 0.5 : 0.03 + random() * 0.22) * swing;
+
+      /* 화면 밖으로 나가려 하면 되돌린다 — 깎으면 그 봉만 납작해진다 */
+      const limit = swing * 0.46;
+      if (Math.abs(offset + move) > limit) move = -move;
+      offset = Math.max(-limit, Math.min(limit, offset + move));
+    } else {
+      /*
+       * 추세 판 — 세 칸이 한 무리다. **[장대봉 · 잔봉 · 마무리]**를 밀고, 무리 끝에서
+       * 갭으로 제자리에 돌려놓는다.
+       *
+       * **되돌림을 봉이 떠안게 하지 않는다.** 밀어낸 만큼을 봉 하나로 되돌리면 그
+       * 봉이 장대봉만큼 커지고, 하필 그게 추세와 반대색이라 화면에서 제일 눈에 띈다.
+       * 값을 봉과 봉 **사이에서** 되돌리면(=갭) 반대색 봉을 안 쓰고도 제자리로 온다 —
+       * 갭은 차트에서 흔한 그림이라 어색하지도 않다.
+       *
+       * 그래서 반대색은 **무리 걸러 한 번, 마무리 자리에서만** 나온다 (여섯 칸에 하나).
+       */
+      const step = i % 3;
+      solid = step === 0;
+      const counter = step === 2 && Math.floor(i / 3) % 2 === 1;
+
+      /*
+       * 추세 쪽으로 미는 칸수. **잔봉도 추세 쪽으로 민다** — 반대로 조금만 밀어도
+       * 카메라가 따라온 만큼(`ZEN_DRIFT`)을 넘겨 색이 뒤집힌다.
+       */
+      const push = counter
+        ? -(6 + random() * 4)
+        : solid
+          ? 15 + random() * 4
+          : 1 + random() * 2.5;
+
+      if (solid) pushed = 0;
+      pushed += push;
+      move = -trend * push;
+      if (step === 2) gap = -trend * -pushed + (random() - 0.5) * 2;
+
+      offset += move;
+    }
+
+    bare.push(solid);
+    close.push(offset);
+    offset += gap;
   }
 
-  return prices;
+  return { open, close, bare };
+}
+
+/**
+ * 지금 몇 번째 봉까지 흘렀나. **일정한 속도로 흐른다.**
+ *
+ * 잠잠하다 훅 밀려가도록 속도를 흔들어봤는데, 밀려가는 구간이 눈으로 좇을 수 없을 만큼
+ * 빨랐다 — 이 차트는 배경이라 시선을 뺏으면 안 되고, 무엇보다 **봉 자체가 이미 변주**라
+ * 속도까지 출렁이면 둘이 겹쳐 그냥 어수선해진다. 변주는 봉 길이가 맡고 흐름은 일정하게 둔다.
+ */
+function zenScroll(time: number): number {
+  return time / ZEN_CANDLE_MS;
 }
 
 /** 대본에서 지금 눈 상태를 찾는다 — 지나온 항목 중 마지막 것 */
@@ -1965,8 +2078,12 @@ function zenGazeAt(time: number): AntGaze {
   return state;
 }
 
-/** 추세 판에서 봉 한 칸이 밀려 내려가는(올라가는) 높이 */
-const ZEN_DRIFT = 3.2;
+/**
+ * 추세 판에서 봉 한 칸이 밀려 내려가는(올라가는) 높이. **화면이 넓어진 만큼 눕혀야 한다** —
+ * 한 화면에 열여섯 칸이 들어오므로 칸당 높이를 그대로 두면 계단이 화면 높이를 훌쩍 넘어,
+ * 양 끝이 잘린 채 가운데 토막만 보인다.
+ */
+const ZEN_DRIFT = 2.5;
 
 /**
  * 책상 무대 — 방 · 모니터 · 흐르는 봉. `trend`가 0이면 요동, -1이면 하강, +1이면 상승.
@@ -1982,9 +2099,13 @@ function drawDesk(p: Painter, frame: SceneFrame, trend: -1 | 0 | 1): void {
   /* 어두운 방 — 모니터가 유일한 광원이다 */
   p.vGradient(0, p.h, "#0d0f1a", "#20242e");
 
-  /* 모니터 뒤 빛무리 — 숨쉬듯 밝기가 흔들린다. 빛깔은 장이 정한다 (수익=빨강·손실=파랑). */
+  /*
+   * 모니터 불빛이 방으로 쏟아진 자리 — 숨쉬듯 밝기가 흔들린다. 빛깔은 장이 정한다
+   * (수익=빨강·손실=파랑). **모니터 아래에 깐다**: 모니터가 위쪽을 통째로 덮으므로
+   * 뒤에 두면 한 도트도 안 보인다.
+   */
   const glow = trend > 0 ? "#e8a0a0" : trend < 0 ? "#8fb4e8" : "#9fc0e8";
-  p.faded(0.1 + 0.03 * osc(2), () => p.disc(54, 31, 52, glow));
+  p.faded(0.11 + 0.03 * osc(2), () => p.disc(54, 62, 58, glow));
 
   /* 모니터 — 베젤 · 흰 화면 · 전원 불 */
   p.rect(ZEN_MON.x, ZEN_MON.y, ZEN_MON.w, ZEN_MON.h, "#2a2f38");
@@ -1997,47 +2118,77 @@ function drawDesk(p: Painter, frame: SceneFrame, trend: -1 | 0 | 1): void {
   p.dot(ZEN_MON.x + ZEN_MON.w - 5, ZEN_MON.y + ZEN_MON.h - 2, "#8fd8b0");
 
   /* 눈금줄 — 흰 바탕만 있으면 차트가 아니라 그냥 판때기다 */
-  for (const line of [10, 20, 30]) p.rect(sx, sy + line, sw, 1, "#e2e7ef");
+  for (let line = 12; line < sh; line += 12) p.rect(sx, sy + line, sw, 1, "#e2e7ef");
 
   /*
    * 봉 — 오른쪽에서 왼쪽으로 하염없이 흐른다. 위치는 스크롤에서만 나오므로
    * 상태가 없고, 화면 밖으로 나가는 조각은 클리핑이 잘라낸다.
    */
-  const prices = zenPrices(frame.seed);
-  const scroll = frame.time / ZEN_CANDLE_MS;
+  const chart = zenChart(frame.seed, trend, sh - 6);
+  const scroll = zenScroll(frame.time);
   const slide = scroll - Math.floor(scroll);
-  /* 요동 판은 화면을 꽉 채우고, 추세 판은 계단을 따라가느라 잔물결만 남긴다 */
-  const swing = trend === 0 ? sh - 10 : 9;
-  const yAt = (j: number) => {
-    const slot = Math.floor(scroll) + j;
-    const idx = ((slot % ZEN_CANDLES) + ZEN_CANDLES) % ZEN_CANDLES;
-    const wobble = ((prices[idx] as number) - 0.5) * swing;
-    if (trend === 0) return sy + sh / 2 + wobble;
-
-    const base = trend < 0 ? sy + 7 : sy + sh - 7;
-    return base - trend * (j - slide) * ZEN_DRIFT + wobble;
-  };
+  /*
+   * 값 1을 몇 칸으로 그릴지. 요동 판은 화면을 꽉 채우고, 추세 판은 잘게 뽑은 걸음을
+   * 이 눈금으로 되키운다 (위 `zenChart` 참고 — 몸통 높이는 걸음 × 눈금이다).
+   */
+  /*
+   * 오른쪽 끝이 **지금 그려지는 중인 봉**이고 왼쪽으로 갈수록 지나간 봉이다.
+   * `k`는 오른쪽에서 몇 번째냐이고, 봉은 `k`가 커질수록 카메라가 지나온 만큼 위(아래)에 선다.
+   *
+   * 제일 새 봉이 서는 높이는 **자랄 자리를 남겨 끝에서 띄운다** — 내려가는 판의 새 봉은
+   * 화면 제일 아래라, 가장자리에 붙여두면 아래로 뻗는 몸통이 그대로 잘린다.
+   */
+  const baseY = trend === 0 ? sy + sh / 2 : trend < 0 ? sy + sh - 24 : sy + 24;
+  const yOf = (k: number, offset: number) =>
+    baseY + (trend === 0 ? 0 : trend * (k + slide) * ZEN_DRIFT) + offset;
 
   p.clipped(sx, sy, sw, sh, () => {
-    for (let j = -1; j <= Math.ceil(sw / 7); j += 1) {
-      const slot = Math.floor(scroll) + j;
+    for (let k = Math.ceil(sw / ZEN_PITCH) + 1; k >= 0; k -= 1) {
+      const slot = Math.floor(scroll) - k;
       const idx = ((slot % ZEN_CANDLES) + ZEN_CANDLES) % ZEN_CANDLES;
-      const openY = yAt(j);
-      const closeY = yAt(j + 1);
-      const x = sx + j * 7 - Math.round(slide * 7);
+      /* 종가는 **다음 봉이 설 자리**에서 잰다 — 그래야 봉들이 한 줄기로 이어진다 */
+      const openY = yOf(k, chart.open[idx] as number);
+      const closeY = yOf(k - 1, chart.close[idx] as number);
+      const x = sx + sw - Math.round((k + slide) * ZEN_PITCH);
+
+      /*
+       * **맨 오른쪽 봉은 자라는 중이다.** 시가에서 종가 쪽으로 뻗어 나가고, 다 자라면
+       * 그대로 왼쪽으로 밀려간다 — 양봉은 아래에서 위로, 음봉은 위에서 아래로 그려진다.
+       * 다 그려진 봉이 통째로 밀려 들어오면 값이 정해져 있는 그림처럼 보인다.
+       */
+      const grow = k === 0 ? slide : 1;
 
       /* 화면에서 위로 갈수록 비싼 값이라, 종가가 더 위면 양봉이다 */
       const up = closeY < openY;
-      const top = Math.min(openY, closeY);
-      const height = Math.max(2, Math.abs(closeY - openY));
+
+      /*
+       * 꼬리 — **꽉 찬 봉에는 안 단다.** 모든 봉에 꼬리를 달았더니 차트가 잔가시밭이
+       * 되어 몸통이 그 사이에 묻혔다. 민짜 장대봉이 사이사이 서야 꼬리 달린 봉도
+       * 비로소 꼬리로 읽힌다. 어느 봉이 민짜인지는 길이를 정할 때 함께 정해진다.
+       */
+      const bare = chart.bare[idx] === true;
       const wickRandom = seededRandom(frame.seed + 67 + idx * 13);
-      const wickTop = 1 + wickRandom() * 4;
-      const wickBottom = 1 + wickRandom() * 4;
+      /*
+       * **꼬리는 장대봉보다 길면 안 된다.** 길게 뽑았더니 몸통 두 칸짜리 봉이 꼬리로만
+       * 스무 칸이 되어, 옆에 선 장대봉보다 키가 컸다 — 그러면 장대봉이 있어도 화면은
+       * 꼬리밭으로 보인다. 요동 판은 몸통 자체가 커서 꼬리를 길게 둬도 안 묻힌다.
+       */
+      const long = trend === 0 ? 9 : 5;
+      const tail = () =>
+        (wickRandom() < 0.5 ? 3 + wickRandom() * long : 1 + wickRandom() * 2) * grow;
+      const wickTop = bare ? 0 : tail();
+      const wickBottom = bare ? 0 : tail();
+
+      /* 민짜 봉은 몸통이 두툼해야 꽉 찬 것으로 읽힌다 — 얇으면 그냥 가로줄이다 */
+      const full = Math.max(bare ? 6 : 2, Math.abs(closeY - openY));
+      const height = Math.max(1, full * grow);
+      /* 자라는 쪽은 시가에서 종가로 — 양봉은 위로 뻗고, 음봉은 아래로 내려간다 */
+      const top = up ? openY - height : openY;
       const color = up ? "#ff5c5c" : "#5c9dff";
 
-      p.rect(x + 2, top - wickTop, 1, height + wickTop + wickBottom, color);
-      p.rect(x, top, 5, height, color);
-      p.rect(x + 1, top + 1, 1, Math.max(1, height - 2), up ? "#ffb3b3" : "#a8ccff");
+      p.rect(x + 4, top - wickTop, 1, height + wickTop + wickBottom, color);
+      p.rect(x, top, 9, height, color);
+      p.rect(x + 2, top + 1, 2, Math.max(1, height - 2), up ? "#ffb3b3" : "#a8ccff");
     }
   });
 }
