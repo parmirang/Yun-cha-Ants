@@ -237,6 +237,17 @@ function QuantitySheet({
           <form
             onSubmit={(event) => {
               event.preventDefault();
+              /*
+               * **`stopPropagation`을 빼면 안 된다.** 이 시트는 `createPortal`로 body에
+               * 걸리지만 React 이벤트는 DOM이 아니라 **React 트리**를 타고 올라간다 —
+               * 이 form을 감싼 React 조상에는 부르는 쪽의 form(평단가 화면·물타기 시트)이
+               * 있어서, 여기서 안 막으면 그쪽 `onSubmit`까지 함께 터진다.
+               *
+               * 그러면 확정과 동시에 바깥의 `advance()`가 돌고, 그때 바깥이 쥔
+               * "수량 골랐나"는 아직 이번 확정 이전 값이라 **시트를 도로 연다** —
+               * [입력]을 눌러도 시트가 안 닫히고, 한 번 더 누르면 다음 화면으로 건너뛴다.
+               */
+              event.stopPropagation();
               submitDraft();
             }}
           >
