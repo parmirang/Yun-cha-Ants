@@ -23,19 +23,22 @@ export function formatPercent(rate: number): string {
  * 값은 이 형태 그대로 state에 담아도 된다. `parseNumericInput()`이 쉼표를 털어내므로
  * 계산 쪽은 아무것도 달라지지 않는다.
  *
- * @param maxIntegerDigits 정수부 자릿수 상한. `<input maxLength>`로는 이 일을 못 한다 —
- *   쉼표까지 글자 수로 세어버려서 자리가 찰수록 칠 수 있는 숫자가 줄어든다.
+ * @param maxDecimals 소수점 **아래** 자릿수 상한. 소수점 키를 여는 칸(수량)에서 쓴다 —
+ *   안 막으면 "10.33333333333333"처럼 칸을 넘치는 값이 그대로 들어온다.
+ *   `<input maxLength>`로는 이 일을 못 한다 (쉼표까지 글자 수로 세어버린다).
  */
-export function formatNumericInput(raw: string, maxIntegerDigits?: number): string {
+export function formatNumericInput(raw: string, maxDecimals?: number): string {
   const [head = "", ...rest] = raw.replace(/[^0-9.]/g, "").split(".");
 
   // 앞의 0은 떼어낸다 — 안 떼면 "0074800"이 "0,074,800"으로 묶여 읽기 어렵다.
   // 마지막 한 자리는 남겨서 "0"이나 "0.5"를 칠 수 있게 한다.
   const digits = head.replace(/^0+(?=\d)/, "");
-  const capped = maxIntegerDigits === undefined ? digits : digits.slice(0, maxIntegerDigits);
-  const grouped = capped.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  const grouped = digits.replace(/\B(?=(\d{3})+(?!\d))/g, ",");
+  if (rest.length === 0) return grouped;
 
-  return rest.length > 0 ? `${grouped}.${rest.join("")}` : grouped;
+  // 치는 중인 "10."의 마침표는 살려둔다 — 떼면 다음 자리를 이어 칠 수가 없다.
+  const tail = rest.join("");
+  return `${grouped}.${maxDecimals === undefined ? tail : tail.slice(0, maxDecimals)}`;
 }
 
 /** "5000" → 5000, "5,000만" 같은 입력은 숫자만 남긴다. */
@@ -124,11 +127,36 @@ export const MAX_INPUT_MANWON = MAX_INPUT_WON / 10_000;
 export const MAX_INPUT_SHARES = 10_000_000;
 
 /**
+ * 수량 소수점 아래 자릿수 상한 — 네 자리.
+ *
+ * 수량은 소수점 거래 때문에 소수를 받는다(0.5주). 다만 자리를 안 막으면 키패드로
+ * 스무 자리를 칠 수 있고, `averageIn()`이 나눗셈으로 만들어내는 `20.700000000000003`
+ * 같은 부동소수점 찌꺼기도 그대로 화면에 실린다.
+ */
+export const MAX_SHARE_DECIMALS = 4;
+
+const shareFormatter = new Intl.NumberFormat("ko-KR", {
+  maximumFractionDigits: MAX_SHARE_DECIMALS,
+});
+
+/**
+ * 보유 수량을 화면에 적는 꼴로. 10 → "10", 10.5 → "10.5", 20.700000000000003 → "20.7".
+ *
+ * **수량을 그대로 찍지 말 것** — 소수를 허용한 순간 `averageIn()`의 덧셈에서 부동소수점
+ * 찌꺼기가 따라붙어 "20.700000000000003주"가 카드에 적힌다.
+ */
+export function formatShares(quantity: number): string {
+  return shareFormatter.format(quantity);
+}
+
+/**
  * `formatNumericInput`에 상한을 씌운다. 넘으면 **되돌리지 않고 상한값으로 바꿔 넣는다** —
  * 글자가 안 들어가면 고장으로 읽히지만, 상한값이 들어차면 "여기까지"가 그대로 읽힌다.
  */
-export function capNumericInput(raw: string, max: number): string {
-  const formatted = formatNumericInput(raw);
+export function capNumericInput(raw: string, max: number, maxDecimals?: number): string {
+  const formatted = formatNumericInput(raw, maxDecimals);
 
-  return parseNumericInput(formatted) > max ? formatNumericInput(String(max)) : formatted;
+  return parseNumericInput(formatted) > max
+    ? formatNumericInput(String(max), maxDecimals)
+    : formatted;
 }

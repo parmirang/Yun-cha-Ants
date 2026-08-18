@@ -13,12 +13,20 @@ import type { Mood } from "@yca/shared";
  * 어디서 끊기는지는 이 이벤트들로만 보인다.
  */
 interface EventParams {
-  /** 연봉 단계 통과. 금액이 아니라 "적었나 / 무일푼을 골랐나"만 남긴다. */
+  /**
+   * 연봉 단계 통과 — 온보딩의 **마지막** 단계다 (종목 → 평단가·수량 → 연봉).
+   * 금액이 아니라 "적었나 / 무일푼을 골랐나"만 남긴다.
+   */
   salary_submit: { salary_kind: "entered" | "broke" };
   /** 검색 결과 0건. 오타와 미지원 종목(해외 주식·ETF)이 여기 섞여 들어온다. */
   ticker_search_miss: { search_term: string };
   ticker_select: { ticker_symbol: string; ticker_name: string };
-  /** 평단가·수량까지 넣고 결과 화면에 도달 — 온보딩 전환. */
+  /**
+   * 연봉까지 넣고 결과 화면에 도달 — 온보딩 전환.
+   *
+   * 연봉이 마지막 단계라 `salary_submit`과 **같은 순간에** 찍힌다. 둘을 다 두는 건
+   * 한쪽이 종류(적었나/무일푼)를 싣고 다른 쪽이 종목을 싣기 때문이다.
+   */
   onboarding_complete: { ticker_symbol: string; ticker_name: string };
   share_click: { share_method: "web_share" | "clipboard"; mood: Mood };
   /** 인스타 내보내기 시트를 엶 — 여기서 실제 내보내기까지 얼마나 새는지 본다. */

@@ -22,6 +22,7 @@ import {
   capNumericInput,
   formatNumericInput,
   formatPercent,
+  formatShares,
   formatSignedWon,
   formatWon,
   koreanWon,
@@ -139,7 +140,7 @@ export function Dashboard({
           <dd className="text-right tabular-nums">{formatWon(position.avgPrice)}</dd>
 
           <dt className="text-[color:var(--muted)]">보유 수량</dt>
-          <dd className="text-right tabular-nums">{position.quantity}주</dd>
+          <dd className="text-right tabular-nums">{formatShares(position.quantity)}주</dd>
 
           <dt className="text-[color:var(--muted)]">평가손익</dt>
           <dd
@@ -253,7 +254,7 @@ export function Dashboard({
             });
             const updated = averageIn(position, addPrice, addQuantity);
             setChangeNote(
-              `평단 ${formatWon(position.avgPrice)} → ${formatWon(updated.avgPrice)} · ${updated.quantity}주로 바꿨어`,
+              `평단 ${formatWon(position.avgPrice)} → ${formatWon(updated.avgPrice)} · ${formatShares(updated.quantity)}주로 바꿨어`,
             );
             onPositionChange(updated);
             setAveragingOpen(false);
@@ -610,7 +611,7 @@ function AveragingSheet({
           </dd>
 
           <dt className="text-[color:var(--muted)]">바뀔 수량</dt>
-          <dd className="text-right tabular-nums">{next ? `${next.quantity}주` : "—"}</dd>
+          <dd className="text-right tabular-nums">{next ? `${formatShares(next.quantity)}주` : "—"}</dd>
 
           {/* 카운터 큰 글씨와 **같은 자**(근무일)로 적는다 — 여기만 다른 자를 쓰면
               시트를 닫는 순간 같은 손익이 다른 숫자로 보인다. */}

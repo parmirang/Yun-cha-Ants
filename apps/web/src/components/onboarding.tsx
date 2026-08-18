@@ -12,7 +12,7 @@ import {
   estimateNetAnnualSalary,
   grossHourlyWage,
 } from "@yca/shared";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { type CSSProperties, useEffect, useMemo, useRef, useState } from "react";
 
 import { track } from "@/lib/analytics";
 import {
@@ -37,7 +37,144 @@ import { PrivacyNoticeSheet, todayStamp } from "./privacy-notice";
 import { QUANTITY_OPTIONS, QuantityPicker } from "./quantity-picker";
 import { TickerLogo } from "./ticker-logo";
 
-type Step = "salary" | "search" | "position";
+/**
+ * 온보딩은 **종목부터 묻는다.**
+ *
+ * 연봉을 먼저 받으면 첫 화면이 통째로 "네 연봉 얼마야"가 된다 — 앱이 뭘 해주는지
+ * 보기도 전에 제일 망설여지는 질문이 문 앞을 막는 셈이라 거기서 되돌아 나간다.
+ * 종목을 고르고 평단을 적는 동안은 내 얘기를 하는 게 아니라서 손이 가볍고, 그
+ * 끝에서 묻는 연봉은 "이것만 넣으면 결과가 나온다"가 된다.
+ */
+type Step = "search" | "position" | "salary";
+
+/**
+ * 평단가 화면이 받아둔 입력 그대로.
+ *
+ * **화면 안이 아니라 여기(온보딩)에 둔다.** 평단가 뒤에 연봉 화면이 붙어서, 거기서
+ * "이전"을 누르면 평단가 화면이 다시 마운트된다 — 값을 화면 안 `useState`에 두면
+ * 그때 방금 친 평단가와 수량이 통째로 날아간다.
+ */
+interface PositionDraft {
+  /** 입력칸에 적힌 그대로 (쉼표 포함) */
+  price: string;
+  /** 수량 시트가 돌려준 값. 직접입력이면 소수점 문자열("3.5")일 수도 있다. */
+  quantity: string;
+  /** 수량을 한 번이라도 골랐나 — 확인 키가 다음 화면으로 넘어가는 기준. */
+  picked: boolean;
+  /**
+   * 전일 종가를 평단가 자리에 **한 번** 앉혔나.
+   *
+   * 시세는 화면이 뜨고 나서 도착하므로 기본값도 그때 넣어야 하는데, 그걸 매번 넣으면
+   * 사용자가 지운 칸을 도로 채우고 손으로 친 평단가를 덮어쓴다.
+   */
+  seeded: boolean;
+}
+
+const EMPTY_DRAFT: PositionDraft = {
+  price: "",
+  quantity: "10",
+  picked: false,
+  seeded: false,
+};
+
+/**
+ * 적힌 문자열을 실제 숫자로. 평단가 화면과 마지막 제출이 **같은 함수**를 봐야
+ * 화면이 "다음"을 열어줬는데 저장은 0주로 되는 일이 안 생긴다.
+ *
+ * 수량은 버리지도 반올림하지도 않는다 — 직접입력이 소수점 수량(0.5주)을 받는다.
+ */
+function draftValues(draft: PositionDraft) {
+  const avgPrice = parseNumericInput(draft.price);
+  const quantity = parseNumericInput(draft.quantity);
+
+  return { avgPrice, quantity, valid: avgPrice > 0 && quantity > 0 };
+}
+
+/**
+ * 슬라이더를 한 번 밀 때 움직이는 폭. 500칸 언저리를 1·2·5·10… 꼴로 맞춰 **떨어지는
+ * 숫자**만 나오게 한다 — 안 맞추면 픽셀마다 74,321원 같은 값이 칸에 적힌다.
+ */
+function sliderStep(max: number): number {
+  const raw = max / 500;
+  if (!(raw > 0)) return 1;
+
+  const magnitude = 10 ** Math.floor(Math.log10(raw));
+  const normalized = raw / magnitude;
+  const rounded = normalized >= 5 ? 5 : normalized >= 2 ? 2 : 1;
+
+  return Math.max(1, rounded * magnitude);
+}
+
+/**
+ * 평단가를 좌우로 밀어 잡는 자. 범위는 **0 ~ 전일 종가의 2배**이고 한가운데 눈금이
+ * 곧 종가 = 본전이다 — 왼쪽으로 밀수록 싸게 산 것, 오른쪽으로 밀수록 비싸게 산 것.
+ *
+ * **색은 중립(`--fg`)이다.** 여기는 아직 손익이 없는 대기 화면이라(봉도 안 그린다)
+ * 빨강/파랑을 칠하면 평단가를 적기도 전에 손익을 흘리게 된다.
+ *
+ * 종가의 2배를 넘는 평단가는 **막지 않고 그냥 못 닿을 뿐이다** — 키패드로 친 값이
+ * 범위 밖이면 손잡이만 끝에 서고 칸의 값은 그대로 둔다 (여기서 되돌려 쓰면 반토막
+ * 난 종목의 평단가가 사용자 몰래 깎인다). 그래서 아래에 안내 한 줄을 붙인다.
+ *
+ * 시세가 아직 안 왔으면 잡을 범위가 없어 자리만 지킨다 — 통째로 빼면 종가가 도착하는
+ * 순간 아래 내용이 밀려 올라간다.
+ */
+function PriceSlider({
+  value,
+  previousClose,
+  onChange,
+}: {
+  value: number;
+  previousClose: number | null;
+  onChange: (value: number) => void;
+}) {
+  // 종가가 오기 전에도 같은 높이를 차지한다 (트랙 2.5rem + 라벨 줄 + 안내 줄).
+  if (previousClose === null) return <div className="mt-2 h-[5.75rem]" aria-hidden />;
+
+  const max = Math.max(1, Math.round(previousClose * 2));
+  const step = sliderStep(max);
+  const ratio = Math.min(1, Math.max(0, value / max));
+
+  return (
+    <div className="mt-2">
+      <div className="relative">
+        {/* 한가운데 눈금 = 전일 종가 = 본전. */}
+        <span className="price-slider-mid" aria-hidden />
+        <input
+          type="range"
+          className="price-slider"
+          aria-label="평단가 밀어서 고르기"
+          min={0}
+          max={max}
+          /*
+           * step은 1로 두고 반올림은 onChange에서 한다. `step={step}`으로 두면 키패드로
+           * 친 74,800이 브라우저에서 75,000으로 **되돌려 써져** 방금 친 값이 바뀐다.
+           */
+          step={1}
+          value={Math.min(value, max)}
+          style={{ "--fill": `${ratio * 100}%` } as CSSProperties}
+          onChange={(event) => onChange(Math.round(Number(event.target.value) / step) * step)}
+        />
+      </div>
+
+      <div className="grid grid-cols-3 text-xs text-[color:var(--muted)] tabular-nums">
+        <span>0</span>
+        <span className="text-center">본전</span>
+        <span className="text-right">{formatWon(max)}</span>
+      </div>
+
+      <p className="mt-1.5 text-xs text-[color:var(--muted)]">
+        범위를 벗어나는 금액은 직접 입력해줘.
+      </p>
+    </div>
+  );
+}
+
+/**
+ * 온보딩을 끝내는 문에 적히는 글자. 아래 버튼과 키패드 확인 키가 **같은 말을 해야
+ * 한다** — 자리가 둘이어도 지금 할 일은 하나다.
+ */
+const CONFIRM_LABEL = "본전 계산 🐜";
 
 /** "오늘 다시 보지 않음"을 체크한 날의 도장 (todayStamp). 다른 날이 되면 다시 뜬다. */
 const privacyNoticeHiddenSchema = z.string();
@@ -47,19 +184,21 @@ export function Onboarding({
 }: {
   onComplete: (profile: Profile, position: Position) => void;
 }) {
-  const [step, setStep] = useState<Step>("salary");
+  const [step, setStep] = useState<Step>("search");
+  const [ticker, setTicker] = useState<Ticker | null>(null);
+  const [draft, setDraft] = useState<PositionDraft>(EMPTY_DRAFT);
   const [salaryManwon, setSalaryManwon] = useState("");
   const [broke, setBroke] = useState(false);
-  const [ticker, setTicker] = useState<Ticker | null>(null);
 
   // 숫자 입력은 커스텀 키패드로 받으므로, 네이티브 키보드가 뜨는 건 종목 검색뿐이다 —
   // 글자 키보드가 화면을 가린 만큼 아래를 늘려(.kb-pad) 굴릴 자리를 만든다.
   useKeyboardInset();
 
   /*
-   * 들어올 때마다 뜨는 개인정보 안내. 연봉을 적으라는 화면이 첫 화면이라, 입력을
-   * 시키기 전에 "어디로도 안 나간다"부터 답한다. "오늘 다시 보지 않음"을 체크하고
-   * 닫은 날짜가 기기에 남고, 그날 하루는 다시 안 뜬다.
+   * 들어올 때마다 뜨는 개인정보 안내. **아무것도 묻기 전에** "어디로도 안 나간다"부터
+   * 답한다 — 첫 화면이 종목 검색으로 바뀐 뒤에도 자리는 그대로다. 연봉 화면까지 미루면
+   * 정작 제일 망설여지는 칸 앞에서 처음 보게 되어, 답이 아니라 경고처럼 읽힌다.
+   * "오늘 다시 보지 않음"을 체크하고 닫은 날짜가 기기에 남고, 그날 하루는 다시 안 뜬다.
    */
   const [noticeHiddenDate, setNoticeHiddenDate, noticeLoaded] = useStoredState(
     "yca.privacyNoticeHiddenDate",
@@ -78,18 +217,10 @@ export function Onboarding({
     return (
       <PositionStep
         ticker={ticker}
+        draft={draft}
+        onDraftChange={setDraft}
         onBack={() => setStep("search")}
-        onSubmit={(avgPrice, quantity) => {
-          // 평단가·수량·금액은 안 보낸다 — 종목과 "여기까지 왔다"만 남긴다.
-          track("onboarding_complete", {
-            ticker_symbol: ticker.symbol,
-            ticker_name: ticker.name,
-          });
-          onComplete(
-            { annualSalary },
-            { symbol: ticker.symbol, name: ticker.name, avgPrice, quantity },
-          );
-        }}
+        onNext={() => setStep("salary")}
       />
     );
   }
@@ -102,39 +233,60 @@ export function Onboarding({
 
   return (
     <main className={`kb-pad mx-auto flex w-full max-w-md flex-col px-6 pt-10 [--kb-pad-base:20px] ${frame}`}>
-      {/*
-        연봉 단계는 입력을 버튼 위에 붙여두고 남는 공간을 대문이 위아래로 나눠 갖는다
-        (my-auto) — 그만큼 대문이 화면 가운데로 내려온다. 여백이 0까지 줄어드는
-        작은 화면에서도 문구가 입력란에 붙지 않도록 pb-8로 최소 간격을 깔아둔다.
-        검색 단계는 결과 목록이 남는 공간을 다 써야 하므로 대문을 위에 붙여둔다.
-      */}
-      <Hero className={step === "salary" ? "my-auto pb-8" : "mb-8"} />
+      {step === "search" && (
+        <>
+          {/*
+            대문은 **첫 화면에만** 선다. 검색 단계가 그 첫 화면이 됐으므로 여기 하나뿐이고,
+            결과 목록이 남는 공간을 다 써야 하니 위에 붙여둔다. 연봉 단계는 이제 흐름
+            한가운데라 대문 대신 종목 이름을 머리에 인다 — 거기서 또 대문을 띄우면 다 온
+            사람을 문 앞으로 되돌려놓는 꼴이다.
+          */}
+          <Hero className="mb-8" />
+          <SearchStep
+            onSelect={(selected) => {
+              track("ticker_select", {
+                ticker_symbol: selected.symbol,
+                ticker_name: selected.name,
+              });
+              /*
+               * **종목이 바뀌면 초안을 비운다.** 입력값이 화면 밖(여기)에 살아 있어서,
+               * 안 비우면 삼성전자에 적은 74,800이 카카오 화면에 그대로 떠 있는다.
+               * 같은 종목으로 되돌아온 거라면 적던 값을 그대로 둔다.
+               */
+              if (selected.symbol !== ticker?.symbol) setDraft(EMPTY_DRAFT);
+              setTicker(selected);
+              setStep("position");
+            }}
+          />
+        </>
+      )}
 
-      {step === "salary" && (
+      {step === "salary" && ticker && (
         <SalaryStep
+          tickerName={ticker.name}
           value={salaryManwon}
           annualSalary={annualSalary}
           broke={broke}
           onChange={setSalaryManwon}
           onBrokeChange={setBroke}
+          onBack={() => setStep("position")}
           onNext={() => {
+            const { avgPrice, quantity, valid } = draftValues(draft);
+            // 평단가 화면이 안 열어주면 여기까지 못 오지만, 저장이 마지막 문이라 한 번 더 막는다.
+            if (!valid) return;
+
             // 금액은 안 보낸다 — 적었는지 무일푼을 골랐는지만 남긴다.
             track("salary_submit", { salary_kind: broke ? "broke" : "entered" });
-            setStep("search");
-          }}
-        />
-      )}
-
-      {step === "search" && (
-        <SearchStep
-          onBack={() => setStep("salary")}
-          onSelect={(selected) => {
-            track("ticker_select", {
-              ticker_symbol: selected.symbol,
-              ticker_name: selected.name,
+            // 연봉이 마지막 단계라 온보딩 전환도 여기서 찍힌다.
+            // 평단가·수량·금액은 안 보낸다 — 종목과 "여기까지 왔다"만 남긴다.
+            track("onboarding_complete", {
+              ticker_symbol: ticker.symbol,
+              ticker_name: ticker.name,
             });
-            setTicker(selected);
-            setStep("position");
+            onComplete(
+              { annualSalary },
+              { symbol: ticker.symbol, name: ticker.name, avgPrice, quantity },
+            );
           }}
         />
       )}
@@ -153,18 +305,23 @@ export function Onboarding({
 }
 
 function SalaryStep({
+  tickerName,
   value,
   annualSalary,
   broke,
   onChange,
   onBrokeChange,
+  onBack,
   onNext,
 }: {
+  /** 머리에 이는 종목 이름 — 여기까지 온 사람이 무엇 때문에 연봉을 적는지 잇는다. */
+  tickerName: string;
   value: string;
   annualSalary: number;
   broke: boolean;
   onChange: (value: string) => void;
   onBrokeChange: (broke: boolean) => void;
+  onBack: () => void;
   onNext: () => void;
 }) {
   // 무일푼이면 annualSalary가 0으로 넘어오므로, 최저임금 연봉을 대신 넣어
@@ -195,143 +352,160 @@ function SalaryStep({
   };
 
   return (
-    // 높이를 늘려 잡지 않는다 — 남는 공간은 위쪽 대문이 가져간다.
-    // form인 건 **엔터로도 넘어가게** 하기 위해서다 — 입력칸은 키패드를 쓰지만
-    // (inputMode="none") 하드웨어 키보드의 타이핑과 엔터는 그대로 받는다.
-    <form
-      className="flex flex-col gap-5"
-      onSubmit={(event) => {
-        event.preventDefault();
-        if (valid) onNext();
-      }}
-    >
-      <label ref={fieldRef} className="flex flex-col gap-2">
-        <span className="text-sm font-medium">개미야, 너 얼마나 벌어?</span>
-        <div
-          className={`flex items-center gap-2 rounded-xl border bg-[color:var(--surface)] px-4 py-3 has-disabled:opacity-40 ${
-            keypadOpen ? "keypad-target" : "border-[color:var(--line)]"
-          }`}
-        >
+    <>
+      {/*
+        평단가 화면과 같은 모양의 머리 — 종목 이름을 이고 지금 묻는 걸 한 줄로 적는다.
+        연봉이 마지막 단계가 되면서 이 화면은 흐름 한가운데가 됐고, 여기서 대문을
+        띄우면 다 온 사람을 문 앞으로 되돌려놓는 것처럼 보인다.
+      */}
+      <header className="mb-8 flex flex-col items-center gap-1 text-center">
+        <span className="text-lg font-bold">{tickerName}</span>
+        <span className="text-sm text-[color:var(--muted)]">
+          마지막이야. 네 시급을 알아야 시간으로 바꿔줄 수 있어.
+        </span>
+      </header>
+
+      {/* 높이를 늘려 잡지 않는다 — 내용이 길어지면 아래로 흐르고 화면이 스크롤된다.
+          form인 건 **엔터로도 넘어가게** 하기 위해서다. */}
+      <form
+        className="flex flex-col gap-5"
+        onSubmit={(event) => {
+          event.preventDefault();
+          if (valid) onNext();
+        }}
+      >
+        <label ref={fieldRef} className="flex flex-col gap-2">
+          <span className="text-sm font-medium">개미야, 너 얼마나 벌어?</span>
+          <div
+            className={`flex items-center gap-2 rounded-xl border bg-[color:var(--surface)] px-4 py-3 has-disabled:opacity-40 ${
+              keypadOpen ? "keypad-target" : "border-[color:var(--line)]"
+            }`}
+          >
+            <input
+              ref={inputRef}
+              className="min-w-0 flex-1 bg-transparent text-xl font-semibold tabular-nums outline-none"
+              /* 네이티브 키보드를 안 부른다 — 아래 커스텀 키패드가 대신한다. */
+              inputMode="none"
+              placeholder="4,000"
+              value={broke ? "" : value}
+              disabled={broke}
+              onFocus={() => setKeypadOpen(true)}
+              /* ▾로 접은 뒤 다시 누르면 포커스가 그대로라 focus가 안 온다 — 클릭으로도 연다. */
+              onClick={() => setKeypadOpen(true)}
+              /*
+               * 만원 단위라 상한도 만원으로 환산해 씌운다 (100억 = 1,000,000만원).
+               * 자릿수를 안 막으면 "12000000"(1,200억) 같은 값이 들어와 시급 2,299만원짜리
+               * 결과가 멀쩡한 얼굴로 나온다 — 계산이 틀린 게 아니라 입력이 말이 안 되는 것이다.
+               * `<input maxLength>`로는 이 일을 못 한다 — 쉼표까지 글자 수로 세어버린다.
+               */
+              onChange={(event) => onChange(capNumericInput(event.target.value, MAX_INPUT_MANWON))}
+            />
+            {/*
+              적은 값을 한글로 읽어준다 ("1,200" → 천이백만원). 만원 단위 입력이라 한 자리만
+              밀려도 열 배가 어긋나는데, 숫자만 보고는 그걸 알아채기 어렵다.
+
+              비어 있을 때만 "만원"이 뜬다 — 적고 나면 읽기가 그 자리를 대신한다.
+              둘을 같이 두면 "천이백만원 만원"이 된다. 읽기가 이미 원으로 끝나므로
+              단위는 그대로 읽힌다.
+            */}
+            <span className="min-w-0 shrink truncate text-sm text-[color:var(--muted)]">
+              {reading || "만원"}
+            </span>
+          </div>
+        </label>
+
+        <label className="flex items-center gap-2.5 text-sm">
           <input
-            ref={inputRef}
-            className="min-w-0 flex-1 bg-transparent text-xl font-semibold tabular-nums outline-none"
-            /* 네이티브 키보드를 안 부른다 — 아래 커스텀 키패드가 대신한다. */
-            inputMode="none"
-            placeholder="4,000"
-            value={broke ? "" : value}
-            disabled={broke}
-            onFocus={() => setKeypadOpen(true)}
-            /* ▾로 접은 뒤 다시 누르면 포커스가 그대로라 focus가 안 온다 — 클릭으로도 연다. */
-            onClick={() => setKeypadOpen(true)}
-            /*
-             * 만원 단위라 상한도 만원으로 환산해 씌운다 (100억 = 1,000,000만원).
-             * 자릿수를 안 막으면 "12000000"(1,200억) 같은 값이 들어와 시급 2,299만원짜리
-             * 결과가 멀쩡한 얼굴로 나온다 — 계산이 틀린 게 아니라 입력이 말이 안 되는 것이다.
-             * `<input maxLength>`로는 이 일을 못 한다 — 쉼표까지 글자 수로 세어버린다.
-             */
-            onChange={(event) => onChange(capNumericInput(event.target.value, MAX_INPUT_MANWON))}
+            type="checkbox"
+            className="size-4 accent-[color:var(--up)]"
+            checked={broke}
+            onChange={(event) => {
+              // 무일푼을 켜면 입력칸이 죽으므로 키패드도 같이 접는다.
+              if (event.target.checked) closeKeypad();
+              onBrokeChange(event.target.checked);
+            }}
           />
-          {/*
-            적은 값을 한글로 읽어준다 ("1,200" → 천이백만원). 만원 단위 입력이라 한 자리만
-            밀려도 열 배가 어긋나는데, 숫자만 보고는 그걸 알아채기 어렵다.
+          나는 그냥 무일푼이야
+        </label>
 
-            비어 있을 때만 "만원"이 뜬다 — 적고 나면 읽기가 그 자리를 대신한다.
-            둘을 같이 두면 "천이백만원 만원"이 된다. 읽기가 이미 원으로 끝나므로
-            단위는 그대로 읽힌다.
-          */}
-          <span className="min-w-0 shrink truncate text-sm text-[color:var(--muted)]">
-            {reading || "만원"}
-          </span>
+        <p className="text-sm text-[color:var(--muted)]">
+          {broke ? (
+            <>
+              수입이 없으면{" "}
+              <strong className="text-[color:var(--fg)]">
+                {RATE_YEAR}년 최저시급 {formatWon(MINIMUM_HOURLY_WAGE)}
+              </strong>
+              으로 일한다고 치고 계산할게.
+            </>
+          ) : (
+            <>
+              계약서에 적힌 <strong className="text-[color:var(--fg)]">세전 연봉</strong>을 만원
+              단위로 넣어줘.
+              <br />
+              세금과 4대보험을 뺀 실수령 기준으로 시급을 계산할게.{" "}
+              <strong className="text-[color:var(--fg)]">걱정마. 이 정보는 절대 공유되지 않아.</strong>
+            </>
+          )}
+        </p>
+
+        {valid && (
+          <div className="flex flex-col gap-1.5 rounded-xl border border-[color:var(--line)] bg-[color:var(--surface)] px-4 py-3">
+            <p className="text-sm text-[color:var(--muted)]">
+              실수령 시급{" "}
+              <strong className="text-base text-[color:var(--fg)]">{formatWon(netWage)}</strong>
+              으로 계산할게.
+            </p>
+            <p className="text-xs text-[color:var(--muted)] tabular-nums">
+              세전 시급 {formatWon(grossWage)} · 월 209시간 기준
+            </p>
+            <p className="text-xs text-[color:var(--muted)] tabular-nums">
+              실수령 연봉 {formatWon(net.net)} (공제 {formatWon(net.socialInsurance + net.tax)})
+            </p>
+          </div>
+        )}
+
+        <p className="text-xs text-[color:var(--muted)]">
+          실수령액은 1인 가구·비과세 수당 없음 기준 추정치야.
+          {broke ? " 수입 없음은 이 기기에만 저장돼." : " 연봉은 이 기기에만 저장돼."}
+        </p>
+
+        {/*
+          평단가 화면과 같은 버튼줄 — 이제 여기가 마지막이라 결과로 들어가는 문이 이
+          자리에 있다. **"이전"에 type을 반드시 적는다**: 안 적으면 submit이 기본값이라
+          엔터가 확인이 아니라 이쪽으로 새서 평단가 화면으로 되돌아간다.
+        */}
+        <div className="flex gap-3">
+          <button className="btn-ghost flex-1" type="button" onClick={onBack}>
+            이전
+          </button>
+          <button className="btn-primary flex-[2]" type="submit" disabled={!valid}>
+            {CONFIRM_LABEL}
+          </button>
         </div>
-      </label>
 
-      <label className="flex items-center gap-2.5 text-sm">
-        <input
-          type="checkbox"
-          className="size-4 accent-[color:var(--up)]"
-          checked={broke}
-          onChange={(event) => {
-            // 무일푼을 켜면 입력칸이 죽으므로 키패드도 같이 접는다.
-            if (event.target.checked) closeKeypad();
-            onBrokeChange(event.target.checked);
-          }}
-        />
-        나는 그냥 무일푼이야
-      </label>
-
-      <p className="text-sm text-[color:var(--muted)]">
-        {broke ? (
+        {keypadOpen && (
           <>
-            수입이 없으면{" "}
-            <strong className="text-[color:var(--fg)]">
-              {RATE_YEAR}년 최저시급 {formatWon(MINIMUM_HOURLY_WAGE)}
-            </strong>
-            으로 일한다고 치고 계산할게.
-          </>
-        ) : (
-          <>
-            계약서에 적힌 <strong className="text-[color:var(--fg)]">세전 연봉</strong>을 만원
-            단위로 넣어줘.
-            <br />
-            세금과 4대보험을 뺀 실수령 기준으로 시급을 계산할게.{" "}
-            <strong className="text-[color:var(--fg)]">걱정마. 이 정보는 절대 공유되지 않아.</strong>
+            {/* 키패드가 화면 끝을 덮는 만큼 비워둔다 — 위 안내·버튼을 굴려 볼 자리. */}
+            <div className="keypad-space" aria-hidden />
+            <NumericKeypad
+              value={value}
+              onChange={(draft) => onChange(capNumericInput(draft, MAX_INPUT_MANWON))}
+              submitLabel={CONFIRM_LABEL}
+              submitDisabled={!valid}
+              onSubmit={() => {
+                if (valid) onNext();
+              }}
+              onDismiss={closeKeypad}
+              revealRef={fieldRef}
+            />
           </>
         )}
-      </p>
-
-      {valid && (
-        <div className="flex flex-col gap-1.5 rounded-xl border border-[color:var(--line)] bg-[color:var(--surface)] px-4 py-3">
-          <p className="text-sm text-[color:var(--muted)]">
-            실수령 시급{" "}
-            <strong className="text-base text-[color:var(--fg)]">{formatWon(netWage)}</strong>
-            으로 계산할게.
-          </p>
-          <p className="text-xs text-[color:var(--muted)] tabular-nums">
-            세전 시급 {formatWon(grossWage)} · 월 209시간 기준
-          </p>
-          <p className="text-xs text-[color:var(--muted)] tabular-nums">
-            실수령 연봉 {formatWon(net.net)} (공제 {formatWon(net.socialInsurance + net.tax)})
-          </p>
-        </div>
-      )}
-
-      <p className="text-xs text-[color:var(--muted)]">
-        실수령액은 1인 가구·비과세 수당 없음 기준 추정치야.
-        {broke ? " 수입 없음은 이 기기에만 저장돼." : " 연봉은 이 기기에만 저장돼."}
-      </p>
-
-      <button className="btn-primary" type="submit" disabled={!valid}>
-        다음
-      </button>
-
-      {keypadOpen && (
-        <>
-          {/* 키패드가 화면 끝을 덮는 만큼 비워둔다 — 위 안내·버튼을 굴려 볼 자리. */}
-          <div className="keypad-space" aria-hidden />
-          <NumericKeypad
-            value={value}
-            onChange={(draft) => onChange(capNumericInput(draft, MAX_INPUT_MANWON))}
-            submitLabel="다음"
-            submitDisabled={!valid}
-            onSubmit={() => {
-              if (valid) onNext();
-            }}
-            onDismiss={closeKeypad}
-            revealRef={fieldRef}
-          />
-        </>
-      )}
-    </form>
+        </form>
+    </>
   );
 }
 
-function SearchStep({
-  onBack,
-  onSelect,
-}: {
-  onBack: () => void;
-  onSelect: (ticker: Ticker) => void;
-}) {
+function SearchStep({ onSelect }: { onSelect: (ticker: Ticker) => void }) {
   const [query, setQuery] = useState("");
   const [tickers, setTickers] = useState<Ticker[]>([]);
   // 검색 결과 0건과 **서버 불통**을 화면에서 구분하기 위한 플래그.
@@ -508,10 +682,6 @@ function SearchStep({
             ))}
         </ul>
       )}
-
-      <button className="btn-ghost" onClick={onBack}>
-        연봉 다시 입력
-      </button>
     </section>
   );
 }
@@ -691,38 +861,60 @@ const FIELD_CLASS =
 
 function PositionStep({
   ticker,
+  draft,
+  onDraftChange,
   onBack,
-  onSubmit,
+  onNext,
 }: {
   ticker: Ticker;
+  draft: PositionDraft;
+  onDraftChange: (draft: PositionDraft) => void;
   onBack: () => void;
-  onSubmit: (avgPrice: number, quantity: number) => void;
+  onNext: () => void;
 }) {
-  const [avgPriceInput, setAvgPriceInput] = useState("");
-  const [quantitySelect, setQuantitySelect] = useState("10");
+  /*
+   * 입력값은 **바깥이 쥔다** — 뒤에 연봉 화면이 붙어서, 거기서 "이전"으로 돌아오면
+   * 이 화면이 다시 마운트된다. 여기에 useState로 두면 방금 친 평단가가 날아간다.
+   *
+   * `picked`: 수량을 한 번이라도 골랐나. 확인 키가 수량 시트를 여는 데서 다음 화면으로
+   * 넘어가는 데로 바뀌는 기준이다. 수량 칸에는 처음부터 "10"이 적혀 있어서, 이걸 안
+   * 두면 **아무도 안 고른 10주가 조용히 확정된다.** 반대로 한 번 고르고 나서 평단가를
+   * 고치러 돌아왔을 때 또 물으면 이미 답한 걸 되묻는 꼴이라, 그때는 바로 넘어간다.
+   */
+  const { price: avgPriceInput, quantity: quantitySelect, picked: quantityPicked } = draft;
+  const patch = (next: Partial<PositionDraft>) => onDraftChange({ ...draft, ...next });
+
   /*
    * 수량 시트를 **바깥에서 연다.** 이 화면은 평단가를 치고 나면 곧바로 수량을 물어야
    * 이어지는데, 시트가 제 버튼으로만 열리면 그 흐름을 만들 수가 없다.
+   * 여닫힘 자체는 이 화면 안에서만 산다 — 되돌아왔을 때 시트가 다시 떠 있을 이유는 없다.
    */
   const [quantityOpen, setQuantityOpen] = useState(false);
-  /*
-   * 수량을 한 번이라도 골랐나. 키보드 위 버튼이 "다음"에서 "입력"으로 바뀌는 기준이다.
-   *
-   * 수량 칸에는 처음부터 "10"이 적혀 있어서, 이걸 안 두면 **아무도 안 고른 10주가
-   * 조용히 확정된다.** 반대로 한 번 고르고 나서 평단가를 고치러 돌아왔을 때 또 수량을
-   * 물으면 이미 답한 걸 되묻는 꼴이라, 그때는 바로 "입력"으로 넘어간다.
-   */
-  const [quantityPicked, setQuantityPicked] = useState(false);
 
   // 전일 종가를 보여주려고 여기서도 시세를 문다. 현재가는 아직 안 쓴다 —
   // 평단가를 적기도 전에 손익을 흘리면 봉 없는 대기 화면과 어긋난다.
   const previousClose = useQuote(ticker.symbol)?.previousClose ?? null;
 
-  const avgPrice = parseNumericInput(avgPriceInput);
-  // 버리지도 반올림하지도 않는다 — 직접입력은 소수점 수량(0.5주)을 받는다.
-  const quantity = parseNumericInput(quantitySelect);
+  /*
+   * **들어오면 평단가 자리에 전일 종가가 앉아 있다.** 슬라이더가 한가운데(=본전)에서
+   * 시작해야 좌우로 밀 기준이 생긴다 — 0에서 시작하면 어느 쪽이 비싸게 산 쪽인지
+   * 밀어보기 전에는 알 수 없고, 왼쪽 절반은 쓸 일이 없는 자리처럼 보인다.
+   *
+   * 기본값은 시세가 도착한 **첫 순간 한 번만** 넣는다 (`seeded`). 조건 없이 넣으면
+   * 지운 칸이 도로 차고, 종가가 갱신될 때 손으로 친 평단가를 덮어쓴다.
+   */
+  useEffect(() => {
+    if (draft.seeded || previousClose === null) return;
+
+    onDraftChange({
+      ...draft,
+      price: formatNumericInput(String(Math.round(previousClose))),
+      seeded: true,
+    });
+  }, [draft, previousClose, onDraftChange]);
+
+  const { avgPrice, quantity, valid } = draftValues(draft);
   const costBasis = useMemo(() => avgPrice * quantity, [avgPrice, quantity]);
-  const valid = avgPrice > 0 && quantity > 0;
 
   // 직접입력으로 적은 수량(예: 3.5)은 기본 목록에 없다 — 끼워 넣어야 휠을 다시
   // 열었을 때 고른 줄이 가운데 온다.
@@ -770,11 +962,13 @@ function PositionStep({
   const advance = () => {
     if (avgPrice <= 0) return;
     if (!quantityPicked) return openQuantity();
-    if (valid) onSubmit(avgPrice, quantity);
+    if (valid) onNext();
   };
 
   // 아래 버튼과 키패드 확인 키가 **같은 말을 한다** — 문구는 여기 한 곳에서 정한다.
-  const confirmLabel = quantityPicked ? "본전 계산 🐜" : "다음";
+  // 수량까지 고르고 나면 **앱이 답해줄 질문**을 적는다 — 다음 화면이 묻는 게 연봉이라
+  // "연봉 적기"라고만 하면 일거리를 하나 더 얹는 것처럼 읽힌다.
+  const confirmLabel = quantityPicked ? "🐜 얼마나 더 일해야 할까?" : "내 평단가 입력";
   const confirmDisabled = quantityPicked ? !valid : avgPrice <= 0;
 
   return (
@@ -827,15 +1021,17 @@ function PositionStep({
                     ? "74,800"
                     : formatNumericInput(String(Math.round(previousClose)))
                 }
-                /* 들어오자마자 키패드가 떠 바로 칠 수 있게 한다 — 이 화면에서
-                   제일 먼저 할 일이 평단가를 적는 것이다. */
-                autoFocus
+                /*
+                 * **여기엔 autoFocus를 두지 않는다.** 들어오자마자 키패드가 화면 절반을
+                 * 덮으면 아래 슬라이더가 그 뒤로 숨어, 밀어서 잡는 길이 있다는 걸
+                 * 아무도 못 본다. 정확한 값을 아는 사람만 칸을 눌러 키패드를 연다.
+                 */
                 value={avgPriceInput}
                 onFocus={() => setKeypadTarget("price")}
                 /* ▾로 접은 뒤 다시 누르면 포커스가 그대로라 focus가 안 온다 — 클릭으로도 연다. */
                 onClick={() => setKeypadTarget("price")}
                 onChange={(event) =>
-                  setAvgPriceInput(capNumericInput(event.target.value, MAX_INPUT_WON))
+                  patch({ price: capNumericInput(event.target.value, MAX_INPUT_WON) })
                 }
               />
             </label>
@@ -862,13 +1058,24 @@ function PositionStep({
                   // focus가 나면 onFocus가 키패드를 다시 연다.
                   if (quantityFromKeypad.current) priceRef.current?.focus();
                 }}
-                onSelect={(next) => {
-                  setQuantitySelect(next);
-                  setQuantityPicked(true);
-                }}
+                onSelect={(next) => patch({ quantity: next, picked: true })}
               />
             </label>
           </div>
+
+          {/*
+            평단가를 **밀어서** 잡는 자. 정확한 값을 아는 사람은 위 칸을 눌러 키패드로
+            치고, "대충 이쯤"인 사람은 여기서 민다 — 키패드 자동 열기를 뗀 게 이걸
+            먼저 보게 하기 위해서다.
+
+            **굴려 보여주는 묶음(fieldsRef) 안에 둔다** — 밖으로 빼면 키패드가 뜨는
+            순간 그 뒤에 깔려서, 치다가 다시 밀어보려 해도 손이 못 닿는다.
+          */}
+          <PriceSlider
+            value={avgPrice}
+            previousClose={previousClose}
+            onChange={(next) => patch({ price: formatNumericInput(String(next)) })}
+          />
 
           {/*
             전일 종가는 종목만 고르면 바로 뜨고, 매수 원금은 평단가와 수량이 다 차면 그
@@ -912,15 +1119,15 @@ function PositionStep({
         </div>
 
         {/*
-          커스텀 키패드. 확인 키가 "다음"(수량 시트를 연다) → "본전 계산 🐜"(확정)로
-          바뀌며 다음 차례를 가리킨다 — 예전 키보드 위 바(.kb-bar)가 하던 일이다.
+          커스텀 키패드. 확인 키가 "내 평단가 입력"(수량 시트를 연다) →
+          "🐜 얼마나 더 일해야 할까?"(연봉 화면)로 바뀌며 다음 차례를 가리킨다.
         */}
         {keypadTarget !== null && (
           <>
             <div className="keypad-space" aria-hidden />
             <NumericKeypad
               value={avgPriceInput}
-              onChange={(draft) => setAvgPriceInput(capNumericInput(draft, MAX_INPUT_WON))}
+              onChange={(next) => patch({ price: capNumericInput(next, MAX_INPUT_WON) })}
               submitLabel={confirmLabel}
               submitDisabled={confirmDisabled}
               onSubmit={advance}
