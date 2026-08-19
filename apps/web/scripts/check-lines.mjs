@@ -189,6 +189,23 @@ try {
     }
   }
 
+  /*
+   * 이어 붙는 뒷줄(`MEME_FOLLOWUPS`) — 앞줄은 풀에 있어야 뽑히고, **뒷줄은 풀에 없어야**
+   * 한다. 뒷줄이 풀에도 있으면 혼자 떠서 무슨 말인지 모르는 말풍선이 된다.
+   */
+  for (const [lead, follow] of Object.entries(meme.MEME_FOLLOWUPS)) {
+    if (!memeSeen.has(lead)) fail(`짤 이어말: 앞줄 "${lead}"이 어느 풀에도 없다`);
+    if (memeSeen.has(follow)) {
+      fail(`짤 이어말: 뒷줄 "${follow}"이 ${memeSeen.get(follow)} 풀에도 있다 — 혼자 뜬다`);
+    }
+
+    if ([...follow].length > MEME_MAX_CHARS) {
+      fail(`짤 이어말: "${follow}" — ${MEME_MAX_CHARS}자를 넘어 말풍선이 화면을 넘는다`);
+    }
+
+    if (appSpeech.has(follow)) fail(`짤 이어말: "${follow}"이 앱 말풍선에도 있다`);
+  }
+
   const counted =
     surfaces.reduce(
       (total, { pools }) => total + pools.loss.flat().length + pools.profit.flat().length,
