@@ -247,7 +247,7 @@ export const ZEN_LINES: readonly string[] = [
  * 달리 여기는 **버티는 중**이다.
  *
  * 목소리는 **회의록처럼 담담하다.** 비명도 감탄사도 없이 사태를 보고하고, 강조어를
- * 문장 뒤로 흘려보낸다 ("뭔가 잘못됐어" → "단단히" · "생각보다 심각하네 이거"). 웃음은
+ * 문장 뒤로 흘려보낸다 ("뭔가 잘못됐어 단단히" · "생각보다 심각하네 이거"). 웃음은
  * 여기서 나온다 — 얼굴은 그렁한데 말은 사무적이라 둘이 어긋난다. 허세("프로는 안
  * 울어")로 버티게 하면 표정과 말이 같은 방향으로 굳어 밋밋해진다.
  *
@@ -258,7 +258,7 @@ export const ZEN_LINES: readonly string[] = [
  * 차례를 짜봐야 어느 줄이 먼저 뜰지 모른다. 각 줄이 혼자 서야 한다.
  */
 export const STOIC_LINES: readonly string[] = [
-  "뭔가 잘못됐어",
+  "뭔가 잘못됐어 단단히",
   "이건 예상 밖인데 좀",
   "생각보다 심각하네 이거",
   "이럴 리가 없는데 분명",
@@ -331,54 +331,20 @@ export const MEME_LINES: Readonly<Record<MemeLinePool, readonly string[]>> = {
 };
 
 /**
- * 앞줄에 **이어 붙는 뒷줄**. 다음 박자에 이 말이 뜬다.
- *
- * 말풍선 두 개로 끊어 치는 농담을 위해 둔다 — "뭔가 잘못됐어" 뒤에 한 박자를 쉬고
- * "단단히"가 떠야 뜸을 들인 만큼 웃긴다. 한 줄로 붙여 적으면("뭔가 잘못됐어 단단히")
- * 뜸이 사라지고 그냥 긴 한마디가 된다.
- *
- * **뒷줄은 풀에 넣지 않는다** — 혼자 뜨면 무슨 말인지 모른다. 그래서 검사기가
- * "앞줄은 풀에 있고 뒷줄은 풀에 없다"를 확인한다.
- */
-export const MEME_FOLLOWUPS: Readonly<Record<string, string>> = {
-  "뭔가 잘못됐어": "단단히",
-};
-
-/**
  * 장면과 박자(beat)에 맞는 한마디.
  *
  * `seed`는 한 번의 촬영을 붙잡아두는 값이다 — 같은 seed면 같은 영상이 나와야
  * **미리보기에서 본 그 말이 그대로 녹화된다.** 박자마다 다른 줄을 뽑되, 바로 앞
  * 줄과는 겹치지 않게 한 칸 밀어준다 (같은 말이 두 번 이어지면 말풍선이 안 바뀐 줄 안다).
- *
- * `beats`는 **한 바퀴의 박자 수**다 (`MEME_FOLLOWUPS` 때문에 필요하다). 앞줄이 마지막
- * 박자에 걸리면 뒷줄이 설 자리가 없어 농담이 앞부분만 나가고 끝난다 — 영상은 딱 한
- * 바퀴만 굽기 때문에 다음 바퀴로 넘어가 주지도 않는다. 그래서 그 자리에서는 한 칸
- * 밀어 다른 줄을 뽑는다.
  */
-export function pickMemeLine(
-  pool_: MemeLinePool,
-  seed: number,
-  beat: number,
-  beats: number,
-): string {
+export function pickMemeLine(pool_: MemeLinePool, seed: number, beat: number): string {
   const pool = MEME_LINES[pool_];
   if (pool.length === 0) return "";
 
   const start = Math.abs(Math.floor(seed));
-  const stride = step(start, pool.length);
-  const at = (n: number): string => pool[(start + n * stride) % pool.length] ?? "";
+  const index = (start + beat * step(start, pool.length)) % pool.length;
 
-  // 앞 박자가 뒷줄을 달고 있으면 이번 박자는 그 뒷줄이다.
-  if (beat > 0) {
-    const follow = MEME_FOLLOWUPS[at(beat - 1)];
-    if (follow) return follow;
-  }
-
-  const line = at(beat);
-  if (beat === beats - 1 && MEME_FOLLOWUPS[line]) return at(beat + 1);
-
-  return line;
+  return pool[index] ?? "";
 }
 
 /**

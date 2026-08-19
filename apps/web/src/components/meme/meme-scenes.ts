@@ -84,13 +84,7 @@ const BEAT_MS = 2400;
 /** 떴다 사라지는 데 걸리는 시간 — 루프 끝에서 0이라 이음매에서 말풍선이 튀지 않는다. */
 const FADE_MS = 280;
 
-function speak(
-  scene: MemeLinePool,
-  frame: SceneFrame,
-  x: number,
-  y: number,
-  loopMs: number,
-): SceneBubble {
+function speak(scene: MemeLinePool, frame: SceneFrame, x: number, y: number): SceneBubble {
   const beat = Math.floor(frame.time / BEAT_MS);
   const inBeat = frame.time - beat * BEAT_MS;
   const alpha =
@@ -100,18 +94,10 @@ function speak(
         ? (BEAT_MS - inBeat) / FADE_MS
         : 1;
 
-  return {
-    text: pickMemeLine(scene, frame.seed, beat, Math.round(loopMs / BEAT_MS)),
-    x,
-    y,
-    alpha: clamp01(alpha),
-  };
+  return { text: pickMemeLine(scene, frame.seed, beat), x, y, alpha: clamp01(alpha) };
 }
 
 /**
- * `speak`의 `loopMs`는 **이어 붙는 뒷줄(`MEME_FOLLOWUPS`) 때문에** 받는다 — 앞줄이
- * 마지막 박자에 걸리면 뒷줄이 설 자리가 없어, 뽑는 쪽이 한 바퀴의 박자 수를 알아야 한다.
- *
  * `speak`가 박자(BEAT_MS)로 계속 끊는 것과 달리 **막의 창(fromMs~toMs) 안에서만** 말한다.
  * 창을 `parts`로 나눠 한 부분에 한 줄씩 — 로켓처럼 막마다 다른 풀을 쓰는 판이 부른다.
  * 창의 양끝에서 알파가 0이라 막 전환과 루프 이음매에서 말풍선이 튀지 않는다.
@@ -133,7 +119,7 @@ function speakWindow(
   const inPart = t - fromMs - index * span;
   const alpha = clamp01(Math.min(inPart, span - inPart) / FADE_MS);
 
-  return { text: pickMemeLine(pool, frame.seed, index, parts), x, y, alpha };
+  return { text: pickMemeLine(pool, frame.seed, index), x, y, alpha };
 }
 
 /**
@@ -295,7 +281,7 @@ const dig: MemeScene = {
       p.rect(x, y + 1, 1, 2, "#ffffff");
     }
 
-    return speak("dig", frame, DIG_LEFT + 8 * DIG_SCALE, DIG_TOP + 2 * DIG_SCALE - 2, DIG_LOOP);
+    return speak("dig", frame, DIG_LEFT + 8 * DIG_SCALE, DIG_TOP + 2 * DIG_SCALE - 2);
   },
 };
 
@@ -471,7 +457,7 @@ const ride: MemeScene = {
     /* 개미 — 두 손 흔들며 간다 */
     p.sprite(antPixels(49, flip2(frame.time, 150) ? "wave1" : "wave2"), antLeft, antTop, scale);
 
-    return speak("ride", frame, RIDE_CENTER, antTop + 2 * scale - 2, RIDE_LOOP);
+    return speak("ride", frame, RIDE_CENTER, antTop + 2 * scale - 2);
   },
 };
 
@@ -629,7 +615,7 @@ const flood: MemeScene = {
       p.rect(x - 3, surfaceAt(x), 6, 1, "#5b9ad6");
     }
 
-    return speak("flood", frame, FLOOD_LEFT + 8 * FLOOD_SCALE, FLOOD_TOP + 2 * FLOOD_SCALE - 2, FLOOD_LOOP);
+    return speak("flood", frame, FLOOD_LEFT + 8 * FLOOD_SCALE, FLOOD_TOP + 2 * FLOOD_SCALE - 2);
   },
 };
 
@@ -729,7 +715,7 @@ const face: MemeScene = {
       }
     }
 
-    return speak("face", frame, 54, top - 2, FACE_LOOP);
+    return speak("face", frame, 54, top - 2);
   },
 };
 
@@ -855,7 +841,6 @@ const cushion: MemeScene = {
       frame,
       CUSHION_LEFT + 8 * CUSHION_SCALE,
       CUSHION_TOP + 2 * CUSHION_SCALE - 2,
-      CUSHION_LOOP,
     );
   },
 };
@@ -1040,7 +1025,7 @@ const coaster: MemeScene = {
       }
     }
 
-    return speak("coaster", frame, CAR_X, carY - 34, COASTER_LOOP);
+    return speak("coaster", frame, CAR_X, carY - 34);
   },
 };
 
@@ -1322,12 +1307,7 @@ const train: MemeScene = {
     const edge = Math.min(readAt - from.x, to.x - readAt);
 
     return {
-      text: pickMemeLine(
-        to.y > from.y ? "trainUp" : "trainDown",
-        frame.seed,
-        segment,
-        chart.length - 1,
-      ),
+      text: pickMemeLine(to.y > from.y ? "trainUp" : "trainDown", frame.seed, segment),
       x: 54,
       y: railY(camX) - 13 * zoom,
       alpha: clamp01(edge / 5),
@@ -2234,7 +2214,7 @@ const zen: MemeScene = {
     drawDesk(p, frame, 0);
     drawDeskFace(p, frame, {});
 
-    return speak("zen", frame, 54, 84, ZEN_LOOP);
+    return speak("zen", frame, 54, 84);
   },
 };
 
@@ -2258,7 +2238,7 @@ const stoic: MemeScene = {
     const welling = easeOut(clamp01((frame.time - 700) / 4600)) * 0.9;
     drawDeskFace(p, frame, { welling });
 
-    return speak("stoic", frame, 54, 84, ZEN_LOOP);
+    return speak("stoic", frame, 54, 84);
   },
 };
 
@@ -2279,7 +2259,7 @@ const hodl: MemeScene = {
      */
     drawDeskFace(p, frame, { smile: true, blush: true });
 
-    return speak("hodl", frame, 54, 84, ZEN_LOOP);
+    return speak("hodl", frame, 54, 84);
   },
 };
 
@@ -2383,7 +2363,7 @@ const wallet: MemeScene = {
     const leaving = said ? 1 : clamp01((0.92 - phase) / 0.06);
 
     return {
-      text: pickMemeLine(said ? "wallet" : "walletEmpty", frame.seed, cycle, WALLET_LOOP / WALLET_CYCLE),
+      text: pickMemeLine(said ? "wallet" : "walletEmpty", frame.seed, cycle),
       x: 32,
       y: WALLET_TOP - 2,
       alpha: clamp01(Math.min(settle, leaving)),
