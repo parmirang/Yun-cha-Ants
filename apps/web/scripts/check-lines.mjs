@@ -189,6 +189,29 @@ try {
     }
   }
 
+  /*
+   * 대본 판(`MEME_SCRIPTS`) — 순서가 정해져 풀에서 빠져 있다. **검사까지 빠지면 안 된다**:
+   * 글자 수도 중복도 풀과 같은 규칙을 받는다. 대신 "5줄 이상"은 안 건다 — 대본은 한
+   * 바퀴를 나눠 쓰는 컷이라 줄 수가 곧 컷 수다.
+   */
+  for (const [id, script] of Object.entries(meme.MEME_SCRIPTS)) {
+    if (script.length < 2) fail(`짤 대본/${id}: 컷이 ${script.length}개뿐이다 (2개 이상)`);
+
+    duplicates(script).forEach((line) => fail(`짤 대본/${id}: "${line}"이 두 번 있다`));
+
+    for (const line of script) {
+      if ([...line].length > MEME_MAX_CHARS) {
+        fail(`짤 대본/${id}: "${line}" — ${MEME_MAX_CHARS}자를 넘어 말풍선이 화면을 넘는다`);
+      }
+
+      if (appSpeech.has(line)) fail(`짤 대본/${id}: "${line}"이 앱 말풍선에도 있다`);
+
+      const owner = memeSeen.get(line);
+      if (owner) fail(`짤 대본/${id}: "${line}"이 ${owner} 풀에도 있다`);
+      else memeSeen.set(line, id);
+    }
+  }
+
   const counted =
     surfaces.reduce(
       (total, { pools }) => total + pools.loss.flat().length + pools.profit.flat().length,

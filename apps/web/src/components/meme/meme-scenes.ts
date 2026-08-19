@@ -22,7 +22,7 @@ import {
   antPixels,
   antShockFacePixels,
 } from "../ant-sprite";
-import { type MemeLinePool, type MemeSceneId, pickMemeLine } from "./meme-lines";
+import { STOIC_SCRIPT, type MemeLinePool, type MemeSceneId, pickMemeLine } from "./meme-lines";
 
 /**
  * 짤 여덟 판. 전부 **한 격자(108×192, 9:16)** 위에 절차적으로 그려지고,
@@ -95,6 +95,34 @@ function speak(scene: MemeLinePool, frame: SceneFrame, x: number, y: number): Sc
         : 1;
 
   return { text: pickMemeLine(scene, frame.seed, beat), x, y, alpha: clamp01(alpha) };
+}
+
+/**
+ * 정해진 대본을 **순서대로** 띄운다 — 한 바퀴를 줄 수만큼 나눠 한 칸에 한 줄씩.
+ *
+ * `speak`와 달리 seed를 안 본다. 앞뒤가 이어지는 말("정말 잘못됐어" → "단단히")은
+ * 순서가 곧 농담이라 뽑기에 맡길 수 없다 — 다시 뽑아도 같은 대본이 나온다.
+ *
+ * 칸 길이는 `BEAT_MS`가 아니라 **루프 ÷ 줄 수**다. 박자를 못박으면 줄이 하나 늘 때마다
+ * 루프 길이를 같이 고쳐야 하고, 안 고치면 마지막 줄이 이음매에서 잘린다.
+ */
+function speakScript(
+  script: readonly string[],
+  frame: SceneFrame,
+  loopMs: number,
+  x: number,
+  y: number,
+): SceneBubble {
+  const span = loopMs / script.length;
+  const index = Math.min(script.length - 1, Math.floor(frame.time / span));
+  const inSlot = frame.time - index * span;
+
+  return {
+    text: script[index] ?? "",
+    x,
+    y,
+    alpha: clamp01(Math.min(inSlot, span - inSlot) / FADE_MS),
+  };
 }
 
 /**
@@ -2238,7 +2266,7 @@ const stoic: MemeScene = {
     const welling = easeOut(clamp01((frame.time - 700) / 4600)) * 0.9;
     drawDeskFace(p, frame, { welling });
 
-    return speak("stoic", frame, 54, 84);
+    return speakScript(STOIC_SCRIPT, frame, ZEN_LOOP, 54, 84);
   },
 };
 

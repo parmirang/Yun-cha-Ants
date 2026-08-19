@@ -41,7 +41,8 @@ export type MemeSceneId =
  * 오르는 동안(`rocket`)과 떨어지는 동안(`rocketDown`)의 말이 다르다.
  */
 export type MemeLinePool =
-  | MemeSceneId
+  // 안 울어는 여기 없다 — 대본이 정해진 판이라 `STOIC_SCRIPT`를 순서대로 쓴다.
+  | Exclude<MemeSceneId, "stoic">
   | "trainUp"
   | "trainDown"
   | "rocketDown"
@@ -246,29 +247,28 @@ export const ZEN_LINES: readonly string[] = [
  * 이미 그렁한 눈을 보여주므로, 말은 그걸 부정하는 쪽이라야 웃긴다. 무념무상(관망)과
  * 달리 여기는 **버티는 중**이다.
  *
+ * **이 판만 풀이 아니라 대본이다** — 적힌 차례대로 네 컷이 뜬다. 앞뒤가 이어지는 말이라
+ * ("정말 잘못됐어" → "단단히") 순서가 곧 농담이고, 뽑기에 맡기면 뒷말이 먼저 뜨거나
+ * 한 컷이 통째로 빠진다. 그래서 `MEME_LINES`에 없고 `다시 뽑기`도 이 판은 안 바꾼다.
+ *
  * 목소리는 **회의록처럼 담담하다.** 비명도 감탄사도 없이 사태를 보고하고, 강조어를
- * 문장 뒤로 흘려보낸다 ("뭔가 잘못됐어 단단히" · "생각보다 심각하네 이거"). 웃음은
- * 여기서 나온다 — 얼굴은 그렁한데 말은 사무적이라 둘이 어긋난다. 허세("프로는 안
- * 울어")로 버티게 하면 표정과 말이 같은 방향으로 굳어 밋밋해진다.
- *
- * 안 우는 이유도 **아직 울 차례가 아니라서**다 ("눈물은 나중에 흘릴게"). 참는 게
- * 아니라 순서를 지키는 중이라, 눈물이 고이기만 하고 안 흐르는 그림과 맞물린다.
- *
- * **줄끼리 순서를 전제하지 말 것** — 한 바퀴에 세 줄이 seed로 밀려 나오므로, 무너지는
- * 차례를 짜봐야 어느 줄이 먼저 뜰지 모른다. 각 줄이 혼자 서야 한다.
+ * 문장 뒤로 흘려보낸다. 웃음은 여기서 나온다 — 얼굴은 그렁한데 말은 사무적이라 둘이
+ * 어긋난다. 마지막 줄이 결론을 안 내는 것도 같은 이유다: 울지도 팔지도 않고 그냥 기다린다.
  */
-export const STOIC_LINES: readonly string[] = [
-  "뭔가 잘못됐어 단단히",
-  "이건 예상 밖인데 좀",
+export const STOIC_SCRIPT: readonly string[] = [
+  "정말 잘못됐어",
+  "단단히",
   "생각보다 심각하네 이거",
-  "이럴 리가 없는데 분명",
-  "아직 상황 파악 중이야",
-  "받아들이는 데 좀 걸려",
-  "울 타이밍은 아니야",
-  "눈물은 나중에 흘릴게",
-  "지금 울면 순서가 꼬여",
-  "일단 앉아는 있을게",
+  "일단 기다려 본다",
 ];
+
+/**
+ * 순서가 정해진 판. 검사기가 풀과 같은 규칙(글자 수·중복)을 여기에도 건다 —
+ * 풀에서 빠져나간 문구가 검사도 같이 빠져나가면 안 된다.
+ */
+export const MEME_SCRIPTS: Readonly<Record<string, readonly string[]>> = {
+  stoic: STOIC_SCRIPT,
+};
 
 /**
  * 11. 존버 중 — 상승 차트 앞에서 새어 나오는 웃음. **긍정하면서 계속 들고 간다**는 게
@@ -324,7 +324,6 @@ export const MEME_LINES: Readonly<Record<MemeLinePool, readonly string[]>> = {
   rocket: ROCKET_LINES,
   rocketDown: ROCKET_DOWN_LINES,
   zen: ZEN_LINES,
-  stoic: STOIC_LINES,
   hodl: HODL_LINES,
   wallet: WALLET_LINES,
   walletEmpty: WALLET_EMPTY_LINES,
