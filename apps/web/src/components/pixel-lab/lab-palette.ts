@@ -12,16 +12,37 @@
  */
 
 import {
+  ANT_BIG_H,
+  ANT_BIG_W,
   ANT_COLOR_KEY,
   ANT_FACE_H,
   ANT_FACE_KEY,
   ANT_FACE_W,
   ANT_GRID,
+  antBigKey,
   antFacePalette,
   antPalette,
 } from "@/components/ant-sprite";
+import { CAST_ART, type CastId } from "@/components/meme/world-cast";
 
-export type PaletteId = "body" | "face" | "free";
+/**
+ * 캐릭터(부추·메뚜기…) 팔레트는 **캐릭터마다 하나씩**이다. 한 벌로 합칠 수가 없는데,
+ * 같은 글자가 그림마다 다른 뜻이기 때문이다 (`w`는 부추에선 알뿌리, 햄스터에선 주둥이).
+ */
+export type PaletteId = "body" | "bodyBig" | "face" | "free" | CastId;
+
+const BIG_LABELS: Record<string, string> = {
+  h: "머리",
+  t: "가슴",
+  g: "배",
+  G: "배 광택",
+  l: "다리",
+  w: "팔",
+  n: "더듬이",
+  e: "흰자",
+  E: "눈동자",
+  K: "검정",
+};
 
 export interface Swatch {
   char: string;
@@ -55,6 +76,7 @@ const BODY_LABELS: Record<string, string> = {
   w: "팔",
   n: "더듬이",
   e: "눈",
+  K: "검정",
 };
 
 const FACE_LABELS: Record<string, string> = {
@@ -75,6 +97,7 @@ const FACE_LABELS: Record<string, string> = {
   Q: "눈물 깊이",
   L: "눈물 표면",
   u: "젖은 자리",
+  K: "검정",
 };
 
 /** 자유 팔레트의 첫 색. 어두운 외곽선 → 밝은 하이라이트 순으로 한 줄 램프를 깔아둔다. */
@@ -87,6 +110,7 @@ export const FREE_DEFAULT: readonly Swatch[] = [
   { char: "r", color: "#ff5c5c", label: "강조(빨강)" },
   { char: "u", color: "#5c9dff", label: "강조(파랑)" },
   { char: "W", color: "#ffffff", label: "흰색" },
+  { char: "K", color: "#000000", label: "검정" },
 ];
 
 function swatchesFrom(
@@ -106,7 +130,56 @@ function swatchesFrom(
     }));
 }
 
+/** 색을 이미 hex로 들고 있는 그림(캐릭터·국기·큰 개미)의 팔레트 */
+function directPalette(
+  id: PaletteId,
+  title: string,
+  key: Readonly<Record<string, string>>,
+  labels: Readonly<Record<string, string>>,
+  grid: { w: number; h: number },
+  outlineChar: string,
+): LabPalette {
+  const order = Object.keys(labels);
+  const chars = [...order, ...Object.keys(key).filter((char) => !order.includes(char))];
+
+  return {
+    id,
+    title,
+    swatches: chars
+      .filter((char) => key[char] !== undefined)
+      .map((char) => ({ char, color: key[char] ?? "#ff00ff", label: labels[char] ?? char })),
+    grid,
+    outlineChar,
+    editable: false,
+  };
+}
+
 export function labPalette(id: PaletteId, stage: number, free: readonly Swatch[]): LabPalette {
+  const cast = CAST_ART[id as CastId];
+  if (cast) {
+    const rows = cast.rows;
+    return directPalette(
+      id,
+      cast.title,
+      cast.key,
+      cast.labels,
+      { w: rows[0]?.length ?? 16, h: rows.length },
+      Object.keys(cast.labels)[0] ?? "o",
+    );
+  }
+
+  if (id === "bodyBig") {
+    /* 큰 개미도 색은 `antPalette`에서 갈라진다 — 단계 슬라이더가 그대로 먹는다 */
+    return directPalette(
+      id,
+      "개미 몸 (32칸)",
+      antBigKey(stage),
+      BIG_LABELS,
+      { w: ANT_BIG_W, h: ANT_BIG_H },
+      "l",
+    );
+  }
+
   if (id === "body") {
     return {
       id,

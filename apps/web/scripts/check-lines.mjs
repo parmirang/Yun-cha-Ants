@@ -9,7 +9,7 @@
  *   · 상단·말풍선·하단이 같은 구간에서 같은 문장 — 한 얘기를 세 번 함
  *   · 풀 길이가 구간 수와 어긋남                — 그 구간이 통째로 빈 말풍선이 됨
  *   · 짤 세 판이 같은 말을 함 / 앱 말풍선과 겹침 — 문구가 몇 개 없어 보임
- *   · 짤 문구가 길어 9:16 한 줄을 넘침           — 말풍선이 개미보다 커짐
+ *   · 짤 문구가 길어 9:16 두 줄을 넘침           — 말풍선이 개미보다 커짐
  *
  * `pnpm --filter @yca/web lines`로 돌리고, `build`/`vercel-build`가 먼저 부른다.
  * 문구는 배포돼야 보이는 물건이라 사람이 기억해서 돌리는 검사로는 안 걸린다.
@@ -161,6 +161,13 @@ try {
    */
   const meme = await load(join(components, "meme", "meme-lines.ts"));
   const MEME_MAX_CHARS = 14;
+  /*
+   * 재는 건 문구 전체가 아니라 **줄 하나**다. 말풍선이 띄어쓰기에서 두 줄까지 접어주므로
+   * 상한은 "한 줄에 들어갈 길이"가 아니라 "접혀서 두 줄 안쪽"이라는 뜻이고, 줄바꿈(`\n`)이
+   * 박힌 문구는 그 조각마다 따로 접힌다 — 통째로 세면 접힐 걸 미리 걸러버린다.
+   */
+  const longestLine = (line) =>
+    Math.max(...line.split("\n").map((part) => [...part].length));
 
   const appSpeech = new Set([
     ...speech.SPEECH_LINES.loss.flat(),
@@ -177,8 +184,8 @@ try {
     duplicates(pool).forEach((line) => fail(`짤/${id}: "${line}"이 두 번 있다`));
 
     for (const line of pool) {
-      if ([...line].length > MEME_MAX_CHARS) {
-        fail(`짤/${id}: "${line}" — ${MEME_MAX_CHARS}자를 넘어 말풍선이 화면을 넘는다`);
+      if (longestLine(line) > MEME_MAX_CHARS) {
+        fail(`짤/${id}: "${line}" — 한 줄이 ${MEME_MAX_CHARS}자를 넘어 말풍선이 화면을 넘는다`);
       }
 
       if (appSpeech.has(line)) fail(`짤/${id}: "${line}"이 앱 말풍선에도 있다`);
@@ -200,8 +207,10 @@ try {
     duplicates(script).forEach((line) => fail(`짤 대본/${id}: "${line}"이 두 번 있다`));
 
     for (const line of script) {
-      if ([...line].length > MEME_MAX_CHARS) {
-        fail(`짤 대본/${id}: "${line}" — ${MEME_MAX_CHARS}자를 넘어 말풍선이 화면을 넘는다`);
+      if (longestLine(line) > MEME_MAX_CHARS) {
+        fail(
+          `짤 대본/${id}: "${line}" — 한 줄이 ${MEME_MAX_CHARS}자를 넘어 말풍선이 화면을 넘는다`,
+        );
       }
 
       if (appSpeech.has(line)) fail(`짤 대본/${id}: "${line}"이 앱 말풍선에도 있다`);

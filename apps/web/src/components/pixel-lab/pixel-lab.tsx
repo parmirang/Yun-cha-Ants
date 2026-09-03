@@ -6,7 +6,15 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 
 import { STAGE_COUNT } from "@yca/shared";
 
-import { ANT_FACE_ROWS, ANT_POSE_IDS, type AntPose, antPoseRows } from "@/components/ant-sprite";
+import {
+  ANT_BIG_ARMS,
+  ANT_BIG_ROWS,
+  ANT_FACE_ROWS,
+  ANT_POSE_IDS,
+  type AntPose,
+  antPoseRows,
+} from "@/components/ant-sprite";
+import { CAST_ART, CAST_IDS } from "@/components/meme/world-cast";
 import { copyText } from "@/lib/clipboard";
 import { canRecordVideo, recordCanvas } from "@/lib/video-export";
 
@@ -30,6 +38,7 @@ import {
   resizeRows,
   rowsSize,
   shiftRows,
+  splitRows,
 } from "./pixel-doc";
 
 /**
@@ -73,7 +82,24 @@ interface Source {
   palette: PaletteId;
 }
 
-/** 앱에 이미 있는 그림들. 새로 그리기 전에 **먼저 열어보라고** 목록으로 세워둔다. */
+/** 늘 서 있는 팔레트. 캐릭터 것들은 그림을 열 때 딸려 온다. */
+const BASE_PALETTES = ["body", "bodyBig", "face", "free"] as const;
+
+const PALETTE_CHIP: Record<string, string> = {
+  body: "개미 몸",
+  bodyBig: "개미 32칸",
+  face: "얼굴",
+  free: "자유",
+};
+
+/**
+ * 앱에 이미 있는 그림들. 새로 그리기 전에 **먼저 열어보라고** 목록으로 세워둔다.
+ *
+ * 개미 자세(16칸)와 클로즈업 얼굴에 더해, **짤 공장의 캐릭터들**(부추·메뚜기·정어리·
+ * 유인원·햄스터)과 국기, 그리고 32칸으로 다시 뜬 큰 개미까지 여기서 연다. 목록은 전부
+ * **원본을 그대로 읽어온다** — 랩이 사본을 들고 있으면 여기서 고친 도트와 코드의 도트가
+ * 갈라진다.
+ */
 const SOURCES: Source[] = [
   ...ANT_POSE_IDS.map((pose: AntPose) => ({
     id: pose,
@@ -81,8 +107,21 @@ const SOURCES: Source[] = [
     rows: antPoseRows(pose),
     palette: "body" as const,
   })),
+  { id: "antBig", title: "개미 몸 (32칸)", rows: ANT_BIG_ROWS, palette: "bodyBig" },
+  ...ANT_BIG_ARMS.map((rows, i) => ({
+    id: `antBigArm${i + 1}`,
+    title: `개미 팔 (32칸) ${i + 1}`,
+    rows,
+    palette: "bodyBig" as const,
+  })),
   { id: "cry", title: "우는 얼굴 (클로즈업)", rows: ANT_FACE_ROWS.cry, palette: "face" },
   { id: "shock", title: "놀란 얼굴 (클로즈업)", rows: ANT_FACE_ROWS.shock, palette: "face" },
+  ...CAST_IDS.map((id) => ({
+    id,
+    title: CAST_ART[id].title,
+    rows: CAST_ART[id].rows,
+    palette: id,
+  })),
 ];
 
 type Tool = "pencil" | "eraser" | "bucket" | "picker";
@@ -97,23 +136,48 @@ const TOOLS: { id: Tool; label: string; key: string }[] = [
 /** 되돌리기 깊이. 16×16 문자맵은 한 벌이 몇백 바이트라 넉넉히 쌓아도 된다. */
 const HISTORY_MAX = 120;
 
-export function PixelLab() {
-  const [size, setSize] = useState({ w: 16, h: 16 });
+/**
+ * 서랍(1depth)에서 자세 하나를 열 때 넘어오는 것. **없으면 지금까지처럼 혼자 도는 편집창**이라
+ * 브라우저에 저장해둔 문서를 복원한다.
+ */
+export interface OpenDoc {
+  charId: string;
+  poseId: string;
+  title: string;
+  rows: readonly string[];
+  palette: PaletteId;
+}
+
+export function PixelLab({
+  doc,
+  onBack,
+  onChange,
+}: { doc?: OpenDoc; onBack?: () => void; onChange?: (rows: readonly string[]) => void } = {}) {
+  const [size, setSize] = useState(() =>
+    doc ? rowsSize(doc.rows) : { w: 16, h: 16 },
+  );
   const [frames, setFrames] = useState<LabFrame[]>(() => [
-    { id: 1, name: "stand", rows: [...antPoseRows("stand")] },
+    doc
+      ? { id: 1, name: doc.poseId, rows: [...doc.rows] }
+      : { id: 1, name: "stand", rows: [...antPoseRows("stand")] },
   ]);
   const [index, setIndex] = useState(0);
   const [baseId, setBaseId] = useState<number | null>(null);
 
-  const [paletteId, setPaletteId] = useState<PaletteId>("body");
+  const [paletteId, setPaletteId] = useState<PaletteId>(doc?.palette ?? "body");
   const [stage, setStage] = useState(38);
   const [free, setFree] = useState<Swatch[]>([...FREE_DEFAULT]);
   const [char, setChar] = useState("h");
 
-  const [tool, setTool] = useState<Tool>("pencil");
+  const [pickedTool, setTool] = useState<Tool>("pencil");
+  /** 스페이스를 누르고 있는 동안만 지우개 — 도구 자체는 안 바뀐다 */
+  const [spaceErase, setSpaceErase] = useState(false);
+  const tool: Tool = spaceErase ? "eraser" : pickedTool;
   const [mirror, setMirror] = useState(false);
   const [zoom, setZoom] = useState(24);
   const [showGrid, setShowGrid] = useState(true);
+  /** 칸마다 글자를 겹쳐 보여준다 — 비슷한 갈색끼리 구별이 안 될 때 켠다 */
+  const [showChars, setShowChars] = useState(false);
   const [onion, setOnion] = useState(true);
   const [diagonal, setDiagonal] = useState(false);
 
@@ -151,29 +215,38 @@ export function PixelLab() {
   useEffect(() => {
     setCanVideo(canRecordVideo());
 
+    /*
+     * **자세를 열고 들어왔으면 저장본을 안 읽는다.** 그 그림은 서랍이 쥐고 있고, 여기서
+     * 옛 문서를 덮어씌우면 방금 연 자세가 엉뚱한 그림으로 바뀐다.
+     */
+    if (doc) {
+      loaded.current = true;
+      return;
+    }
+
     try {
       const saved = window.localStorage.getItem(STORE_KEY);
       if (!saved) return;
 
-      const doc = JSON.parse(saved) as Partial<SavedDoc>;
-      if (!Array.isArray(doc.frames) || doc.frames.length === 0) return;
+      const stored = JSON.parse(saved) as Partial<SavedDoc>;
+      if (!Array.isArray(stored.frames) || stored.frames.length === 0) return;
 
-      const w = doc.size?.w ?? 16;
-      const h = doc.size?.h ?? 16;
+      const w = stored.size?.w ?? 16;
+      const h = stored.size?.h ?? 16;
       // 저장본과 격자가 어긋나도 열리게 맞춰 넣는다. **`framesRef`도 같은 걸 쥐어야 한다** —
       // 여기서 갈라지면 첫 획이 저장본의 옛 도트 위에 얹혀 방금 본 그림이 되돌아간다.
-      const restored = doc.frames.map((item) => ({ ...item, rows: resizeRows(item.rows, w, h) }));
+      const restored = stored.frames.map((item) => ({ ...item, rows: resizeRows(item.rows, w, h) }));
 
       setSize({ w, h });
       setFrames(restored);
       framesRef.current = restored;
       nextId.current = restored.reduce((max, item) => Math.max(max, item.id), 0) + 1;
-      setBaseId(doc.baseId ?? null);
-      setPaletteId(doc.paletteId ?? "body");
-      setStage(doc.stage ?? 38);
-      if (doc.free) setFree(doc.free);
-      setFrameMs(doc.frameMs ?? 240);
-      setCodeStyle(doc.codeStyle ?? "pose");
+      setBaseId(stored.baseId ?? null);
+      setPaletteId(stored.paletteId ?? "body");
+      setStage(stored.stage ?? 38);
+      if (stored.free) setFree(stored.free);
+      setFrameMs(stored.frameMs ?? 240);
+      setCodeStyle(stored.codeStyle ?? "pose");
     } catch {
       // 저장본이 깨졌으면 그냥 새 문서로 연다 — 랩은 결과물을 코드로 뽑는 자리라
       // 여기서 잃을 게 있어도 되돌릴 방법이 코드 쪽에 남아 있다.
@@ -183,15 +256,33 @@ export function PixelLab() {
   }, []);
 
   useEffect(() => {
-    if (!loaded.current) return;
+    if (!loaded.current || doc) return;
 
-    const doc: SavedDoc = { size, frames, baseId, paletteId, stage, free, frameMs, codeStyle };
+    const saving: SavedDoc = { size, frames, baseId, paletteId, stage, free, frameMs, codeStyle };
     try {
-      window.localStorage.setItem(STORE_KEY, JSON.stringify(doc));
+      window.localStorage.setItem(STORE_KEY, JSON.stringify(saving));
     } catch {
       // 용량이 찼거나 사생활 모드 — 저장을 못 해도 그리는 건 계속돼야 한다.
     }
-  }, [size, frames, baseId, paletteId, stage, free, frameMs, codeStyle]);
+  }, [doc, size, frames, baseId, paletteId, stage, free, frameMs, codeStyle]);
+
+  /*
+   * 자세를 열고 들어왔으면 **고칠 때마다 서랍에 넘긴다.** 나가는 순간에만 넘기면 탭을 닫거나
+   * 새로고침했을 때 그린 게 통째로 날아간다.
+   *
+   * **넘기는 함수는 ref로 쥔다.** 부르는 쪽이 인라인 함수를 넘기면 렌더마다 새 함수라,
+   * 이걸 의존성에 넣으면 `넘김 → 서랍이 저장 → 서랍 렌더 → 새 함수 → 다시 넘김`으로
+   * 무한히 돈다. 넘길 때를 정하는 건 **그림이 바뀌었는지**뿐이다.
+   */
+  const changeRef = useRef(onChange);
+  useEffect(() => {
+    changeRef.current = onChange;
+  });
+
+  useEffect(() => {
+    if (!doc) return;
+    changeRef.current?.(frames[0]?.rows ?? []);
+  }, [doc, frames]);
 
   /* ── 고치기와 되돌리기 ──────────────────────────── */
 
@@ -348,11 +439,31 @@ export function PixelLab() {
     applyFrames([fresh]);
     setSize(loadedSize);
     setPaletteId(source.palette);
-    setChar("h");
+    /* 고른 글자도 새 팔레트 것으로 바꾼다 — "h"를 못박아두면 머리가 없는 그림(국기·물고기)에서
+       첫 붓질이 아무 데도 안 찍힌다 */
+    setChar(labPalette(source.palette, stage, free).swatches[0]?.char ?? "h");
     setBaseId(null);
     setIndex(0);
     setZoom(fitZoom(loadedSize.w, loadedSize.h));
     setNote(`격자가 ${loadedSize.w}×${loadedSize.h}라 문서를 새로 열었어.`);
+  };
+
+  /**
+   * 도트를 2×2로 쪼갠다 — **그림은 그대로 두고 격자만 잘게 만든다.** 배율을 올리는 것과
+   * 다르다: 그건 같은 도트를 크게 볼 뿐이라 새로 찍을 자리가 안 생긴다. 프레임을 전부 같이
+   * 쪼개야 어니언스킨과 재생이 안 어긋난다.
+   */
+  const split = () => {
+    const next = { w: size.w * 2, h: size.h * 2 };
+    if (next.w > 128 || next.h > 128) {
+      setNote("여기서 더 쪼개면 격자가 128칸을 넘어.");
+      return;
+    }
+
+    setSize(next);
+    commit((prev) => prev.map((item) => ({ ...item, rows: splitRows(item.rows, 2) })));
+    setZoom(fitZoom(next.w, next.h));
+    setNote(`한 도트가 네 칸이 됐어 (${next.w}×${next.h}). 되돌리려면 되돌리기(⌘Z).`);
   };
 
   const resize = (w: number, h: number) => {
@@ -485,8 +596,17 @@ export function PixelLab() {
         return;
       }
 
+      /*
+       * **스페이스는 누르고 있는 동안만 지우개다** (누른 채로 찍으면 지워진다). 재생/멈춤이
+       * 여기 있었는데, 눌러 두는 손과 톡 누르는 손이 한 키에 겹치면 지우려고 누를 때마다
+       * 재생이 켜졌다 꺼진다 — 재생은 `P`로 옮겼다.
+       */
       if (key === " ") {
         event.preventDefault();
+        setSpaceErase(true);
+        return;
+      }
+      if (key === "p") {
         setPlaying((on) => !on);
         return;
       }
@@ -498,8 +618,21 @@ export function PixelLab() {
       if (swatch) setChar(swatch.char);
     };
 
+    const onKeyUp = (event: KeyboardEvent) => {
+      if (event.key === " ") setSpaceErase(false);
+    };
+    /* 창 밖으로 나가면 키를 뗀 걸 못 받는다 — 안 풀어주면 지우개가 눌린 채로 남는다 */
+    const release = () => setSpaceErase(false);
+
     window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
+    window.addEventListener("keyup", onKeyUp);
+    window.addEventListener("blur", release);
+
+    return () => {
+      window.removeEventListener("keydown", onKey);
+      window.removeEventListener("keyup", onKeyUp);
+      window.removeEventListener("blur", release);
+    };
   }, [palette.swatches, redo, undo]);
 
   /* ── 화면 ───────────────────────────────────────── */
@@ -521,6 +654,31 @@ export function PixelLab() {
           ← 돌아가기
         </Link>
         <h1 className="text-base font-bold">도트 랩</h1>
+        {doc && (
+          <>
+            <button type="button" className="btn-outline px-2.5 py-1 text-xs" onClick={onBack}>
+              ← 서랍으로
+            </button>
+            <span className="text-xs font-bold">{doc.title}</span>
+
+            {/*
+              **자동으로 저장되지만 버튼을 둔다.** 저장이 보이지 않으면 사람은 저장됐는지
+              알 수가 없고, 그리다 나가는 게 매번 도박이 된다 — 버튼은 저장을 시키는 게
+              아니라 **저장돼 있음을 확인시키는** 자리다.
+            */}
+            <button
+              type="button"
+              className="btn-primary px-2.5 py-1 text-xs"
+              onClick={() => {
+                changeRef.current?.(framesRef.current[0]?.rows ?? []);
+                setNote("저장했어 — 그리는 동안에도 계속 저장되고 있어.");
+              }}
+            >
+              저장
+            </button>
+            <span className="text-[11px] text-[color:var(--muted)]">그리는 대로 자동 저장돼</span>
+          </>
+        )}
         <span className="rounded-full border border-[color:var(--line)] px-2 py-0.5 text-[11px] text-[color:var(--muted)]">
           개발용 · 배포에는 안 실려
         </span>
@@ -540,12 +698,20 @@ export function PixelLab() {
               ))}
             </div>
 
+            <p className="mt-2 text-[11px] leading-relaxed text-[color:var(--muted)]">
+              <b className="text-[color:var(--fg)]">스페이스</b>를 누른 채로 찍으면 지워져 (떼면
+              고른 도구로 돌아와). 재생/멈춤은 <b className="text-[color:var(--fg)]">P</b>.
+            </p>
+
             <div className="mt-2 grid grid-cols-2 gap-1.5">
               <Chip on={mirror} onClick={() => setMirror(!mirror)}>
                 좌우대칭
               </Chip>
               <Chip on={showGrid} onClick={() => setShowGrid(!showGrid)}>
                 격자선
+              </Chip>
+              <Chip on={showChars} onClick={() => setShowChars(!showChars)}>
+                글자 보기
               </Chip>
             </div>
 
@@ -580,8 +746,16 @@ export function PixelLab() {
               {char})
             </p>
 
-            <div className="mt-3 grid grid-cols-3 gap-1.5">
-              {(["body", "face", "free"] as PaletteId[]).map((id) => (
+            {/*
+              캐릭터 팔레트는 **칩으로 안 늘어놓는다** — 열넷이라 줄이 길어지고, 어차피 그림을
+              열면 그 그림의 팔레트가 딸려 온다. 대신 지금 열린 게 캐릭터면 그 이름을 칩 하나로
+              보여줘 어느 팔레트로 찍고 있는지가 남게 한다.
+            */}
+            <div className="mt-3 flex flex-wrap gap-1.5">
+              {[
+                ...BASE_PALETTES,
+                ...(BASE_PALETTES.some((base) => base === paletteId) ? [] : [paletteId]),
+              ].map((id: PaletteId) => (
                 <Chip
                   key={id}
                   on={paletteId === id}
@@ -591,7 +765,7 @@ export function PixelLab() {
                     setChar(next.swatches[0]?.char ?? "h");
                   }}
                 >
-                  {id === "body" ? "개미 몸" : id === "face" ? "얼굴" : "자유"}
+                  {PALETTE_CHIP[id as string] ?? labPalette(id, stage, free).title}
                 </Chip>
               ))}
             </div>
@@ -702,6 +876,11 @@ export function PixelLab() {
               어니언스킨
             </Chip>
 
+            {/* 한 도트 → 네 칸. 그림은 그대로고 찍을 자리만 잘아진다. */}
+            <Chip on={false} onClick={split}>
+              도트 쪼개기 ×2
+            </Chip>
+
             <select
               value=""
               onChange={(event) => loadSource(event.target.value)}
@@ -723,6 +902,7 @@ export function PixelLab() {
               colors={colors}
               zoom={zoom}
               showGrid={showGrid}
+              showChars={showChars}
               onStroke={paintAt}
             />
           </div>
@@ -936,6 +1116,7 @@ function GridCanvas({
   colors,
   zoom,
   showGrid,
+  showChars,
   onStroke,
 }: {
   rows: readonly string[];
@@ -943,6 +1124,7 @@ function GridCanvas({
   colors: Record<string, string>;
   zoom: number;
   showGrid: boolean;
+  showChars: boolean;
   onStroke: (cells: Cell[], phase: "start" | "move") => void;
 }) {
   const ref = useRef<HTMLCanvasElement>(null);
@@ -988,7 +1170,30 @@ function GridCanvas({
         ctx.fillRect(0, y * zoom, canvas.width, 1);
       }
     }
-  }, [colors, ghosts, h, rows, showGrid, w, zoom]);
+
+    /*
+     * **칸마다 글자를 겹쳐 찍는다.** 개미 색은 머리·가슴·배·다리가 전부 비슷한 갈색이라
+     * 눈으로는 어느 글자인지 못 가린다 — 특히 팔(w)·다리(l)를 몸통 색으로 잘못 찍으면
+     * 반영할 때 팔이 두 벌이 되는데, 그리는 동안에는 그게 안 보인다.
+     *
+     * 칸이 좁으면 글자가 도트를 덮으므로 **넉넉할 때만** 찍고, 바탕색의 밝기를 보고
+     * 글자색을 뒤집어 어느 색 위에서도 읽히게 한다.
+     */
+    if (showChars && zoom >= 12) {
+      ctx.globalAlpha = 1;
+      ctx.font = `bold ${Math.floor(zoom * 0.5)}px ui-monospace, monospace`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+
+      rows.forEach((row, y) => {
+        [...row].forEach((char, x) => {
+          if (char === EMPTY) return;
+          ctx.fillStyle = readable(colors[char] ?? "#000000");
+          ctx.fillText(char, x * zoom + zoom / 2, y * zoom + zoom / 2);
+        });
+      });
+    }
+  }, [colors, ghosts, h, rows, showChars, showGrid, w, zoom]);
 
   const cellAt = (event: ReactPointerEvent<HTMLCanvasElement>): Cell => {
     const box = event.currentTarget.getBoundingClientRect();
@@ -1077,7 +1282,7 @@ function PreviewCanvas({
   return <canvas ref={canvasRef} className="block" style={{ imageRendering: "pixelated" }} />;
 }
 
-function FrameThumb({
+export function FrameThumb({
   rows,
   colors,
   box,
@@ -1093,16 +1298,27 @@ function FrameThumb({
   useEffect(() => {
     const canvas = ref.current;
     const ctx = canvas?.getContext("2d");
-    if (!canvas || !ctx) return;
+    if (!canvas || !ctx || w === 0 || h === 0) return;
 
-    canvas.width = w * scale;
-    canvas.height = h * scale;
     ctx.imageSmoothingEnabled = false;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
     paintRows(ctx, rows, colors, scale);
   }, [colors, h, rows, scale, w]);
 
-  return <canvas ref={ref} className="block" style={{ imageRendering: "pixelated" }} />;
+  /*
+   * **크기는 JSX에서 못박는다.** 효과 안에서만 정하면 효과가 안 도는 동안 캔버스가 기본
+   * 300×150으로 서서, 빈 상자가 화면을 뒤덮는다 (그림이 없는 것과 구별도 안 된다).
+   * 격자 크기가 그림마다 다르므로(16칸·32칸·15×10) CSS 크기까지 같이 준다.
+   */
+  return (
+    <canvas
+      ref={ref}
+      width={Math.max(1, w * scale)}
+      height={Math.max(1, h * scale)}
+      className="block"
+      style={{ imageRendering: "pixelated", width: w * scale, height: h * scale }}
+    />
+  );
 }
 
 /**
