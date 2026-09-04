@@ -7151,7 +7151,15 @@ const BNC_CHART: readonly number[] = [
  * 한 번만 걸러 둔다 — 1초에 60번 지나는 자리다.
  */
 const BNC_WEEP_ROWS = 64;
-const BNC_WEEP_FACE = antFacePixels(16).filter((pixel) => pixel.y <= BNC_WEEP_ROWS);
+/*
+ * **왼쪽을 보게 뒤집어 둔다.** `p.sprite`의 뒤집기는 `15 - x`로 개미 격자 폭(16)을 못박고
+ * 있어 52칸 얼굴에는 못 쓴다 — 좌표를 직접 되짚어 한 번만 만들어 둔다 (1초에 60번 지나는
+ * 자리다). 오른쪽 위에 앉아 화면 안쪽을 보게 되므로, 아래에서 뛰는 개미를 내려다보는 것으로
+ * 읽힌다 — 바깥을 보면 남의 얼굴이 끼어든 그림이 된다.
+ */
+const BNC_WEEP_FACE = antFacePixels(16)
+  .filter((pixel) => pixel.y <= BNC_WEEP_ROWS)
+  .map((pixel) => ({ ...pixel, x: ANT_FACE_W - 1 - pixel.x }));
 /** 다 물러나야 뜬다. 앞 6초에 슬픈 낌새가 있으면 반전이 죽는다 */
 const BNC_WEEP_FROM = 0.72;
 /**
