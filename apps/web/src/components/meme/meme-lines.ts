@@ -43,7 +43,8 @@ export type MemeSceneId =
   | "phone"
   | "storm"
   | "board"
-  | "world";
+  | "world"
+  | "bounce";
 
 /**
  * 문구 풀의 이름. **장면 하나가 풀을 둘 이상 쓸 수 있다** — 만원 열차는 봉이 오를 때와
@@ -51,8 +52,11 @@ export type MemeSceneId =
  * 오르는 동안(`rocket`)과 떨어지는 동안(`rocketDown`)의 말이 다르다.
  */
 export type MemeLinePool =
-  // 안 울어·불기둥·물타기·폭풍 존버·세계의 개미들은 여기 없다 — 대본이 정해진 판이라 `*_SCRIPT`를 순서대로 쓴다.
-  | Exclude<MemeSceneId, "stoic" | "pillar" | "water" | "polar" | "stair" | "storm" | "world">
+  // 안 울어·불기둥·물타기·폭풍 존버·세계의 개미들·반등은 여기 없다 — 대본이 정해진 판이라 `*_SCRIPT`를 순서대로 쓴다.
+  | Exclude<
+      MemeSceneId,
+      "stoic" | "pillar" | "water" | "polar" | "stair" | "storm" | "world" | "bounce"
+    >
   | "trainUp"
   | "trainDown"
   | "rocketDown"
@@ -656,6 +660,16 @@ export const BOARD_CLOCK: readonly [string, string, string] = ["8:59", "09:00", 
  * 공백을 뺀 것도 이유가 있다 — 글자 폭 합이 정수여야 픽셀 폰트가 안 흐려진다.
  */
 export const APE_CHEER = "우끼우끼";
+
+/**
+ * 23-반등. **뽑지 않고 못박는다** — 이 판의 농담은 앞 6초를 진짜로 믿게 만든 뒤 카메라가
+ * 물러나며 뒤집는 것이라, 앞말은 **한 점 의심도 없는 환희**여야 한다. 뽑기에 맡기면
+ * 그중 하나만 미심쩍어도 반전이 죽는다.
+ *
+ * **뒤집힌 뒤에는 말이 없다.** 물러난 화면이 이미 다 말하고 있어서, 거기 한마디를 얹으면
+ * 그림이 한 번 더 설명당한다 (남극 판이 마지막을 모자이크로 가린 것과 같은 자리).
+ */
+export const BOUNCE_SCRIPT: readonly [string, string] = ["떡상 시작이다!", "역시 내가 옳았어"];
 
 export const MEME_LINES: Readonly<Record<MemeLinePool, readonly string[]>> = {
   dig: DIG_LINES,

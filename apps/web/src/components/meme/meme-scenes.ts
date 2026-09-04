@@ -12,6 +12,7 @@ import {
 import {
   ANT_EYE,
   ANT_FACE_EYES,
+  ANT_BIG_W,
   antBigKey,
   antBigPoseRows,
   antPalette,
@@ -34,6 +35,7 @@ import {
   BLOCK_TRIPLE_SCRIPT,
   BOARD_CLOCK,
   BOARD_CUE_SCRIPT,
+  BOUNCE_SCRIPT,
   BOARD_MOTTO,
   BOARD_OPEN_SCRIPT,
   WORLD_COUNTRIES,
@@ -7065,6 +7067,163 @@ const world: MemeScene = {
   },
 };
 
+/* ════════════════════════════════════════════════════
+   23. 반등 — 한 발 물러서면 얘기가 다르다
+   ════════════════════════════════════════════════════ */
+
+/**
+ * 앞 6초는 **진짜로 축하하는 화면**이다. 차트가 오르고 개미가 뛰고 폭죽이 터진다 —
+ * 관객도 개미와 같이 속아야 한다. 그러다 카메라가 물러나면 그게 대폭락 맨 끝의 조그만
+ * 꼬리였다는 게 드러난다. **농담은 줌아웃 그 자체**라, 앞 6초에 힌트를 하나라도 두면
+ * (기울어진 축, 흘깃 보이는 왼쪽 절벽, 미심쩍은 한마디) 반전이 통째로 죽는다.
+ *
+ * **차트는 쭉 이어진 값 하나를 카메라만 옮겨 본다.** 확대용 차트와 축소용 차트를 따로
+ * 그리면 물러나는 순간 둘이 안 맞아 다른 종목이 되고, 무엇보다 "같은 차트였다"는 게
+ * 이 판의 전부다. 그래서 보는 창(`i0`·`lo`·`hi`)만 시간에 따라 벌어진다.
+ *
+ * **개미는 계단으로 작아진다.** 스프라이트 배율은 정수뿐이라 3 → 2 → 1로 툭툭 뛰는데,
+ * 그 순간을 **폭죽이 터지는 박자에 맞춰** 감춘다 (물타기 클로즈업에서 개미가 같이 안
+ * 커지던 것과 같은 자리다). 차트는 사각형이라 그 사이에도 매끄럽게 줄어든다.
+ *
+ * **한 바퀴 끝은 첫 프레임과 다르다.** 되돌아오지 않는 이야기라 이음매가 컷이다 —
+ * 물타기·코인 상자와 같은 예외를 받는다.
+ */
+const BOUNCE_LOOP = 9600;
+/** 카메라가 물러나기 시작하는 시각과 물러나는 데 걸리는 시간 */
+const BNC_ZOOM_AT = 6000;
+const BNC_ZOOM_MS = 2000;
+/** 확대했을 때 화면에 남는 봉 수 — 여기까지만 보면 누구라도 상승장으로 읽는다 */
+const BNC_NEAR = 8;
+
+/**
+ * 종가 마흔 개. **마지막 여섯만 오른다** — 확대하면 그 여섯만 보이고, 물러나면 앞의
+ * 서른넷이 절벽으로 드러난다. 못박은 배열이라 다시 뽑아도 안 바뀐다: 이 판에서 차트는
+ * 배경이 아니라 **농담의 몸통**이라, 뽑을 때마다 절벽 모양이 달라지면 안 된다.
+ */
+const BNC_CHART: readonly number[] = [
+  97, 94, 91, 88, 85, 80, 76, 74, 69, 67, 68, 66, 63, 62, 60, 57, 52, 50, 48, 45, 42, 40, 35, 34,
+  30, 28, 24, 21, 16, 12, 8, 4, 1, -1, 2, 4, 7, 10, 12, 16,
+];
+
+/** 차트가 앉는 자리 */
+const BNC_LEFT = 2;
+const BNC_RIGHT = 106;
+const BNC_TOP = 22;
+const BNC_BOTTOM = 178;
+
+const bounce: MemeScene = {
+  id: "bounce",
+  title: "반등",
+  blurb: "떡상이다! ...한 발 물러서면 얘기가 다르다.",
+  loopMs: BOUNCE_LOOP,
+  /** 다 물러난 순간 — 이 판을 한 컷으로 만들면 그게 곧 농담이다 */
+  stillMs: 8800,
+
+  draw(p, frame) {
+    const t = frame.time;
+    const n = BNC_CHART.length;
+    const view = easeInOut(clamp01((t - BNC_ZOOM_AT) / BNC_ZOOM_MS));
+
+    /* ── 시세창 ── */
+    p.rect(0, 0, p.w, p.h, "#10141f");
+    for (let y = BNC_TOP; y < BNC_BOTTOM; y += 26) p.rect(BNC_LEFT, y, BNC_RIGHT - BNC_LEFT, 1, "#1b2333");
+
+    /*
+     * 보는 창. 확대는 마지막 여덟 개와 그 값폭만, 물러나면 전부다 — **오른쪽 끝은 안
+     * 움직인다**(늘 지금 봉이 붙어 있다). 왼쪽만 열려 절벽이 흘러들어온다.
+     */
+    const near = BNC_CHART.slice(n - BNC_NEAR);
+    const i0 = lerp(n - BNC_NEAR, 0, view);
+    const i1 = n - 1;
+    const lo = lerp(Math.min(...near), Math.min(...BNC_CHART), view) - 5;
+    const hi = lerp(Math.max(...near), Math.max(...BNC_CHART), view) + 7;
+
+    const xAt = (i: number) => BNC_LEFT + ((i - i0) / (i1 - i0)) * (BNC_RIGHT - BNC_LEFT);
+    const yAt = (v: number) => BNC_BOTTOM - ((v - lo) / (hi - lo)) * (BNC_BOTTOM - BNC_TOP);
+
+    const step = (BNC_RIGHT - BNC_LEFT) / (i1 - i0 + 1);
+    const body = Math.max(1, Math.round(step * 0.62));
+
+    BNC_CHART.forEach((close, i) => {
+      const x = Math.round(xAt(i));
+      if (x < BNC_LEFT - step || x > BNC_RIGHT + step) return;
+
+      const open = BNC_CHART[i - 1] ?? close - 4;
+      const up = close >= open;
+      const color = up ? "#ff5c5c" : "#5c9dff";
+      const top = Math.round(yAt(Math.max(open, close)));
+      /* 몸통은 한 줄을 보장한다 — 물러나면 값 차이가 눌려 아예 안 그려진다 */
+      const h = Math.max(1, Math.round(yAt(Math.min(open, close))) - top);
+
+      p.rect(x + Math.floor(body / 2), top - 2, 1, h + 4, color);
+      p.rect(x, top, body, h, color);
+    });
+
+    /* ── 개미 ── */
+    const last = BNC_CHART[n - 1] ?? 0;
+    /* 배율이 뛰는 자리를 폭죽 박자에 겹쳐 감춘다 */
+    const k = view < 0.34 ? 3 : view < 0.78 ? 2 : 1;
+    const grid = ANT_BIG_W * k;
+    /* 확대에선 화면 가운데, 물러나면 마지막 봉 위 — 카메라가 아니라 자리가 옮겨간다 */
+    const cx = lerp(52, xAt(n - 1) - 4, view);
+    const feet = lerp(BNC_BOTTOM - 16, yAt(last) - 2, view);
+
+    /* 뛴다 — 공중에서만 `jump`, 발이 닿으면 `stand` */
+    const hop = Math.abs(Math.sin((t / 620) * Math.PI));
+    const lift = Math.round(hop * 20 * (1 - view * 0.6));
+    const pose = hop > 0.22 ? "jump" : "stand";
+
+    drawRows(
+      p,
+      antBigPoseRows(pose),
+      antBigKey(46),
+      Math.round(cx - grid / 2),
+      Math.round(feet - grid - lift),
+      k,
+    );
+
+    /*
+     * 폭죽 — **물러날수록 사그라든다.** 개미가 작아지는데 폭죽만 그대로면 화면이 아니라
+     * 조각들이 주인공이 되고, 무엇보다 반전 뒤까지 축포가 터지면 농담이 안 닫힌다.
+     */
+    const cheer = 1 - view;
+    if (cheer > 0.02) {
+      for (let i = 0; i < 4; i += 1) {
+        const age = ((t + i * 430) % 1720) / 1720;
+        const angle = (TAU * i) / 4 + 0.6;
+        drawBurst(
+          p,
+          Math.round(cx + Math.cos(angle) * (26 + i * 4)),
+          Math.round(feet - grid - 6 + Math.sin(angle) * 22),
+          age,
+          cheer,
+          frame.seed + i * 13,
+          i,
+        );
+      }
+    }
+
+    /*
+     * 말풍선은 **두 번 나온다.** 뽑지 않고 대본이라 순서가 곧 이야기고, 뒤집힌 뒤에는
+     * 아무 말도 안 한다 — 물러난 화면이 이미 다 말하고 있다.
+     */
+    const first = t >= 1000 && t < 3200;
+    const second = t >= 3200 && t < 5500;
+    if (!first && !second) return { text: "", x: 54, y: 40, alpha: 0 };
+
+    const from = first ? 1000 : 3200;
+    const to = first ? 3200 : 5500;
+
+    return {
+      text: first ? BOUNCE_SCRIPT[0] : BOUNCE_SCRIPT[1],
+      x: Math.round(cx),
+      y: Math.round(feet - grid - lift - 6),
+      alpha: clamp01(Math.min(t - from, to - t) / FADE_MS),
+    };
+  },
+};
+
+
 export const MEME_SCENES: readonly MemeScene[] = [
   dig,
   ride,
@@ -7088,6 +7247,7 @@ export const MEME_SCENES: readonly MemeScene[] = [
   storm,
   board,
   world,
+  bounce,
 ];
 
 export function findScene(id: MemeSceneId): MemeScene {
