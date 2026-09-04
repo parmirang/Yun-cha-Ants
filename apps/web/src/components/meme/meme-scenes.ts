@@ -7154,6 +7154,13 @@ const BNC_WEEP_ROWS = 64;
 const BNC_WEEP_FACE = antFacePixels(16).filter((pixel) => pixel.y <= BNC_WEEP_ROWS);
 /** 다 물러나야 뜬다. 앞 6초에 슬픈 낌새가 있으면 반전이 죽는다 */
 const BNC_WEEP_FROM = 0.72;
+/**
+ * 배율 2. **52칸 얼굴이 104칸이 되어 화면 폭(108)을 거의 다 먹으므로**, 오른쪽에 붙여도
+ * 결과적으로 화면을 채운다 — 자를 수는 없다(얼굴을 잘라내면 배경이 아니라 잘린 그림이 된다).
+ * 대신 **더 옅게** 깔아 뒤로 물린다: 클수록 진하면 차트가 얼굴에 묻힌다.
+ */
+const BNC_WEEP_K = 2;
+const BNC_WEEP_ALPHA = 0.26;
 
 /** 차트가 앉는 자리 */
 const BNC_LEFT = 2;
@@ -7186,8 +7193,13 @@ const bounce: MemeScene = {
      */
     const weep = clamp01((view - BNC_WEEP_FROM) / (1 - BNC_WEEP_FROM));
     if (weep > 0) {
-      p.faded(weep * 0.5, () =>
-        p.sprite(BNC_WEEP_FACE, p.w - ANT_FACE_W - 2, BNC_TOP + 6, 1),
+      p.faded(weep * BNC_WEEP_ALPHA, () =>
+        p.sprite(
+          BNC_WEEP_FACE,
+          p.w - ANT_FACE_W * BNC_WEEP_K - 2,
+          BNC_TOP + 4,
+          BNC_WEEP_K,
+        ),
       );
     }
 
