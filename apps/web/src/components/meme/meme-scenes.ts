@@ -6699,26 +6699,41 @@ const WORLD_ACT_LIST: readonly WorldAct[] = [
        * **봉은 뛰는 쪽만 붉다.** 색이 뒤집히는 걸 보고 방향을 바꾸는 판이라, 두 봉이 같은
        * 색이면 왜 옮겨 가는지가 안 보인다.
        */
-      drawWorldCandle(p, 12, WLD_GROUND, toRight ? 14 : 30, !toRight);
-      drawWorldCandle(p, 88, WLD_GROUND, toRight ? 30 : 14, toRight);
+      /* 봉을 안쪽으로 물린다 — 메뚜기가 32칸이라 봉이 가장자리에 붙으면 몸이 잘린다 */
+      drawWorldCandle(p, 28, WLD_GROUND, toRight ? 14 : 30, !toRight);
+      drawWorldCandle(p, 76, WLD_GROUND, toRight ? 30 : 14, toRight);
 
-      const from = toRight ? -6 : 70;
-      const to = toRight ? 70 : -6;
+      /* 가운데 놈이 봉에 앉게 잡은 값 — 나머지 둘은 그 앞뒤로 어긋나 붙는다 */
+      const from = toRight ? 0 : 48;
+      const to = toRight ? 48 : 0;
 
-      for (let i = 0; i < 3; i += 1) {
-        /* 셋이 반 박자씩 어긋나 뛴다 — 같이 뛰면 세 마리가 한 몸처럼 보인다 */
-        const lag = i * 0.12;
-        const step = clamp01((at - lag) / (1 - lag));
-        const x = Math.round(lerp(from, to, step));
-        /*
-         * **가는 건 좌우다.** 포물선은 건너뛰는 표시로만 얕게 주고, 셋의 높이는 같은 줄에
-         * 맞춘다 — 마리마다 아래로 층을 지어놓으면 옆으로 가는 게 아니라 떨어지는 그림이 된다.
-         */
-        const arc = Math.round(Math.sin(step * Math.PI) * 14);
-        const y = WLD_GROUND - 34 - arc - i * 3 + Math.round((1 - enter) * 60);
+      /*
+       * **메뚜기는 들고 나갈 때 아래로 안 떨어진다.** 다른 컷은 캐릭터를 화면 밖으로 내려
+       * 보내며 퇴장하는데(발이 땅에 붙어 있으니 그게 맞다), 이쪽은 공중에 뜬 채라 같은 손을
+       * 쓰면 **뛰다 말고 추락하는 그림**이 된다 — 실제로 한쪽에 닿을 때마다 바닥 밖으로
+       * 떨어졌다. 자리는 두고 흐려지게만 한다.
+       */
+      p.faded(enter, () => {
+        for (let i = 0; i < 3; i += 1) {
+          /* 셋이 반 박자씩 어긋나 뛴다 — 같이 뛰면 세 마리가 한 몸처럼 보인다 */
+          const lag = i * 0.14;
+          const step = clamp01((at - lag) / (1 - lag));
+          /*
+           * **박자만 어긋나게 해서는 안 겹치게 못 한다.** 앞선 놈이 먼저 닿아도 뒤엣놈이
+           * 따라와 결국 같은 자리에 포개진다 — 실제로 셋이 한 마리처럼 뭉쳐 보였다.
+           * 그래서 **자리 자체를 어긋나게** 준다: 가로로 한 몸의 3분의 1(12칸), 세로로
+           * 반 몸(10칸)씩 물려 셋이 늘 떨어져 있게 한다.
+           */
+          const x = Math.round(lerp(from, to, step)) + i * 12;
+          /*
+           * **가는 건 좌우다.** 포물선은 건너뛰는 표시로만 얕게 준다 — 깊게 주면 옆으로
+           * 가는 게 아니라 오르내리는 그림이 된다.
+           */
+          const arc = Math.round(Math.sin(step * Math.PI) * 14);
 
-        drawLocust(p, x, y, 1, !toRight);
-      }
+          drawLocust(p, x, WLD_GROUND - 26 - arc - i * 10, 1, !toRight);
+        }
+      });
     },
   },
 
