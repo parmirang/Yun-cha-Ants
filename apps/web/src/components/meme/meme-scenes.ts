@@ -7139,6 +7139,22 @@ const BNC_CHART: readonly number[] = [
   19, 23, 14, 13, 10, 11, 13, 15, 18, 23, 28, 48,
 ];
 
+/**
+ * 물러났을 때 배경에 깔리는 **우는 얼굴**. 클로즈업 판이 쓰는 그 문자맵을 그대로 가져온다 —
+ * 얼굴을 여기서 새로 그리면 같은 개미가 두 벌이 된다 (남극 판이 하늘에 얼굴을 비추는 것과
+ * 같은 손이다).
+ *
+ * **머리까지만 쓰고, 봉보다 먼저 그린다.** 몸까지 오면 화면이 통째로 막히고, 봉 위에 얹으면
+ * 배경에 비친 게 아니라 화면에 붙인 그림이 된다. 개미는 오른쪽 아래에서 신나 있으므로
+ * 얼굴도 그쪽 위에 깔아 **같은 개미의 속마음**으로 읽히게 한다.
+ *
+ * 한 번만 걸러 둔다 — 1초에 60번 지나는 자리다.
+ */
+const BNC_WEEP_ROWS = 64;
+const BNC_WEEP_FACE = antFacePixels(16).filter((pixel) => pixel.y <= BNC_WEEP_ROWS);
+/** 다 물러나야 뜬다. 앞 6초에 슬픈 낌새가 있으면 반전이 죽는다 */
+const BNC_WEEP_FROM = 0.72;
+
 /** 차트가 앉는 자리 */
 const BNC_LEFT = 2;
 const BNC_RIGHT = 106;
@@ -7164,6 +7180,16 @@ const bounce: MemeScene = {
     /* 바닥 — 개미가 딛는 자리가 보여야 "떠 있지 않다"가 읽힌다 */
     p.rect(0, BNC_BOTTOM, p.w, p.h - BNC_BOTTOM, "#1a2231");
     p.rect(0, BNC_BOTTOM, p.w, 1, "#2c3a52");
+
+    /*
+     * 배경 얼굴 — **봉보다 먼저**. 다 물러난 뒤에야 뜬다.
+     */
+    const weep = clamp01((view - BNC_WEEP_FROM) / (1 - BNC_WEEP_FROM));
+    if (weep > 0) {
+      p.faded(weep * 0.5, () =>
+        p.sprite(BNC_WEEP_FACE, p.w - ANT_FACE_W - 2, BNC_TOP + 6, 1),
+      );
+    }
 
     /*
      * 보는 창. 확대는 마지막 여덟 개와 그 값폭만, 물러나면 전부다 — **오른쪽 끝은 안
