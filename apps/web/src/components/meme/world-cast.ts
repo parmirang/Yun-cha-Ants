@@ -443,6 +443,75 @@ export function drawSardine(p: Painter, left: number, top: number, k: number, fl
 }
 
 
+/* ── 고래 (정어리 컷의 배경) ────────────────────────────
+   정어리가 무서워하는 그 그림자다. **뒤에 있어야 그림자로 읽히므로** 물빛보다 한 단만
+   밝게 잡는다 — 예전엔 배경과 거의 같은 남색이라 형태가 통째로 안 보였고, 반대로 너무
+   밝히면 주인공이 고래가 된다.
+
+   **점·네모로 그리지 않고 문자맵으로 둔다.** 원과 사각형을 겹쳐 그리면 도트 랩에서 열
+   수가 없어 손볼 길이 없고, 매끈한 도형이 도트 그림 사이에 섞인다.
+
+   **눈 반짝임은 여기 없다** — 시간이 있어야 성립하는 그림이라 무대가 그린다 (눈물·하트와
+   같은 자리). 그래서 눈 자리를 좌표로 내준다.
+   ────────────────────────────────────────────────────── */
+
+const WHALE: readonly string[] = [
+  "................................................",
+  "................................................",
+  "................................................",
+  "..............................................b.",
+  "................B............................bb.",
+  ".........BBBBBBBBBBBBBBB....................bbb.",
+  "......BBBBBBBBBBbBBBBBBBBBB.................bb..",
+  "....BBBBBbbbbbbbbbbbbbbbBBBBB.BB...........bb...",
+  "...BBBbbbbbbbbbbbbbbbbbbbbbBBBBBBB........bb....",
+  "..BBbbbbbbbbbbbbbbbbbbbbbbbbbBbbBBBBB....bbb....",
+  ".BBbbbbeebbbbbbbbbbbbbbbbbbbbbbbbbBBBBbb.bb.....",
+  ".BbbbbbeEbbbbbbbbbbbbbbbbbbbbbbbbbbbbBbbbb......",
+  "Bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb......",
+  ".bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb......",
+  ".dKKKbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbdbb.bb.....",
+  "..dbbKKKKKKbbbbbbbbbbbbbbbbbbbbbbbddd....bbb....",
+  "...dbbbbbbbKKKbbbbbbbbbbbbbbbdbbdd........bb....",
+  "....ddbbbbbbbffffffbbbbbbbbdd.dd...........bb...",
+  "......dddbbbbbffffffbbbbddd.................bb..",
+  ".........ddddddffffffddd....................bbb.",
+  "................ffffff.......................bb.",
+  "..............................................b.",
+  "................................................",
+  "................................................",
+];
+
+const WHALE_KEY: Readonly<Record<string, string>> = {
+  b: "#3f7fb4",
+  B: "#5b9ed0",
+  d: "#2f6392",
+  f: "#356f9e",
+  K: INK,
+  e: EYE_WHITE,
+  E: EYE_PUPIL,
+};
+
+/* 눈 이름표를 펼쳐 적는다 — `EYE_LABELS`가 이 아래에 있어 여기서는 못 끌어온다 */
+const WHALE_LABELS: Readonly<Record<string, string>> = {
+  b: "몸",
+  B: "등(빛)",
+  d: "배 그늘",
+  f: "가슴지느러미",
+  e: "흰자",
+  E: "눈동자",
+  K: "검정",
+};
+
+export const WHALE_W = 48;
+export const WHALE_H = 24;
+/** 눈이 앉은 자리 (문자맵 좌표) — 반짝임은 무대가 여기에 얹는다 */
+export const WHALE_EYE = { x: 8, y: 11 } as const;
+
+export function drawWhale(p: Painter, left: number, top: number, k: number): void {
+  drawRows(p, WHALE, WHALE_KEY, left, top, k);
+}
+
 /* ── 유인원 (미국) ─────────────────────────────────────
    **팔은 몸 문자맵에 없다.** "여기로 모여"라 팔을 들었다 내렸다 하는데, 몸에 붙여두면 자세마다
    몸을 한 벌씩 더 그려야 한다 — 개미가 "프레임 사이에 바뀌는 건 팔뿐"인 것과 같은 자리라
@@ -746,6 +815,7 @@ export type CastId =
   | "chive"
   | "locust"
   | "sardine"
+  | "whale"
   | "ape"
   | "apeArmOut"
   | "apeArmUp"
@@ -823,6 +893,12 @@ export const CAST_ART: Readonly<Record<CastId, CastArt>> = {
     rows: SARDINE,
     key: SARDINE_KEY,
     labels: SARDINE_LABELS,
+  },
+  whale: {
+    title: "고래 (정어리 컷 배경)",
+    rows: WHALE,
+    key: WHALE_KEY,
+    labels: WHALE_LABELS,
   },
   ape: {
     title: "유인원 (미국)",

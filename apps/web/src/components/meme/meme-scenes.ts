@@ -51,6 +51,7 @@ import {
 } from "./meme-lines";
 import {
   FLAG_W,
+  WHALE_EYE,
   type FlagId,
   chiveCutY,
   drawApe,
@@ -60,6 +61,7 @@ import {
   drawLocust,
   drawRows,
   drawSardine,
+  drawWhale,
 } from "./world-cast";
 
 /**
@@ -6582,6 +6584,35 @@ interface WorldAct {
   draw(p: Painter, t: number, frame: SceneFrame, enter: number): SceneLabel[] | void;
 }
 
+/**
+ * **여섯 컷이 공통으로 깔고 가는 배경 차트.** 나라가 바뀌어도 뒤에 서 있는 건 같은 시장이라,
+ * 이 한 줄이 여섯 컷을 한 판으로 묶는다 — 컷마다 배경을 새로 지으면 로테이션이 아니라
+ * 슬라이드쇼가 된다.
+ *
+ * **캐릭터보다 먼저, 옅게 그린다.** 진하면 주인공과 다투고, 물속에서는 물빛이 이미 한 겹
+ * 덮여 있어 같은 농도로 두면 차트가 물 위에 떠 있는 것으로 보인다 — 그래서 더 옅다.
+ *
+ * 높이는 **못박은 배열**이다. 다시 뽑을 때마다 지형이 바뀌면 배경이 아니라 사건이 된다
+ * (코인 상자의 캔들 스카이라인과 같은 대우).
+ */
+const WLD_BACK_CHART: readonly number[] = [14, 22, 18, 30, 24, 38, 32, 46, 40, 34, 44, 52];
+
+function drawWorldBackChart(p: Painter, water: boolean): void {
+  p.faded(water ? 0.1 : 0.2, () => {
+    WLD_BACK_CHART.forEach((h, i) => {
+      const x = 2 + i * 9;
+      const prev = WLD_BACK_CHART[i - 1] ?? h;
+      const up = h >= prev;
+      const color = up ? "#ff5c5c" : "#5c9dff";
+      const bottom = WLD_GROUND - 6;
+
+      /* 꼬리 — 몸통 위아래로 삐져나와야 봉으로 읽힌다 */
+      p.rect(x + 3, bottom - h - 4, 1, h + 8, color);
+      p.rect(x, bottom - h, 7, h, color);
+    });
+  });
+}
+
 /** 바닥에 눕히는 작은 봉 — 햄스터가 주워 담고, 메뚜기가 몰려가는 그 봉이다 */
 function drawWorldCandle(p: Painter, x: number, bottom: number, h: number, up: boolean): void {
   const color = up ? "#ff5c5c" : "#5c9dff";
@@ -6688,7 +6719,8 @@ const WORLD_ACT_LIST: readonly WorldAct[] = [
   /* 3. 메뚜기 (일본) — 양봉이 서는 쪽으로 셋이 뛴다. 그게 파래지면 반대쪽으로 또 뛴다. */
   {
     flag: "jp",
-    say: { x: WLD_MID, y: 76 },
+    /* 국기 아래로 물린다 — 위에 두면 두 줄짜리 말풍선이 국기를 덮는다 */
+    say: { x: WLD_MID, y: 100 },
     draw(p, t, _frame, enter) {
       /* 한 번 뛰고 내려앉기까지가 한 돌 — 뛰는 쪽이 양봉(빨강), 두고 온 쪽이 음봉(파랑) */
       const swing = Math.max(0, t - WLD_IN_MS) / 2000;
@@ -6745,22 +6777,14 @@ const WORLD_ACT_LIST: readonly WorldAct[] = [
     draw(p, t, _frame, enter) {
       /* 고래는 **정어리보다 먼저** 그린다 — 뒤에 있어야 그림자로 읽힌다 */
       const swim = clamp01((t - 700) / 2400);
-      const wx = lerp(126, -70, swim);
-      /*
-       * **물빛보다 한 단 밝게.** 원래는 배경과 거의 같은 남색이라 그림자로도 안 읽혔다 —
-       * 뒤에 있는 것으로 남기되 형태는 보여야 해서 등만 한 줄 더 밝게 얹는다.
-       */
-      p.disc(wx + 30, 80, 20, "#3f7fb4");
-      p.rect(wx + 10, 66, 44, 28, "#3f7fb4");
-      p.rect(wx, 70, 14, 12, "#3f7fb4");
-      p.rect(wx + 12, 66, 40, 2, "#5b9ed0");
+      const wx = Math.round(lerp(112, -56, swim));
+      const whaleTop = 66;
+      drawWhale(p, wx, whaleTop, 1);
 
-      /* 눈빛 — 반짝이는 건 시간 위에서만 성립한다. 한 바퀴에 정수 번 돌게 잡는다 */
-      const glint = flip2(t, 260);
-      p.dot(wx + 46, 74, glint ? "#ffffff" : "#cfe4f5");
-      if (glint) {
-        p.dot(wx + 45, 73, "#eaf4ff");
-        p.dot(wx + 47, 75, "#eaf4ff");
+      /* 눈빛 — 반짝이는 건 시간 위에서만 성립해 문자맵에 못 넣는다 (눈물·하트와 같은 자리) */
+      if (flip2(t, 260)) {
+        p.dot(wx + WHALE_EYE.x, whaleTop + WHALE_EYE.y - 1, "#eaf4ff");
+        p.dot(wx + WHALE_EYE.x + 1, whaleTop + WHALE_EYE.y, "#ffffff");
       }
 
       const drop = Math.round((1 - enter) * 50);
@@ -6838,6 +6862,15 @@ const WORLD_ACT_LIST: readonly WorldAct[] = [
       const drop = Math.round((1 - enter) * 40);
       const top = WLD_TOP + drop;
 
+      /*
+       * 발밑에 작은 양봉을 깔아둔다 — **볼에 쟁여둔 것들**이라 이 컷에서만 바닥에 쌓인다.
+       * 높이를 조금씩 달리해야 차트로 읽히고, 다시 뽑아도 안 흔들리게 못박은 배열을 쓴다.
+       */
+      const stash = [5, 8, 4, 9, 6, 10, 5, 7];
+      stash.forEach((h, i) => {
+        drawWorldCandle(p, 4 + i * 13, WLD_GROUND + 3, h, true);
+      });
+
       /* 씹는 박자 — 루프를 짝수로 나누는 주기라야 한 바퀴 끝에서 자세가 안 튄다 */
       const chew = flip2(t, 200);
 
@@ -6904,6 +6937,8 @@ const world: MemeScene = {
       p.rect(0, WLD_GROUND, p.w, p.h - WLD_GROUND, "#c2a878");
       p.rect(0, WLD_GROUND, p.w, 2, "#a98b5f");
     }
+
+    drawWorldBackChart(p, !!act.water);
 
     const extra = act.draw(p, t, frame, enter) ?? [];
 
