@@ -6548,7 +6548,7 @@ const WLD_SAY_TO = 4300;
  * 넓어진다 — 캐릭터·봉·이름판이 전부 여기서 파생되므로 같이 내려간다. 42칸이던 띠를
  * 28칸으로 줄인 자리다.
  */
-const WLD_GROUND = 164;
+const WLD_GROUND = 176;
 /**
  * **몸은 32칸 격자에 배율 2로 찍는다** — 16칸 × 3과 화면 크기는 비슷하고 그 안의 도트만
  * 잘아져, 눈·팔·잎처럼 한두 칸으로는 못 그리던 게 들어간다. 개미만 16칸 몸이라 배율 4로
@@ -6565,9 +6565,15 @@ const WLD_LEFT = WLD_MID - (WLD_BODY / 2) * WLD_SCALE;
 /* 국기와 두 이름의 자리 — 위는 "어느 나라", 아래 땅은 "거기선 뭐라 부르나" */
 const WLD_FLAG_K = 1;
 const WLD_FLAG_LEFT = WLD_MID - (FLAG_W / 2) * WLD_FLAG_K;
-/* 말풍선이 덮지 않게 30칸 내려 앉힌다 — 예전엔 국기가 말풍선 뒤로 들어가 띠처럼 보였다 */
-const WLD_FLAG_TOP = 36;
-const WLD_NAME_Y = 171;
+/*
+ * 위에서부터 **나라 이름 → 국기 → 캐릭터 이름 팻말** 순으로 쌓는다. 셋이 한 덩이로 붙어야
+ * "어느 나라인가"와 "거기선 뭐라 부르나"가 한 눈에 이어진다 — 예전엔 캐릭터 이름만 화면
+ * 맨 아래 땅에 떨어져 있어, 위의 국기와 짝이라는 게 안 보였다.
+ */
+const WLD_COUNTRY_Y = 19;
+const WLD_FLAG_TOP = 31;
+/** 국기 바로 아래 팻말 — 흙빛 판때기 위에 밝은 글자 (하늘 위 먹색 글자는 안 읽힌다) */
+const WLD_NAME_Y = 56;
 
 interface WorldAct {
   flag: FlagId;
@@ -6760,13 +6766,15 @@ const WORLD_ACT_LIST: readonly WorldAct[] = [
       /*
        * 가위는 자르기 직전에 다가와 그 순간 닫힌다 — 닫힌 채로 오면 뭘 했는지가 안 남는다.
        *
-       * **높이는 자르기 전 잎 끝에 못박는다.** 지금 자란 높이를 따라가게 두면 잘리는 순간
+       * **높이는 잘린 뒤의 잎 끝에 못박는다.** 지금 자란 높이를 따라가게 두면 잘리는 순간
        * 잎이 짧아지면서 가위가 같이 뚝 떨어져, 자른 게 아니라 순간이동한 것으로 보인다.
+       * 자르기 전 잎 끝(맨 위)에 두는 것도 안 된다 — 거기는 말풍선이 앉는 자리라 가위가
+       * 가려진다. **실제로 날이 닿는 자리**가 곧 그 둘을 다 피하는 높이다.
        * 좌우로는 살랑이는 몸을 따라간다 (안 따라가면 가위만 제자리에 붙박여 어긋난다).
        */
       if (c < snip + 260) {
         const near = clamp01(c / snip);
-        const cutY = chiveCutY(top, WLD_SCALE, 1) + 4;
+        const cutY = chiveCutY(top, WLD_SCALE, 0.25) + 4;
         drawScissors(
           p,
           Math.round(lerp(108, WLD_MID + 12, easeOut(near))) + sway,
@@ -6781,7 +6789,7 @@ const WORLD_ACT_LIST: readonly WorldAct[] = [
   {
     flag: "jp",
     /* 국기 아래로 물린다 — 위에 두면 두 줄짜리 말풍선이 국기를 덮는다 */
-    say: { x: WLD_MID, y: 100 },
+    say: { x: WLD_MID, y: 112 },
     draw(p, t, _frame, enter) {
       /* 한 번 뛰고 내려앉기까지가 한 돌 — 뛰는 쪽이 양봉(빨강), 두고 온 쪽이 음봉(파랑) */
       /* 컷 안에서 정확히 두 번 건너뛴다 — 남는 시간(컷 − 등장)을 반으로 나눈 값이다 */
@@ -6836,7 +6844,7 @@ const WORLD_ACT_LIST: readonly WorldAct[] = [
     flag: "br",
     water: true,
     /* 정어리 머리 바로 위 — 더 띄우면 누가 하는 말인지가 안 붙는다 (국기까지는 아직 여유가 있다) */
-    say: { x: WLD_MID, y: 104 },
+    say: { x: WLD_MID, y: 116 },
     draw(p, t, _frame, enter) {
       /* 고래는 **정어리보다 먼저** 그린다 — 뒤에 있어야 그림자로 읽힌다 */
       const swim = clamp01((t - 700) / (WORLD_CUT_MS - 1100));
@@ -6846,7 +6854,7 @@ const WORLD_ACT_LIST: readonly WorldAct[] = [
        * 96칸이 되어 화면 폭(108칸)을 거의 채우므로, 여기가 이 판에서 키울 수 있는 끝이다.
        */
       const whaleK = 2;
-      const whaleTop = 58;
+      const whaleTop = 70;
       drawWhale(p, wx, whaleTop, whaleK);
 
       /* 눈빛 — 반짝이는 건 시간 위에서만 성립해 문자맵에 못 넣는다 (눈물·하트와 같은 자리) */
@@ -6868,7 +6876,7 @@ const WORLD_ACT_LIST: readonly WorldAct[] = [
          * 오른쪽 끝이 108칸 밖으로 나가 꼬리가 잘렸다 — 무리 전체 폭(26×2 + 44 = 96)을
          * 재서 가운데에 앉힌다. 배율이 이미 1이라 더 줄일 수는 없다.
          */
-        drawSardine(p, 6 + i * 26 + shake, 110 + (i % 2) * 16 + shakeY + drop, 1, false);
+        drawSardine(p, 6 + i * 26 + shake, 122 + (i % 2) * 16 + shakeY + drop, 1, false);
       }
     },
   },
@@ -7018,9 +7026,11 @@ const world: MemeScene = {
     /* ── 국기 ── (나라 이름은 그 위, 캐릭터 이름은 아래 땅에 — 아래 `labels`) */
     p.faded(enter, () => drawFlag(p, act.flag, WLD_FLAG_LEFT, WLD_FLAG_TOP, WLD_FLAG_K));
 
-    /* 캐릭터 이름이 앉는 땅 위 판때기 — 흙빛 위의 먹색 글자는 안 읽힌다 */
-    p.rect(WLD_MID - 26, WLD_NAME_Y - 3, 52, 15, act.water ? "#0b3350" : "#8f7448");
-    p.rect(WLD_MID - 26, WLD_NAME_Y - 3, 52, 1, act.water ? "#1d5c86" : "#a98b5f");
+    /* 캐릭터 이름 팻말 — 국기 바로 아래에 건다 (하늘 위 먹색 글자는 안 읽힌다) */
+    p.faded(enter, () => {
+      p.rect(WLD_MID - 26, WLD_NAME_Y - 3, 52, 15, act.water ? "#0b3350" : "#8f7448");
+      p.rect(WLD_MID - 26, WLD_NAME_Y - 3, 52, 1, act.water ? "#1d5c86" : "#a98b5f");
+    });
 
     return {
       text: WORLD_SCRIPT[index] ?? "",
@@ -7035,7 +7045,7 @@ const world: MemeScene = {
         {
           text: WORLD_COUNTRIES[index] ?? "",
           x: WLD_MID,
-          y: 24,
+          y: WLD_COUNTRY_Y,
           alpha: enter,
           unit: 8,
           color: act.water ? "#eaf3fb" : "#2b3346",
