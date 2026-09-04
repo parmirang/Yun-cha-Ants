@@ -10,12 +10,10 @@ import {
 } from "@/lib/pixel-canvas";
 
 import {
-  ANT_BIG_ARMS,
-  ANT_BIG_ARM_AT,
-  ANT_BIG_ROWS,
   ANT_EYE,
   ANT_FACE_EYES,
   antBigKey,
+  antBigPoseRows,
   antPalette,
   ANT_FACE_H,
   ANT_FACE_W,
@@ -30,6 +28,7 @@ import {
   antShockFacePixels,
 } from "../ant-sprite";
 import {
+  APE_CHEER,
   BLOCK_ENEMY_FLAG,
   BLOCK_STOMP_TAUNTS,
   BLOCK_TRIPLE_SCRIPT,
@@ -6542,7 +6541,12 @@ const WLD_OUT_AT = WORLD_CUT_MS - 600;
 const WLD_SAY_FROM = 600;
 const WLD_SAY_TO = 3300;
 
-const WLD_GROUND = 150;
+/**
+ * **바닥선.** 아래 흙 띠가 화면(192칸)의 나머지라, 이 값을 내리면 띠가 얇아지고 하늘이
+ * 넓어진다 — 캐릭터·봉·이름판이 전부 여기서 파생되므로 같이 내려간다. 42칸이던 띠를
+ * 28칸으로 줄인 자리다.
+ */
+const WLD_GROUND = 164;
 /**
  * **몸은 32칸 격자에 배율 2로 찍는다** — 16칸 × 3과 화면 크기는 비슷하고 그 안의 도트만
  * 잘아져, 눈·팔·잎처럼 한두 칸으로는 못 그리던 게 들어간다. 개미만 16칸 몸이라 배율 4로
@@ -6557,10 +6561,11 @@ const WLD_MID = 54;
 const WLD_LEFT = WLD_MID - (WLD_BODY / 2) * WLD_SCALE;
 
 /* 국기와 두 이름의 자리 — 위는 "어느 나라", 아래 땅은 "거기선 뭐라 부르나" */
-const WLD_FLAG_K = 2;
+const WLD_FLAG_K = 1;
 const WLD_FLAG_LEFT = WLD_MID - (FLAG_W / 2) * WLD_FLAG_K;
-const WLD_FLAG_TOP = 16;
-const WLD_NAME_Y = 157;
+/* 말풍선이 덮지 않게 30칸 내려 앉힌다 — 예전엔 국기가 말풍선 뒤로 들어가 띠처럼 보였다 */
+const WLD_FLAG_TOP = 36;
+const WLD_NAME_Y = 171;
 
 interface WorldAct {
   flag: FlagId;
@@ -6568,8 +6573,13 @@ interface WorldAct {
   water?: boolean;
   /** 말풍선 꼬리가 붙을 자리 */
   say: { x: number; y: number };
-  /** 컷 안에서의 시간(`t`)만 받는다 — 전역 시간을 넘기면 컷마다 위상이 달라진다 */
-  draw(p: Painter, t: number, frame: SceneFrame, enter: number): void;
+  /**
+   * 컷 안에서의 시간(`t`)만 받는다 — 전역 시간을 넘기면 컷마다 위상이 달라진다.
+   *
+   * **글자를 돌려줄 수 있다.** 컷 안에서 움직이는 것에 딸리는 글자(곁 원숭이의 "우끼")는
+   * 그 자리를 컷만 아는데, 바깥에서 만드는 `labels`는 그 좌표를 모른다.
+   */
+  draw(p: Painter, t: number, frame: SceneFrame, enter: number): SceneLabel[] | void;
 }
 
 /** 바닥에 눕히는 작은 봉 — 햄스터가 주워 담고, 메뚜기가 몰려가는 그 봉이다 */
@@ -6606,33 +6616,29 @@ const WORLD_ACT_LIST: readonly WorldAct[] = [
        */
       const left = WLD_LEFT;
       const top = WLD_TOP + Math.round((1 - enter) * 40);
-      const key = antBigKey(44);
 
-      drawRows(p, ANT_BIG_ROWS, key, left, top, WLD_SCALE);
+      /* 파는 건 팔뿐이다 — 몸통을 좌표까지 물려받은 두 프레임을 갈아끼운다 */
+      drawRows(p, antBigPoseRows(flip2(t, 200) ? "dig1" : "dig2"), antBigKey(44), left, top, WLD_SCALE);
 
-      /* 파는 건 팔뿐이다 — 몸은 그대로 두고 팔 두 프레임만 갈아끼운다 */
-      const arm = ANT_BIG_ARMS[flip2(t, 200) ? 0 : 1] ?? [];
-      drawRows(
-        p,
-        arm,
-        key,
-        left + ANT_BIG_ARM_AT.x * WLD_SCALE,
-        top + ANT_BIG_ARM_AT.y * WLD_SCALE,
-        WLD_SCALE,
-      );
-
-      /* 튀는 흙 — 곡괭이 끝(오른쪽)에서만 튄다 */
+      /*
+       * 튀는 흙 — 곡괭이 끝(오른쪽)에서만 튄다. **셋에 하나는 동전이다**: 파는 게 헛수고가
+       * 아니라는 게 이 컷의 농담이라, 흙만 튀면 그냥 삽질하는 그림이 된다. 동전도 흙과 같은
+       * 포물선을 타야 같이 튀어나온 것으로 읽힌다 — 따로 띄우면 허공에서 생긴 것으로 보인다.
+       */
       const random = seededRandom(frame.seed + 3);
-      for (let i = 0; i < 5; i += 1) {
-        const age = ((t + i * 190) % 760) / 760;
+      for (let i = 0; i < 7; i += 1) {
+        const age = ((t + i * 140) % 760) / 760;
         const r = random();
-        p.rect(
-          left + 28 * WLD_SCALE + Math.round(age * (6 + r * 10)),
-          WLD_GROUND - 4 - Math.round(Math.sin(age * Math.PI) * (8 + r * 6)),
-          2,
-          2,
-          "#a98b5f",
-        );
+        const x = left + 28 * WLD_SCALE + Math.round(age * (6 + r * 12));
+        const y = WLD_GROUND - 4 - Math.round(Math.sin(age * Math.PI) * (10 + r * 8));
+
+        if (i % 3 === 0) {
+          /* 동전 — 흙보다 한 칸 크고 위쪽에 빛 한 점을 둔다 */
+          p.rect(x, y, 3, 3, "#e8b53c");
+          p.rect(x, y, 3, 1, "#ffe08a");
+        } else {
+          p.rect(x, y, 2, 2, "#a98b5f");
+        }
       }
     },
   },
@@ -6640,9 +6646,15 @@ const WORLD_ACT_LIST: readonly WorldAct[] = [
   /* 2. 부추 (중국) — 가위가 끝을 자르면 또 자란다. 한 컷에 두 번 당한다. */
   {
     flag: "cn",
-    say: { x: WLD_MID + 18, y: WLD_TOP + 12 },
+    /* 가위가 오른쪽에서 들어오므로 말풍선은 가운데다 — 오른쪽에 두면 가위를 덮는다 */
+    say: { x: WLD_MID, y: WLD_TOP + 12 },
     draw(p, t, _frame, enter) {
-      const left = WLD_LEFT;
+      /*
+       * **좌우로 살랑인다.** 흔들림은 도트 단위로 끊고(소수로 두면 잎 가장자리가 프레임마다
+       * 흐려진다) 한 컷 안에서 정수 번 돌게 주기를 잡는다.
+       */
+      const sway = Math.round(Math.sin((t / 1000) * Math.PI * 2) * 2);
+      const left = WLD_LEFT + sway;
       const top = WLD_TOP + Math.round((1 - enter) * 40);
 
       /* 한 번 잘리고 다 자라기까지가 한 돌이다 */
@@ -6653,46 +6665,59 @@ const WORLD_ACT_LIST: readonly WorldAct[] = [
 
       drawChive(p, left, top, WLD_SCALE, grown);
 
-      /* 가위는 자르기 직전에 다가와 그 순간 닫힌다 — 닫힌 채로 오면 뭘 했는지가 안 남는다 */
+      /*
+       * 가위는 자르기 직전에 다가와 그 순간 닫힌다 — 닫힌 채로 오면 뭘 했는지가 안 남는다.
+       *
+       * **높이는 자르기 전 잎 끝에 못박는다.** 지금 자란 높이를 따라가게 두면 잘리는 순간
+       * 잎이 짧아지면서 가위가 같이 뚝 떨어져, 자른 게 아니라 순간이동한 것으로 보인다.
+       * 좌우로는 살랑이는 몸을 따라간다 (안 따라가면 가위만 제자리에 붙박여 어긋난다).
+       */
       if (c < snip + 260) {
         const near = clamp01(c / snip);
-        const closed = c >= snip;
-        const cutY = chiveCutY(top, WLD_SCALE, closed ? 0.25 : 1) + 4;
-        drawScissors(p, Math.round(lerp(108, WLD_MID + 12, easeOut(near))), cutY, closed ? 0 : 1);
+        const cutY = chiveCutY(top, WLD_SCALE, 1) + 4;
+        drawScissors(
+          p,
+          Math.round(lerp(108, WLD_MID + 12, easeOut(near))) + sway,
+          cutY,
+          c >= snip ? 0 : 1,
+        );
       }
     },
   },
 
-  /* 3. 메뚜기 (일본) — 양봉이 서는 쪽으로 떼가 우르르 몰린다. */
+  /* 3. 메뚜기 (일본) — 양봉이 서는 쪽으로 셋이 뛴다. 그게 파래지면 반대쪽으로 또 뛴다. */
   {
     flag: "jp",
-    say: { x: WLD_MID, y: 62 },
-    draw(p, t, frame, enter) {
-      /* 좌우로 한 번씩 몰린다 — 봉이 먼저 서고 떼가 따라붙어야 뭘 보고 가는지가 읽힌다 */
-      const swing = Math.max(0, t - WLD_IN_MS) / 1400;
+    say: { x: WLD_MID, y: 76 },
+    draw(p, t, _frame, enter) {
+      /* 한 번 뛰고 내려앉기까지가 한 돌 — 뛰는 쪽이 양봉(빨강), 두고 온 쪽이 음봉(파랑) */
+      const swing = Math.max(0, t - WLD_IN_MS) / 2000;
       const toRight = Math.floor(swing) % 2 === 1;
-      const ride = easeInOut(clamp01((swing % 1) * 1.6));
+      const at = easeInOut(clamp01((swing % 1) * 1.5));
 
-      for (const [side, x] of [
-        [false, 18],
-        [true, 84],
-      ] as const) {
-        const live = side === toRight ? clamp01((swing % 1) * 3) : 1;
-        drawWorldCandle(p, x, WLD_GROUND, Math.round(14 + live * 16), true);
-      }
+      /*
+       * **봉은 뛰는 쪽만 붉다.** 색이 뒤집히는 걸 보고 방향을 바꾸는 판이라, 두 봉이 같은
+       * 색이면 왜 옮겨 가는지가 안 보인다.
+       */
+      drawWorldCandle(p, 12, WLD_GROUND, toRight ? 14 : 30, !toRight);
+      drawWorldCandle(p, 88, WLD_GROUND, toRight ? 30 : 14, toRight);
 
-      const random = seededRandom(frame.seed + 17);
-      for (let i = 0; i < 11; i += 1) {
-        const lag = random();
-        const at = clamp01((ride - lag * 0.35) / (1 - lag * 0.35));
-        const from = toRight ? 20 : 86;
-        const to = toRight ? 86 : 20;
-        const x = lerp(from, to, at) + (random() - 0.5) * 14;
-        const y = 60 + random() * 52 - Math.abs(Math.sin(at * Math.PI)) * 14;
-        const hop = flip2(t + i * 70, 100) ? 0 : 1;
+      const from = toRight ? -6 : 70;
+      const to = toRight ? 70 : -6;
 
-        /* 떼라서 한 마리는 작다 — 배율 1이라 몸 도트가 곧 무대 도트다 */
-        drawLocust(p, Math.round(x), Math.round(y + hop) + Math.round((1 - enter) * 60), 1, !toRight);
+      for (let i = 0; i < 3; i += 1) {
+        /* 셋이 반 박자씩 어긋나 뛴다 — 같이 뛰면 세 마리가 한 몸처럼 보인다 */
+        const lag = i * 0.12;
+        const step = clamp01((at - lag) / (1 - lag));
+        const x = Math.round(lerp(from, to, step));
+        /*
+         * **가는 건 좌우다.** 포물선은 건너뛰는 표시로만 얕게 주고, 셋의 높이는 같은 줄에
+         * 맞춘다 — 마리마다 아래로 층을 지어놓으면 옆으로 가는 게 아니라 떨어지는 그림이 된다.
+         */
+        const arc = Math.round(Math.sin(step * Math.PI) * 14);
+        const y = WLD_GROUND - 34 - arc - i * 3 + Math.round((1 - enter) * 60);
+
+        drawLocust(p, x, y, 1, !toRight);
       }
     },
   },
@@ -6701,15 +6726,27 @@ const WORLD_ACT_LIST: readonly WorldAct[] = [
   {
     flag: "br",
     water: true,
-    say: { x: WLD_MID, y: 78 },
+    say: { x: WLD_MID, y: 92 },
     draw(p, t, _frame, enter) {
       /* 고래는 **정어리보다 먼저** 그린다 — 뒤에 있어야 그림자로 읽힌다 */
       const swim = clamp01((t - 700) / 2400);
       const wx = lerp(126, -70, swim);
-      p.disc(wx + 30, 66, 20, "#2f5d86");
-      p.rect(wx + 10, 52, 44, 28, "#2f5d86");
-      p.rect(wx, 56, 14, 12, "#2f5d86");
-      p.dot(wx + 46, 60, "#e8f1f8");
+      /*
+       * **물빛보다 한 단 밝게.** 원래는 배경과 거의 같은 남색이라 그림자로도 안 읽혔다 —
+       * 뒤에 있는 것으로 남기되 형태는 보여야 해서 등만 한 줄 더 밝게 얹는다.
+       */
+      p.disc(wx + 30, 80, 20, "#3f7fb4");
+      p.rect(wx + 10, 66, 44, 28, "#3f7fb4");
+      p.rect(wx, 70, 14, 12, "#3f7fb4");
+      p.rect(wx + 12, 66, 40, 2, "#5b9ed0");
+
+      /* 눈빛 — 반짝이는 건 시간 위에서만 성립한다. 한 바퀴에 정수 번 돌게 잡는다 */
+      const glint = flip2(t, 260);
+      p.dot(wx + 46, 74, glint ? "#ffffff" : "#cfe4f5");
+      if (glint) {
+        p.dot(wx + 45, 73, "#eaf4ff");
+        p.dot(wx + 47, 75, "#eaf4ff");
+      }
 
       const drop = Math.round((1 - enter) * 50);
       for (let i = 0; i < 3; i += 1) {
@@ -6717,7 +6754,12 @@ const WORLD_ACT_LIST: readonly WorldAct[] = [
         const shake = flip2(t + i * 53, 100) ? 1 : 0;
         const shakeY = flip2(t + i * 37, 100) ? 0 : 1;
 
-        drawSardine(p, WLD_MID - 34 + i * 26 + shake, 96 + (i % 2) * 16 + shakeY + drop, 2, false);
+        /*
+         * **셋이 화면 안에 다 들어와야 한다.** 한 마리가 44칸이라 26칸 간격으로 셋을 놓으면
+         * 오른쪽 끝이 108칸 밖으로 나가 꼬리가 잘렸다 — 무리 전체 폭(26×2 + 44 = 96)을
+         * 재서 가운데에 앉힌다. 배율이 이미 1이라 더 줄일 수는 없다.
+         */
+        drawSardine(p, 6 + i * 26 + shake, 110 + (i % 2) * 16 + shakeY + drop, 1, false);
       }
     },
   },
@@ -6728,6 +6770,7 @@ const WORLD_ACT_LIST: readonly WorldAct[] = [
     say: { x: WLD_MID, y: WLD_TOP + 2 },
     draw(p, t, _frame, enter) {
       const gather = easeOut(clamp01((t - WLD_IN_MS) / 2200));
+      const said: SceneLabel[] = [];
 
       /* 작은 유인원들이 좌우에서 붙는다 — 큰 놈보다 먼저 그려 뒤에 서게 한다 */
       for (let i = 0; i < 4; i += 1) {
@@ -6738,36 +6781,78 @@ const WORLD_ACT_LIST: readonly WorldAct[] = [
         const bob = flip2(t + i * 90, 200) ? 0 : 2;
 
         drawApe(p, x, WLD_GROUND - 32 - bob, 1, false, side > 0);
+
+        /*
+         * **앞줄 둘만 말한다** (rank 0). 넷이 다 떠들면 화면이 말풍선으로 덮이고, 뒷줄은
+         * 앞줄에 가려 꼬리가 어디서 나온 건지도 안 보인다.
+         *
+         * 판때기는 **무대가 도트로 그리고 글자만 얹는다** (역 이름 간판과 같은 손). 주인공
+         * 말풍선보다 작아야 곁말로 읽혀서, 크기도 글자도 한 단 낮춘다.
+         */
+        if (rank > 0 || gather < 0.85) continue;
+
+        const cx = x + 16;
+        const boxY = WLD_GROUND - 32 - bob - 15;
+        p.rect(cx - 12, boxY, 24, 12, "#f6efe2");
+        p.rect(cx - 12, boxY, 24, 1, "#c9bda6");
+        p.rect(cx - 12, boxY + 11, 24, 1, "#c9bda6");
+        p.rect(cx - 2, boxY + 12, 4, 2, "#f6efe2");
+        p.rect(cx - 1, boxY + 14, 2, 1, "#f6efe2");
+
+        said.push({
+          text: APE_CHEER,
+          x: cx,
+          y: boxY + 2,
+          alpha: 1,
+          unit: 7,
+          color: "#2b3346",
+        });
       }
 
       drawApe(p, WLD_LEFT, WLD_TOP + Math.round((1 - enter) * 40), WLD_SCALE, flip2(t, 400));
+
+      return said;
     },
   },
 
-  /* 6. 햄스터 (러시아) — 바닥 봉을 주워 볼에 담는다. 볼이 부풀수록 봉이 준다. */
+  /* 6. 햄스터 (러시아) — 차트를 두 손에 쥐고 흔든다. 흔들수록 볼이 부푼다. */
   {
     flag: "ru",
     say: { x: WLD_MID, y: WLD_TOP + 2 },
     draw(p, t, _frame, enter) {
-      const eaten = clamp01((t - WLD_IN_MS) / 2400) * 5;
+      const drop = Math.round((1 - enter) * 40);
+      const top = WLD_TOP + drop;
 
-      for (let i = 0; i < 5; i += 1) {
-        const gone = clamp01(eaten - i);
-        if (gone >= 1) continue;
-        const x = 8 + i * 22;
-        /* 집히면 위로 빨려 올라가며 사라진다 */
-        p.faded(1 - gone, () => {
-          drawWorldCandle(p, x, WLD_GROUND - Math.round(gone * 24), i % 2 === 0 ? 12 : 8, i % 2 === 0);
-        });
-      }
+      /* 씹는 박자 — 루프를 짝수로 나누는 주기라야 한 바퀴 끝에서 자세가 안 튄다 */
+      const chew = flip2(t, 200);
 
-      drawHamster(
-        p,
-        WLD_LEFT,
-        WLD_TOP + Math.round((1 - enter) * 40),
-        WLD_SCALE,
-        clamp01(eaten / 5),
-      );
+      drawHamster(p, WLD_LEFT, top, WLD_SCALE, clamp01((t - WLD_IN_MS) / 2400), chew);
+
+      /*
+       * **차트는 햄스터보다 앞이다.** 두 손으로 쥔 물건이라 몸 뒤로 가면 쥔 것으로 안 읽힌다 —
+       * 몸을 먼저 찍고 그 위에 얹는다. 손이 붙는 자리(문자맵 17~21줄, 왼 9칸 · 오른 22칸)에
+       * 맞춰 판을 걸치므로 **얼굴을 다시 그리면 이 좌표도 같이 잰다.**
+       *
+       * 흔드는 건 판뿐이다 — 몸까지 같이 흔들면 흔드는 게 아니라 화면이 떠는 것으로 보인다.
+       */
+      const shake = chew ? 1 : 0;
+      /*
+       * **쥔 건 차트 한 판이 아니라 봉 하나다.** 여러 개를 그리면 판때기를 든 것으로 읽혀
+       * "봉을 쥐었다"가 안 남는다 — 두 손 사이에 한 자루만 세우고 그걸 흔든다.
+       */
+      const barX = WLD_LEFT + 13 * WLD_SCALE;
+      /*
+       * **손 높이에 맞춰 내린다.** 위로 올리면 봉이 코를 덮어 먹는 얼굴이 통째로 가려진다 —
+       * 쥔 손(문자맵 17~21줄)에 걸치는 자리가 곧 이 봉의 자리다.
+       */
+      const barTop = top + 17 * WLD_SCALE + shake;
+      const barW = 6 * WLD_SCALE;
+      const barH = 11 * WLD_SCALE;
+
+      /* 꼬리 — 몸통 위아래로 삐져나온다 (이게 없으면 그냥 막대다) */
+      p.rect(barX + barW / 2 - 1, barTop - 5, 2, barH + 10, "#d94b4b");
+      p.rect(barX, barTop, barW, barH, "#d94b4b");
+      p.rect(barX, barTop, barW, 2, "#ff8f8f");
     },
   },
 ];
@@ -6805,7 +6890,7 @@ const world: MemeScene = {
       p.rect(0, WLD_GROUND, p.w, 2, "#a98b5f");
     }
 
-    act.draw(p, t, frame, enter);
+    const extra = act.draw(p, t, frame, enter) ?? [];
 
     /* ── 국기 ── (나라 이름은 그 위, 캐릭터 이름은 아래 땅에 — 아래 `labels`) */
     p.faded(enter, () => drawFlag(p, act.flag, WLD_FLAG_LEFT, WLD_FLAG_TOP, WLD_FLAG_K));
@@ -6827,10 +6912,9 @@ const world: MemeScene = {
         {
           text: WORLD_COUNTRIES[index] ?? "",
           x: WLD_MID,
-          y: 4,
+          y: 24,
           alpha: enter,
           unit: 8,
-          bold: true,
           color: act.water ? "#eaf3fb" : "#2b3346",
         },
         /* 아래 — 거기선 개인투자자를 뭐라 부르는가 */
@@ -6840,9 +6924,9 @@ const world: MemeScene = {
           y: WLD_NAME_Y,
           alpha: enter,
           unit: 8,
-          bold: true,
           color: "#f6efe2",
         },
+        ...extra,
       ],
     };
   },

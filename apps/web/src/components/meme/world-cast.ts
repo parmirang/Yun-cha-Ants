@@ -66,15 +66,24 @@ export function drawRows(
 }
 
 /* ── 국기 ──────────────────────────────────────────────
-   15×10 도트. **나라마다 다른 빨강·파랑을 한 벌로 접었다** — 일장기의 진홍과 오성홍기의
-   주홍은 이 크기에서 안 갈리고, 색을 여섯 벌 두면 고칠 자리만 는다.
+   30×20 도트. **나라마다 다른 빨강·파랑을 한 벌로 접었다** — 일장기의 진홍과 오성홍기의
+   주홍은 이 크기에서도 안 갈리고, 색을 여섯 벌 두면 고칠 자리만 는다.
 
-   **성조기와 태극기는 단순화가 불가피하다.** 줄 열셋과 별 쉰, 태극과 괘 넷은 15칸에
-   안 들어간다 — "그 국기인 줄 알아볼 정도"로만 남기고, 위에 붙는 나라 이름이 확인해 준다.
+   **15×10을 2배로 쪼갠 자리다.** 화면에 찍히는 크기는 그대로 두고(배율을 2에서 1로 낮춘다)
+   그 안의 도트만 잘아졌다 — 클로즈업 얼굴·32칸 몸과 같은 손이다. 잘아진 만큼 15칸에서
+   포기했던 것들이 들어왔다: **태극의 S자 경계와 괘 넷**(건·감·리·곤을 제 모양으로),
+   **성조기의 줄 열셋**(빨강 두 줄 · 흰 한 줄로 스무 줄에 맞춘다), 오성홍기의 **작은 별 넷이
+   그리는 호**, 브라질의 **가로 띠**.
+
+   **그래도 별 쉰 개는 안 넣는다.** 캔톤이 12×11칸이라 쉰 개를 찍으면 파란 바탕이 통째로
+   흰 잡음이 된다 — 스무 개를 격자로 놓아 별밭으로만 읽히게 한다.
+
+   **흰 바탕 국기는 테두리가 살린다** (`drawFlag`) — 일장기·태극기·성조기는 밝은 하늘 위에서
+   국기가 아니라 허공에 뜬 무늬로 보인다.
    ────────────────────────────────────────────────────── */
 
-export const FLAG_W = 15;
-export const FLAG_H = 10;
+export const FLAG_W = 30;
+export const FLAG_H = 20;
 
 const FLAG_KEY: Readonly<Record<string, string>> = {
   w: "#f2f4f7",
@@ -86,88 +95,156 @@ const FLAG_KEY: Readonly<Record<string, string>> = {
   K: INK,
 };
 
-/** 태극기 — 태극은 대각선으로 갈라 붉고 푸르게, 괘 넷은 모서리의 검은 덩이로 줄인다 */
+/**
+ * 태극기 — 태극은 **S자로 갈라** 붉고 푸르게 (곧은 대각선으로 자르면 반씩 칠한 파이가 된다).
+ * 위쪽 끝에 푸른 점, 아래쪽 끝에 붉은 점이 하나씩 넘어가 있는 게 그 S다.
+ * 괘 넷은 5칸 막대 셋으로 제 모양을 갖는다 — 건(왼위)·감(오른위)·리(왼아래)·곤(오른아래).
+ */
 const FLAG_KR: readonly string[] = [
-  "wwwwwwwwwwwwwww",
-  "wkkwwwwwwwwwkkw",
-  "wkkwwwwwwwwwkkw",
-  "wwwwwwrrrwwwwww",
-  "wwwwwrrrbbwwwww",
-  "wwwwwrrbbbwwwww",
-  "wwwwwwbbbwwwwww",
-  "wkkwwwwwwwwwkkw",
-  "wkkwwwwwwwwwkkw",
-  "wwwwwwwwwwwwwww",
+  "wwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+  "wwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+  "wwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+  "wwkkkkkwwwwwwwwwwwwwwwwkkwkkww",
+  "wwwwwwwwwwwwwrrrrwwwwwwwwwwwww",
+  "wwkkkkkwwwwrrrrrrrrwwwwkkkkkww",
+  "wwwwwwwwwwrrrrrrrrrrwwwwwwwwww",
+  "wwkkkkkwwrrrrrrrrrrbbwwkkwkkww",
+  "wwwwwwwwwrrrrrrrrrbbbwwwwwwwww",
+  "wwwwwwwwwrrrrrrrbbbbbwwwwwwwww",
+  "wwwwwwwwwrrrrrbbbbbbbwwwwwwwww",
+  "wwwwwwwwwrrrbbbbbbbbbwwwwwwwww",
+  "wwkkkkkwwrrbbbbbbbbbbwwkkwkkww",
+  "wwwwwwwwwwbbbbbbbbbbwwwwwwwwww",
+  "wwkkwkkwwwwbbbbbbbbwwwwkkwkkww",
+  "wwwwwwwwwwwwwbbbbwwwwwwwwwwwww",
+  "wwkkkkkwwwwwwwwwwwwwwwwkkwkkww",
+  "wwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+  "wwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+  "wwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
 ];
 
-/** 오성홍기 — 큰 별 하나와 작은 별 넷 */
+/** 오성홍기 — 큰 별 하나와, 그 오른쪽으로 호를 그리는 작은 별 넷 */
 const FLAG_CN: readonly string[] = [
-  "rrrrrrrrrrrrrrr",
-  "rrrrrrryrrrrrrr",
-  "rrryrrrrrrrrrrr",
-  "rryyyrrryrrrrrr",
-  "ryyyyyrrrrrrrrr",
-  "rryyyrrryrrrrrr",
-  "rryryrrrrrrrrrr",
-  "rrrrrrryrrrrrrr",
-  "rrrrrrrrrrrrrrr",
-  "rrrrrrrrrrrrrrr",
+  "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+  "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+  "rrrrrrrrrrryrrrrrrrrrrrrrrrrrr",
+  "rrrrryrrrryyyrrrrrrrrrrrrrrrrr",
+  "rrrryyyrrryryryrrrrrrrrrrrrrrr",
+  "rryyyyyyyrrrryyyrrrrrrrrrrrrrr",
+  "rrryyyyyrrrrryryrrrrrrrrrrrrrr",
+  "rrrryyyrrrrrrryrrrrrrrrrrrrrrr",
+  "rrrryryrrrrrryyyrrrrrrrrrrrrrr",
+  "rrryrrryrrrrryryrrrrrrrrrrrrrr",
+  "rrrrrrrrrrryrrrrrrrrrrrrrrrrrr",
+  "rrrrrrrrrryyyrrrrrrrrrrrrrrrrr",
+  "rrrrrrrrrryryrrrrrrrrrrrrrrrrr",
+  "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+  "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+  "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+  "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+  "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+  "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+  "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
 ];
 
 /** 일장기 */
 const FLAG_JP: readonly string[] = [
-  "wwwwwwwwwwwwwww",
-  "wwwwwwwwwwwwwww",
-  "wwwwwwrrrwwwwww",
-  "wwwwwrrrrrwwwww",
-  "wwwwrrrrrrrwwww",
-  "wwwwrrrrrrrwwww",
-  "wwwwwrrrrrwwwww",
-  "wwwwwwrrrwwwwww",
-  "wwwwwwwwwwwwwww",
-  "wwwwwwwwwwwwwww",
+  "wwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+  "wwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+  "wwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+  "wwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+  "wwwwwwwwwwwwwrrrrwwwwwwwwwwwww",
+  "wwwwwwwwwwwrrrrrrrrwwwwwwwwwww",
+  "wwwwwwwwwwrrrrrrrrrrwwwwwwwwww",
+  "wwwwwwwwwrrrrrrrrrrrrwwwwwwwww",
+  "wwwwwwwwwrrrrrrrrrrrrwwwwwwwww",
+  "wwwwwwwwwrrrrrrrrrrrrwwwwwwwww",
+  "wwwwwwwwwrrrrrrrrrrrrwwwwwwwww",
+  "wwwwwwwwwrrrrrrrrrrrrwwwwwwwww",
+  "wwwwwwwwwrrrrrrrrrrrrwwwwwwwww",
+  "wwwwwwwwwwrrrrrrrrrrwwwwwwwwww",
+  "wwwwwwwwwwwrrrrrrrrwwwwwwwwwww",
+  "wwwwwwwwwwwwwrrrrwwwwwwwwwwwww",
+  "wwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+  "wwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+  "wwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+  "wwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
 ];
 
-/** 브라질 — 초록 바탕, 노란 마름모, 파란 원 */
+/** 브라질 — 초록 바탕, 노란 마름모, 파란 원. 흰 띠는 원 가운데가 아니라 **한 줄 아래**다 */
 const FLAG_BR: readonly string[] = [
-  "ggggggggggggggg",
-  "gggggggyggggggg",
-  "ggggggyyygggggg",
-  "gggggybbbyggggg",
-  "ggggybbbbbygggg",
-  "ggggybbbbbygggg",
-  "gggggybbbyggggg",
-  "ggggggyyygggggg",
-  "gggggggyggggggg",
-  "ggggggggggggggg",
+  "gggggggggggggggggggggggggggggg",
+  "gggggggggggggggggggggggggggggg",
+  "ggggggggggggggyyyggggggggggggg",
+  "gggggggggggggyyyyygggggggggggg",
+  "gggggggggggyyyyyyyyygggggggggg",
+  "gggggggggyyyyyyyyyyyyygggggggg",
+  "ggggggggyyyyybbbbyyyyyyggggggg",
+  "ggggggyyyyyybbbbbbyyyyyyyggggg",
+  "ggggyyyyyyybbbbbbbbyyyyyyyyggg",
+  "gggyyyyyyyybbbbbbbbyyyyyyyyygg",
+  "gggyyyyyyyywwwwwwwwyyyyyyyyygg",
+  "ggggyyyyyyywwwwwwwwyyyyyyyyggg",
+  "ggggggyyyyyybbbbbbyyyyyyyggggg",
+  "ggggggggyyyyybbbbyyyyyyggggggg",
+  "gggggggggyyyyyyyyyyyyygggggggg",
+  "gggggggggggyyyyyyyyygggggggggg",
+  "gggggggggggggyyyyygggggggggggg",
+  "ggggggggggggggyyyggggggggggggg",
+  "gggggggggggggggggggggggggggggg",
+  "gggggggggggggggggggggggggggggg",
 ];
 
-/** 성조기 — 줄은 다섯으로, 별은 파란 칸의 흰 점으로 줄인다 */
+/**
+ * 성조기 — **줄 열셋을 다 넣는다.** 스무 줄에 열셋을 앉히려고 빨강은 두 줄, 흰색은 한 줄로
+ * 잡았다 (7×2 + 6×1 = 20). 빨강이 두 배로 두껍지만 줄 수가 맞아 성조기로 읽힌다.
+ * 별은 쉰이 아니라 **스무 개**다 — 12×11칸에 쉰을 찍으면 별밭이 아니라 흰 잡음이 된다.
+ */
 const FLAG_US: readonly string[] = [
-  "bwbwbbrrrrrrrrr",
-  "bbwbwbwwwwwwwww",
-  "bwbwbbrrrrrrrrr",
-  "bbwbwbwwwwwwwww",
-  "bwbwbbrrrrrrrrr",
-  "wwwwwwwwwwwwwww",
-  "rrrrrrrrrrrrrrr",
-  "wwwwwwwwwwwwwww",
-  "rrrrrrrrrrrrrrr",
-  "wwwwwwwwwwwwwww",
+  "bbbbbbbbbbbbrrrrrrrrrrrrrrrrrr",
+  "bwbbwbbwbbwbrrrrrrrrrrrrrrrrrr",
+  "bbbbbbbbbbbbwwwwwwwwwwwwwwwwww",
+  "bwbbwbbwbbwbrrrrrrrrrrrrrrrrrr",
+  "bbbbbbbbbbbbrrrrrrrrrrrrrrrrrr",
+  "bwbbwbbwbbwbwwwwwwwwwwwwwwwwww",
+  "bbbbbbbbbbbbrrrrrrrrrrrrrrrrrr",
+  "bwbbwbbwbbwbrrrrrrrrrrrrrrrrrr",
+  "bbbbbbbbbbbbwwwwwwwwwwwwwwwwww",
+  "bwbbwbbwbbwbrrrrrrrrrrrrrrrrrr",
+  "bbbbbbbbbbbbrrrrrrrrrrrrrrrrrr",
+  "wwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+  "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+  "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+  "wwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+  "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+  "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+  "wwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+  "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+  "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
 ];
 
-/** 러시아 — 흰·파랑·빨강 세 띠 (10줄이 셋으로 안 나뉘어 가운데를 한 줄 두껍게 둔다) */
+/** 러시아 — 흰·파랑·빨강 세 띠 (20줄이 셋으로 안 나뉘어 가운데를 한 줄 얇게 둔다: 7·6·7) */
 const FLAG_RU: readonly string[] = [
-  "wwwwwwwwwwwwwww",
-  "wwwwwwwwwwwwwww",
-  "wwwwwwwwwwwwwww",
-  "bbbbbbbbbbbbbbb",
-  "bbbbbbbbbbbbbbb",
-  "bbbbbbbbbbbbbbb",
-  "bbbbbbbbbbbbbbb",
-  "rrrrrrrrrrrrrrr",
-  "rrrrrrrrrrrrrrr",
-  "rrrrrrrrrrrrrrr",
+  "wwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+  "wwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+  "wwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+  "wwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+  "wwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+  "wwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+  "wwwwwwwwwwwwwwwwwwwwwwwwwwwwww",
+  "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+  "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+  "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+  "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+  "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+  "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
+  "rrrrrrrrrrrrrrrrrrrrrrrrrrrrrr",
 ];
 
 export type FlagId = "kr" | "cn" | "jp" | "br" | "us" | "ru";
@@ -199,30 +276,30 @@ export function drawFlag(p: Painter, id: FlagId, left: number, top: number, k: n
    ────────────────────────────────────────────────────── */
 
 const CHIVE: readonly string[] = [
+  "...........G....................",
   "..........gG....................",
-  "..........gG....................",
-  "..........gG..gG................",
+  "..........gG...G................",
+  ".......G..gG..gG................",
   "......gG..gG..gG................",
-  "......gG..gG..gG................",
-  "......gG..gG..gG..gG............",
-  "......gG..gG..gG..gG............",
-  "......gG..gG..gG..gG..gG........",
-  "..gG..gG..gG..gG..gG..gG........",
-  "..gG..gG..gG..gG..gG..gG........",
-  "..gG..gG..gG..gG..gG..gG........",
-  "..gG..gG..gG..gG..gG..gG........",
-  "..gG..gG..gG..gG..gG..gG..gG....",
-  "..gG..gG..gG..gG..gG..gG..gG....",
-  "..gG..gG..gG..gG..gG..gG..gG....",
-  "..gG..gG..gG..gG..gG..gG..gG....",
-  "..gG..gG..gG..gG..gG..gG..gG....",
-  "..gG..gG..gG..gG..gG..gG..gG....",
-  "..gG..gG..gG..gG..gG..gG..gG....",
-  "..gG..gG..gG..gG..gG..gG..gG....",
-  "..gG..gG..gG..gG..gG..gG..gG....",
-  "..gG..gG..gG..gG..gG..gG..gG....",
-  "..gG..gG..gG..gG..gG..gG..gG....",
-  "..gG..gG..gG..gG..gG..gG..gG....",
+  "......gGd.gG..gG...G............",
+  "......gGd.gG..gG..gG............",
+  "......gGd.gG..gG..gG...G........",
+  "...G..gGd.gGd.gG..gG..gG........",
+  "..gG..gGd.gGd.gG..gG..gG........",
+  "..gG..gGd.gGd.gGd.gG..gG........",
+  "..gG..gGd.gGd.gGd.gG..gG........",
+  "..gGd.gGd.gGd.gGd.gGd.gG...G....",
+  "..gGd.gGd.gGd.gGd.gGd.gG..gG....",
+  "..gGd.gGd.gGd.gGd.gGd.gGd.gG....",
+  "..gGd.gGd.gGd.gGd.gGd.gGd.gG....",
+  "..gGd.gGd.gGd.gGd.gGd.gGd.gG....",
+  "..gGd.gGd.gGd.gGd.gGd.gGd.gGd...",
+  "..gGd.gGd.gGd.gGd.gGd.gGd.gGd...",
+  "..gGd.gGd.gGd.gGd.gGd.gGd.gGd...",
+  "..gGd.gGd.gGd.gGd.gGd.gGd.gGd...",
+  "..gGd.gGd.gGd.gGd.gGd.gGd.gGd...",
+  "..gGd.gGd.gGd.gGd.gGd.gGd.gGd...",
+  "..gGd.gGd.gGd.gGd.gGd.gGd.gGd...",
   "..gGd.gGd.gGd.gGd.gGd.gGd.gGd...",
   "..gGd.gGd.gGd.gGd.gGd.gGd.gGd...",
   ".wwwwwwwwwwwwwwwwwwwwwwwwwwww...",
@@ -272,16 +349,26 @@ export function chiveCutY(top: number, k: number, grown: number): number {
    ────────────────────────────────────────────────────── */
 
 const LOCUST: readonly string[] = [
-  "............nn..",
-  "..........nn....",
-  "....bbbbbbb.....",
-  "...bbbbbbbbeE...",
-  "..bbbbbbbbbeeb..",
-  "..LLbbbbbbbbb...",
-  ".LL.bbbbbbb.....",
-  "LL..l..l........",
-  "....l..l........",
-  "................",
+  "........................n.......",
+  ".......................n..nn....",
+  "......................n..n......",
+  ".......bbbbbbb........n..n......",
+  "..bbbbbbbbbbbbbbbbb...bbbbbb....",
+  ".bbbbbbbbbLbbbbbbbbbbbbbbbbbb...",
+  ".bbbbbbbbLLbbbbbbbbbbbbbbeEEbb..",
+  ".bbbbbbbbLLLbbbbbbbbbbbbbeEEbb..",
+  ".bbbbbbbLLLLLbbbbbbbbbbbbeeEbb..",
+  "..bbbbbLLLbLLLbbbbbbbbbbbbbbbb..",
+  "....bbLLLbbbbLLbbbbbbbbbbbbbbb..",
+  "......LLbbbbbbLLbbbbbbbbbKbbbb..",
+  ".....LL....bbbbbbbllbbbbbbKKb...",
+  "....LL............lllbbbbbbb....",
+  "...LL..............ll...ll......",
+  ".LLL................l....l......",
+  "LL...................l....l.....",
+  "......................ll...ll...",
+  "................................",
+  "................................",
 ];
 
 const LOCUST_KEY: Readonly<Record<string, string>> = {
@@ -294,65 +381,47 @@ const LOCUST_KEY: Readonly<Record<string, string>> = {
   E: EYE_PUPIL,
 };
 
-export const LOCUST_W = 16;
-export const LOCUST_H = 10;
+export const LOCUST_W = 32;
+export const LOCUST_H = 20;
 
 export function drawLocust(p: Painter, left: number, top: number, k: number, flipX = false): void {
   drawRows(p, LOCUST, LOCUST_KEY, left, top, k, flipX);
 }
 
-/**
- * **도트를 2배로 쪼갠 메뚜기** (32×20). 몸은 손대지 않고 칸만 네 배로 잘아진 출발점이라,
- * 여기서 사람이 다듬는다 — 처음부터 다시 그리면 같은 메뚜기가 두 벌이 된다.
- *
- * **아직 어느 판도 안 쓴다.** 쓰려면 크기 문제를 먼저 풀어야 하는데, 지금 메뚜기는 배율 1로
- * 찍혀 몸 도트가 곧 무대 도트다 — 32칸을 같은 크기로 앉히려면 배율 0.5가 필요하고 배율은
- * 정수뿐이라, 이대로 갈아끼우면 떼가 두 배로 커진다. 떼는 작아야 떼로 읽힌다.
- */
-const LOCUST_BIG: readonly string[] = [
-  "........................nnnn....",
-  "........................nnnn....",
-  "....................nnnn........",
-  "....................nnnn........",
-  "........bbbbbbbbbbbbbb..........",
-  "........bbbbbbbbbbbbbb..........",
-  "......bbbbbbbbbbbbbbbbeeEE......",
-  "......bbbbbbbbbbbbbbbbeeEE......",
-  "....bbbbbbbbbbbbbbbbbbeeeebb....",
-  "....bbbbbbbbbbbbbbbbbbeeeebb....",
-  "....LLLLbbbbbbbbbbbbbbbbbb......",
-  "....LLLLbbbbbbbbbbbbbbbbbb......",
-  "..LLLL..bbbbbbbbbbbbbb..........",
-  "..LLLL..bbbbbbbbbbbbbb..........",
-  "LLLL....ll....ll................",
-  "LLLL....ll....ll................",
-  "........ll....ll................",
-  "........ll....ll................",
-  "................................",
-  "................................",
-];
-
-export const LOCUST_BIG_W = 32;
-export const LOCUST_BIG_H = 20;
 
 /* ── 정어리 (브라질) ───────────────────────────────────
    물빛 위에 뜨므로 **은빛으로 밝게** 잡는다 — 푸른 몸으로 그리면 물에 묻힌다.
-   지느러미와 눈이 들어가도록 격자를 22칸으로 넓혔다.
+
+   **44×24 격자다** (22×12를 2배로 쪼갰다). 화면에 찍히는 크기는 그대로 두고 배율을 2에서
+   1로 낮췄다 — 잘아진 만큼 갈라진 꼬리·뾰족한 등지느러미·흰자와 눈동자가 들어왔다.
+   메뚜기가 같은 길로 못 가는 건 그쪽 배율이 이미 1이라 반으로 낮출 수가 없어서다.
    ────────────────────────────────────────────────────── */
 
 const SARDINE: readonly string[] = [
-  "......................",
-  ".........ddd..........",
-  "tt......ddddd.........",
-  "ttt...ssssssssssss....",
-  "tttt.sssssssssssssss..",
-  "ttttssssssssssssseEs..",
-  "tttssssssssssssssees..",
-  "ttttsssssssssssssss...",
-  "tttt.SSSSSSSSSSSSSS...",
-  "ttt...SSSSSSSSSSSS....",
-  "tt......fffff.........",
-  ".........fff..........",
+  "............................................",
+  "............................................",
+  "................ddd.........................",
+  ".................ddddd......................",
+  "tt...............ddddddd....................",
+  "tttt..............dddddddd..................",
+  ".tttt..............dssssssssss..............",
+  "..tttt..........ssssssssssssssssss..........",
+  "..ttttt......sssssssssssssssssssssss........",
+  "...ttttt..ssssssssssssssssssssssSsssss......",
+  "...tttttsssssssssssssssssssssssSssseEEs.....",
+  "....tttssssssssssssssssssssssssSssseEEss....",
+  ".....tsssssssssssssssssssssssssSsssseess....",
+  ".....tSSSssssssssssssssssssssssSsssssssss...",
+  "....tttSSSSSsssssssssssssssssssSsssssssss...",
+  "...tttttSSSSSSSSSSSSssssssssssssSssssSSSS...",
+  "...ttttt..SSSSSSSSSSSSSSSSSSSssssssssSSS....",
+  "..ttttt....SSSSSSSSSSSSSSSSSSSSSSSsssss.....",
+  "..tttt........SSSSSSSSSSSSSSSSSSSSSSS.......",
+  ".tttt..............SSSSSSSSSSSSSS...........",
+  "tttt................fffff...................",
+  "tt..................fff.....................",
+  "...................ff.......................",
+  "............................................",
 ];
 
 const SARDINE_KEY: Readonly<Record<string, string>> = {
@@ -366,110 +435,141 @@ const SARDINE_KEY: Readonly<Record<string, string>> = {
   E: EYE_PUPIL,
 };
 
-export const SARDINE_W = 22;
-export const SARDINE_H = 12;
+export const SARDINE_W = 44;
+export const SARDINE_H = 24;
 
 export function drawSardine(p: Painter, left: number, top: number, k: number, flipX = false): void {
   drawRows(p, SARDINE, SARDINE_KEY, left, top, k, flipX);
 }
 
-/**
- * **도트를 2배로 쪼갠 정어리** (44×24). 늘리기만 한 출발점이고 다듬는 건 사람 몫이다.
- *
- * **아직 어느 판도 안 쓴다.** 다만 정어리는 배율 2로 찍히므로 배율만 1로 낮추면 화면에
- * 찍히는 크기가 그대로다 — 메뚜기와 달리 갈아끼울 때 크기 문제가 없다.
- */
-const SARDINE_BIG: readonly string[] = [
-  "............................................",
-  "............................................",
-  "..................dddddd....................",
-  "..................dddddd....................",
-  "tttt............dddddddddd..................",
-  "tttt............dddddddddd..................",
-  "tttttt......ssssssssssssssssssssssss........",
-  "tttttt......ssssssssssssssssssssssss........",
-  "tttttttt..ssssssssssssssssssssssssssssss....",
-  "tttttttt..ssssssssssssssssssssssssssssss....",
-  "ttttttttsssssssssssssssssssssssssseeEEss....",
-  "ttttttttsssssssssssssssssssssssssseeEEss....",
-  "ttttttsssssssssssssssssssssssssssseeeess....",
-  "ttttttsssssssssssssssssssssssssssseeeess....",
-  "ttttttttssssssssssssssssssssssssssssss......",
-  "ttttttttssssssssssssssssssssssssssssss......",
-  "tttttttt..SSSSSSSSSSSSSSSSSSSSSSSSSSSS......",
-  "tttttttt..SSSSSSSSSSSSSSSSSSSSSSSSSSSS......",
-  "tttttt......SSSSSSSSSSSSSSSSSSSSSSSS........",
-  "tttttt......SSSSSSSSSSSSSSSSSSSSSSSS........",
-  "tttt............ffffffffff..................",
-  "tttt............ffffffffff..................",
-  "..................ffffff....................",
-  "..................ffffff....................",
-];
-
-export const SARDINE_BIG_W = 44;
-export const SARDINE_BIG_H = 24;
 
 /* ── 유인원 (미국) ─────────────────────────────────────
-   **팔은 문자맵에 없다.** "여기로 모여"라 팔을 들었다 내렸다 하는데, 몸에 붙여두면 자세마다
+   **팔은 몸 문자맵에 없다.** "여기로 모여"라 팔을 들었다 내렸다 하는데, 몸에 붙여두면 자세마다
    몸을 한 벌씩 더 그려야 한다 — 개미가 "프레임 사이에 바뀌는 건 팔뿐"인 것과 같은 자리라
-   팔만 따로 두고 어깨에 붙였다 머리 옆으로 옮긴다.
+   팔만 따로 두고 어깨에 붙였다 머리 옆으로 옮긴다. **몸을 다시 그릴 때 팔을 같이 그려 넣으면
+   팔이 네 개가 된다** — 아래 `drawApe`가 몸 위에 한 쌍을 늘 얹기 때문이다.
+
+   **두 프레임은 담는 방식이 다르다.** 내린 팔은 어깨 한 점에 찍는 **작은 조각**이고, 들어올린
+   팔은 몸과 같은 **32칸 층**이다 — 위·바깥으로 뻗느라 붙는 자리가 줄마다 달라서, 한 점에 찍는
+   방식으로는 어깨가 안 맞는다. 층은 좌표를 그대로 쓰고 뒤집기도 몸과 한 번에 걸린다.
    ────────────────────────────────────────────────────── */
 
 const APE: readonly string[] = [
   "................................",
-  ".........hhhhhhhhhhhhhh.........",
-  ".......hhhhhhhhhhhhhhhhhh.......",
-  "......hhhhhhhhhhhhhhhhhhhh......",
-  ".....hhhhhhhhhhhhhhhhhhhhhh.....",
-  ".....hhhhffffffffffffhhhhhh.....",
-  ".....hhhffffffffffffffhhhhh.....",
-  ".....hhhffeeffffffeeffhhhh......",
-  ".....hhhffeEffffffeEffhhhh......",
-  ".....hhhffffffffffffffhhhh......",
-  "......hhhffffffnnffffhhhh.......",
-  "......hhhhffffffffffhhhh........",
-  ".......hhhhffffffffhhhh.........",
+  ".........hhhhhhhhhhhh...........",
+  ".......hhhhhhhhhhhhhhhh.........",
+  "......hhhhhhhhhhhhhhhhhh........",
+  "......hhhhffffhhffffhhhh........",
+  "...hh.hhhffffffffffffhhh.hh.....",
+  "...hhhhhffffffffffffffhhhhh.....",
+  "...hhhhhffeEffffffeEffhhhhh.....",
+  "....hhhhffEEffnnffEEffhhhh......",
+  ".....hhhfffffnnnnfffffhhh.......",
+  ".......hhffffffffffffhh.........",
+  ".......hhhffffKKffffhhh.........",
+  "........hhhffffffffhhh..........",
+  ".........hhhhhhhhhhhh...........",
+  "...........hhhhhhhh.............",
   "........hhhhhhhhhhhhhh..........",
-  "..........hhhhhhhhhh............",
-  "......hhhhhhhhhhhhhhhhhh........",
-  "......hhhhhhhhhhhhhhhhhh........",
-  "......hhhhhhhhhhhhhhhhhh........",
-  "......hhhhhhhhhhhhhhhhhh........",
-  "......hhhhhhhhhhhhhhhhhh........",
-  "......hhhhhhhhhhhhhhhhhh........",
-  "......hhhhhhhhhhhhhhhhhh........",
-  ".......hhhhhhhhhhhhhhhh.........",
-  ".......hhhhhhhhhhhhhhhh.........",
+  "........hhhhhhhhhhhhhh..........",
+  "........hhhhhhhhhhhhhh..........",
+  "........hhhhhhhhhhhhhh..........",
+  ".........hhhhhhhhhhhh...........",
+  ".........hhhhhhhhhhhh...........",
+  ".........hhhhhhhhhhhh...........",
+  ".........hhhhhhhhhhhh...........",
+  "........hhhhhhhhhhhhhh..........",
   "........hhhhhhhhhhhhhh..........",
   "........hhhhhh..hhhhhh..........",
-  ".......hhhhhh....hhhhhh.........",
-  "......hhhhhh......hhhhhh........",
-  "......hhhhh........hhhhh........",
-  ".....hhhhhh........hhhhhh.......",
-  ".....hhhhh..........hhhhh.......",
+  ".......hhhh........hhhh.........",
+  "......hhhh..........hhhh........",
+  ".....hhhh............hhhh.......",
+  "....hhhh..............hhhh......",
+  "....hhh................hhh......",
   "................................",
 ];
 
-/** 옆으로 뻗은 팔 */
+/**
+ * 옆으로 내린 팔 — 들어올린 팔과 같은 **32칸 층**이다. 예전엔 어깨 한 점에 찍는 작은
+ * 조각이었는데, 몸을 다시 그리자 어깨가 옮겨져 팔이 허공에 떴다 — 층이면 몸과 좌표를
+ * 나눠 쓰므로 그 어긋남이 아예 생기지 않는다.
+ *
+ * **어깨 칸에 물려 시작한다** (왼 8 · 오른 21). 한 칸이라도 떼면 팔이 몸에서 떨어져
+ * 보이는데, 오른팔에서 실제로 그렇게 났다 — 왼팔만 맞춰놓고 오른쪽을 안 재서다.
+ */
 const APE_ARM_OUT: readonly string[] = [
-  "..AAAAAA",
-  ".AAAAAAA",
-  "AAAAAAAA",
-  ".AAAAAAA",
-  "..AAAA..",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  ".......AAA............AAA.......",
+  "......AAA..............AAA......",
+  "......AAA..............AAA......",
+  ".....AAA................AAA.....",
+  ".....AAA................AAA.....",
+  ".....AAA................AAA.....",
+  "....AAAA................AAAA....",
+  "....AAAA................AAAA....",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
 ];
 
-/** 들어올린 팔 */
+/**
+ * 들어올린 팔 — **몸과 같은 32칸 판**이다. 어깨에서 위·바깥으로 뻗는 자세라 붙는 자리가
+ * 줄마다 달라, 작은 조각을 한 점에 찍는 방식으로는 어깨가 안 맞는다. 몸과 같은 격자면
+ * 좌표를 그대로 쓰고 뒤집기도 몸과 한 번에 걸린다.
+ */
 const APE_ARM_UP: readonly string[] = [
-  ".AAA.",
-  "AAAAA",
-  "AAAAA",
-  "AAAAA",
-  "AAAAA",
-  "AAAAA",
-  ".AAAA",
-  ".AAAA",
-  "..AAA",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  "..A........................A....",
+  ".AA........................AA...",
+  ".AA........................AA...",
+  ".AAA......................AAA...",
+  "..AAAA..................AAAA....",
+  "...AAAAA..............AAAAA.....",
+  ".....AAA..............AAA.......",
+  ".......A..............A.........",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
+  "................................",
 ];
 
 const APE_KEY: Readonly<Record<string, string>> = {
@@ -496,11 +596,10 @@ export function drawApe(
   drawRows(p, APE, APE_KEY, left, top, k, flipX);
 
   if (calling) {
-    drawRows(p, APE_ARM_UP, APE_KEY, left + 1 * k, top + 6 * k, k);
-    drawRows(p, APE_ARM_UP, APE_KEY, left + 26 * k, top + 6 * k, k);
+    /* 층 한 장이라 좌표가 필요 없다 — 몸과 같은 격자에 그려져 있고 뒤집기도 같이 걸린다 */
+    drawRows(p, APE_ARM_UP, APE_KEY, left, top, k, flipX);
   } else {
-    drawRows(p, APE_ARM_OUT, APE_KEY, left - 2 * k, top + 15 * k, k);
-    drawRows(p, APE_ARM_OUT, APE_KEY, left + 26 * k, top + 15 * k, k, true);
+    drawRows(p, APE_ARM_OUT, APE_KEY, left, top, k, flipX);
   }
 }
 
@@ -515,35 +614,35 @@ export function drawApe(
 const HAMSTER: readonly string[] = [
   "................................",
   "................................",
-  ".....RRR..............RRR.......",
-  "....RRRRR............RRRRR......",
-  "....RRRRR............RRRRR......",
-  ".....RRR...hhhhhhh....RRR.......",
-  "........hhhhhhhhhhhhhh..........",
+  "................................",
+  "......RR..............RR........",
+  ".....RRRR............RRRR.......",
+  ".....RRRRR.hhhhhhh..RRRRR.......",
+  ".......RhhhhhhhhhhhhhhR.........",
+  "......hhhhhhhhhhhhhhhhhh........",
   "......hhhhhhhhhhhhhhhhhh........",
   ".....hhhhhhhhhhhhhhhhhhhh.......",
+  ".....hhhhEehhhhhhhEehhhhh.......",
+  "....hhhhhEEhhhhhhhEEhhhhhh......",
+  "....hhhhhhhwwwnnwwwhhhhhhh......",
+  "....hhhhhhwwwwnnwwwwhhhhhh......",
+  "...hhhhhhhhwwwwwwwwhhhhhhhh.....",
+  "...hhhhhhhhhwwwwwwhhhhhhhhh.....",
   "....hhhhhhhhhhhhhhhhhhhhhh......",
-  "....hhhheeehhhhhhheeehhhhh......",
-  "....hhhheEehhhhhhheEehhhhh......",
-  "....hhhheeehhhhhhheeehhhhh......",
+  "....hhhhhaahhhhhhhhaahhhhh......",
+  "....hhhhaAAahhhhhhaAAahhhh......",
+  "....hhhaAAahhhhhhhhaAAahhh......",
+  "....hhaAAAahhhhhhhhaAAAahh......",
+  "....hhhAAahhhhhhhhhhaAAhhh......",
+  "...hhhhhhhhhhhhhhhhhhhhhhhh.....",
+  "...hhhhhhhhhhhhhhhhhhhhhhhh.....",
+  "...hhhhhhhhhhhhhhhhhhhhhhhh.....",
+  "...hhhhhhhhhhhhhhhhhhhhhhhh.....",
   "....hhhhhhhhhhhhhhhhhhhhhh......",
-  ".....hhhhhhwwwwwwwwhhhhhhh......",
-  ".....hhhhhwwwwnnwwwwhhhhhh......",
-  "......hhhhwwwwnnwwwwhhhhh.......",
-  "......hhhhhwwwwwwwwhhhhhh.......",
-  ".......hhhhhhhhhhhhhhhh.........",
-  "........hhhhhhhhhhhhhh..........",
-  ".......hhhhhhhhhhhhhhhh.........",
+  ".....hhhhhhhhhhhhhhhhhhhh.......",
   "......hhhhhhhhhhhhhhhhhh........",
-  "....aaahhhhhhhhhhhhhhhhaaa......",
-  "...aAAAhhhhhhhhhhhhhhAAAa.......",
-  "...aAAAhhhhhhhhhhhhhhAAAa.......",
-  "....aaahhhhhhhhhhhhhhaaa........",
-  "......hhhhhhhhhhhhhhhhhh........",
-  ".......hhhhhhhhhhhhhhhh.........",
-  ".......hhhhhhhhhhhhhhhh.........",
-  "........ffff....ffff............",
-  ".......ffffff..ffffff...........",
+  ".........fff......fff...........",
+  "..........ff......ff............",
   "................................",
 ];
 
@@ -562,15 +661,48 @@ const HAMSTER_KEY: Readonly<Record<string, string>> = {
 
 export const HAMSTER_W = 32;
 export const HAMSTER_H = 32;
-/** 볼이 붙는 줄 (문자맵 좌표) */
-const CHEEK_TOP = 10;
+/*
+ * 볼이 붙는 줄 (문자맵 좌표). **몸 가장자리가 왼쪽 4칸 · 오른쪽 25칸에 닿아 있는 줄만
+ * 쓴다** — 볼은 몸 뒤에 덧그리는 사각형이라, 몸이 그 안쪽으로 물러난 줄에서는 볼과 몸
+ * 사이에 배경이 한 줄 비쳐 볼이 몸에서 떨어져 보인다. 얼굴을 다시 그리면 여기도 같이 잰다.
+ */
+const CHEEK_TOP = 11;
 const CHEEK_ROWS = 9;
 
 /**
  * 햄스터 한 마리. `puff` 0~1로 볼이 부푼다 — **양옆으로 도트 단위로 자란다** (소수로 두면
  * 볼 가장자리가 프레임마다 흐릿해진다). 볼은 몸 **뒤에** 깔아 얼굴 윤곽이 안 먹히게 한다.
  */
-export function drawHamster(p: Painter, left: number, top: number, k: number, puff: number): void {
+/**
+ * 볼의 **줄마다 폭**. 가운데가 제일 나오고 위아래로 좁아진다 — 네모로 그리면 볼이 아니라
+ * 얼굴에 붙인 판때기가 된다. 값은 `bulge`에 곱할 비율이고, **도트 단위로 끊어** 소수 폭이
+ * 안 생기게 한다 (가장자리가 프레임마다 흐려진다).
+ */
+const CHEEK_PROFILE: readonly number[] = [0.4, 0.75, 0.95, 1, 1, 1, 0.95, 0.75, 0.4];
+
+/**
+ * **먹느라 움질거리는 판.** 코와 주둥이, 그리고 두 손이 한 도트씩 오르내린다 — 몸은 안
+ * 움직인다(같이 흔들면 씹는 게 아니라 화면이 떠는 것으로 보인다).
+ *
+ * 층을 따로 두지 않고 **몸에서 그 글자만 걷어낸 판**을 만들어 쓴다. 걷어낸 자리는 배경이
+ * 아니라 이웃 색(털·주둥이)으로 메워야 구멍이 안 생긴다.
+ */
+const HAMSTER_STILL_BODY = HAMSTER.map((row) =>
+  [...row].map((c) => (c === "a" || c === "A" ? "h" : c === "n" ? "w" : c)).join(""),
+);
+const HAMSTER_MOVING = HAMSTER.map((row) =>
+  [...row].map((c) => (c === "a" || c === "A" || c === "n" ? c : ".")).join(""),
+);
+
+export function drawHamster(
+  p: Painter,
+  left: number,
+  top: number,
+  k: number,
+  puff: number,
+  /** 씹는 중이면 코·주둥이·손이 한 도트 내려간다 */
+  chew = false,
+): void {
   const bulge = Math.round(Math.max(0, Math.min(1, puff)) * 5);
 
   if (bulge > 0) {
@@ -578,15 +710,27 @@ export function drawHamster(p: Painter, left: number, top: number, k: number, pu
     const line = HAMSTER_KEY.a ?? "#7d5c34";
 
     for (const side of [-1, 1] as const) {
-      const x = side < 0 ? left + (4 - bulge) * k : left + 26 * k;
-      p.rect(x, top + CHEEK_TOP * k, bulge * k, CHEEK_ROWS * k, fur);
-      p.rect(x, top + CHEEK_TOP * k, bulge * k, k, line);
-      p.rect(x, top + (CHEEK_TOP + CHEEK_ROWS - 1) * k, bulge * k, k, line);
-      p.rect(side < 0 ? x : x + (bulge - 1) * k, top + CHEEK_TOP * k, k, CHEEK_ROWS * k, line);
+      for (let i = 0; i < CHEEK_ROWS; i += 1) {
+        const w = Math.round(bulge * (CHEEK_PROFILE[i] ?? 1));
+        if (w <= 0) continue;
+
+        /* 왼쪽 볼은 얼굴 왼끝(4칸)에서 바깥으로, 오른쪽은 오른끝(26칸)에서 바깥으로 자란다 */
+        const x = side < 0 ? left + (4 - w) * k : left + 26 * k;
+        const y = top + (CHEEK_TOP + i) * k;
+
+        p.rect(x, y, w * k, k, fur);
+        /* 바깥 끝에만 선을 세운다 — 안쪽은 얼굴에 묻혀야 볼이 얼굴에 붙어 보인다 */
+        p.rect(side < 0 ? x : x + (w - 1) * k, y, k, k, line);
+      }
     }
   }
 
-  drawRows(p, HAMSTER, HAMSTER_KEY, left, top, k);
+  if (chew) {
+    drawRows(p, HAMSTER_STILL_BODY, HAMSTER_KEY, left, top, k);
+    drawRows(p, HAMSTER_MOVING, HAMSTER_KEY, left, top + k, k);
+  } else {
+    drawRows(p, HAMSTER, HAMSTER_KEY, left, top, k);
+  }
 }
 
 /* ── 도트 랩이 읽어가는 창구 ────────────────────────────
@@ -601,9 +745,7 @@ export function drawHamster(p: Painter, left: number, top: number, k: number, pu
 export type CastId =
   | "chive"
   | "locust"
-  | "locustBig"
   | "sardine"
-  | "sardineBig"
   | "ape"
   | "apeArmOut"
   | "apeArmUp"
@@ -676,21 +818,9 @@ export const CAST_ART: Readonly<Record<CastId, CastArt>> = {
    * 도트를 쪼갠 판은 **색표와 이름표를 원본과 같은 걸 쓴다** — 두 벌로 두면 잎 색 하나를
    * 고쳤을 때 잘아진 쪽만 옛 색으로 남는다. 그림만 갈라지고 색은 한 벌이다.
    */
-  locustBig: {
-    title: "메뚜기 (32칸)",
-    rows: LOCUST_BIG,
-    key: LOCUST_KEY,
-    labels: LOCUST_LABELS,
-  },
   sardine: {
     title: "정어리 (브라질)",
     rows: SARDINE,
-    key: SARDINE_KEY,
-    labels: SARDINE_LABELS,
-  },
-  sardineBig: {
-    title: "정어리 (44칸)",
-    rows: SARDINE_BIG,
     key: SARDINE_KEY,
     labels: SARDINE_LABELS,
   },

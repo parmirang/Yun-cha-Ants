@@ -22,7 +22,7 @@ import {
   sourceRows,
   writeOverrides,
 } from "./lab-library";
-import { labPalette, paletteColors } from "./lab-palette";
+import { type PaletteId, labPalette, paletteColors } from "./lab-palette";
 import { FrameThumb, type OpenDoc, PixelLab } from "./pixel-lab";
 import { NO_FIT, bodyFit, framesToCode, recomposeRows, rowsSize } from "./pixel-doc";
 
@@ -37,6 +37,8 @@ import { NO_FIT, bodyFit, framesToCode, recomposeRows, rowsSize } from "./pixel-
  */
 export function PixelLibrary() {
   const [charId, setCharId] = useState(LIB_CHARS[0]?.id ?? "ant");
+  /** 캐릭터 하나가 아니라 그림 전부를 늘어놓는다 — 어디까지 그렸는지 재는 자리 */
+  const [all, setAll] = useState(false);
   const [open, setOpen] = useState<OpenDoc | null>(null);
   const [overrides, setOverrides] = useState<Overrides>({});
   const [stage, setStage] = useState(38);
@@ -154,21 +156,36 @@ export function PixelLibrary() {
         </Link>
         <h1 className="text-base font-bold">도트 랩 · 서랍</h1>
 
-        <select
-          value={charId}
-          onChange={(event) => {
-            setCharId(event.target.value);
-            setTouched(new Set());
-            setUndoable(null);
-          }}
-          className="rounded-md border border-[color:var(--line)] bg-[color:var(--surface)] px-2 py-1.5 text-xs"
+        {/*
+          **전체 보기는 드롭다운을 대신하지 않고 옆에 선다.** 한 캐릭터를 여는 건 고치러
+          들어가는 길이고, 전체는 "어디까지 그렸나"를 한눈에 재는 자리라 하는 일이 다르다 —
+          전체에서는 대표/딸린 동작 구분도, 반영 버튼도 없이 그림만 늘어놓는다.
+        */}
+        {!all && (
+          <select
+            value={charId}
+            onChange={(event) => {
+              setCharId(event.target.value);
+              setTouched(new Set());
+              setUndoable(null);
+            }}
+            className="rounded-md border border-[color:var(--line)] bg-[color:var(--surface)] px-2 py-1.5 text-xs"
+          >
+            {LIB_CHARS.map((item) => (
+              <option key={item.id} value={item.id}>
+                {item.title}
+              </option>
+            ))}
+          </select>
+        )}
+
+        <button
+          type="button"
+          className={all ? "btn-primary px-2.5 py-1 text-xs" : "btn-outline px-2.5 py-1 text-xs"}
+          onClick={() => setAll(!all)}
         >
-          {LIB_CHARS.map((item) => (
-            <option key={item.id} value={item.id}>
-              {item.title}
-            </option>
-          ))}
-        </select>
+          {all ? "한 캐릭터만" : "전체 보기"}
+        </button>
 
         <label className="flex items-center gap-1 text-xs text-[color:var(--muted)]">
           단계
@@ -193,7 +210,10 @@ export function PixelLibrary() {
         <span className="ml-auto text-xs text-[color:var(--muted)]">{note}</span>
       </header>
 
-      {char.masters.map((masterId) => (
+      {all && <AllPoses overrides={overrides} stage={stage} onOpen={setOpen} />}
+
+      {!all &&
+        char.masters.map((masterId) => (
         <MasterSection
           key={masterId}
           char={char}
@@ -255,6 +275,82 @@ export function PixelLibrary() {
         />
       ))}
     </main>
+  );
+}
+
+/**
+ * **그림 전부를 한 화면에** — 캐릭터를 하나씩 골라 들어가지 않고 어디까지 그렸는지 재는 자리.
+ *
+ * 여기서는 **대표와 딸린 동작을 구분하지 않는다.** 그 구분은 "고치면 뭐가 따라오나"를 위한
+ * 것이라 고치러 들어갈 때 필요하고, 훑어볼 때는 오히려 같은 캐릭터의 그림이 두 덩이로
+ * 갈려 세기가 어려워진다. 반영·복사 버튼도 두지 않는다 — 누르면 그림이 바뀌는 것은
+ * 캐릭터 하나를 열고 나서 할 일이다.
+ *
+ * **격자 크기를 같이 적는다.** 16칸과 32칸이 섞여 있고 썸네일은 같은 상자에 맞춰 그려져서
+ * 그림만 봐서는 어느 쪽이 잘아진 그림인지 안 갈린다.
+ */
+function AllPoses({
+  overrides,
+  stage,
+  onOpen,
+}: {
+  overrides: Overrides;
+  stage: number;
+  onOpen: (doc: OpenDoc) => void;
+}) {
+  /* 팔레트는 열넷이라 그림마다 새로 만들면 한 화면에 마흔 번 넘게 계산한다 — 한 번만 만든다 */
+  const colorsOf = useMemo(() => {
+    const cache: Record<string, Record<string, string>> = {};
+    return (id: PaletteId) => (cache[id] ??= paletteColors(labPalette(id, stage, [])));
+  }, [stage]);
+
+  return (
+    <div className="mt-5 space-y-4">
+      {LIB_CHARS.map((char) => (
+        <section key={char.id} className="rounded-xl border border-[color:var(--line)] p-4">
+          <h2 className="text-xs font-bold">
+            {char.title}
+            <span className="ml-1.5 font-normal text-[color:var(--muted)]">
+              {char.poses.length}장
+            </span>
+          </h2>
+
+          <div className="mt-2 flex flex-wrap gap-2">
+            {char.poses.map((pose) => {
+              const rows = currentRows(overrides, char.id, pose.id);
+              const size = rowsSize(rows);
+              const edited = overrideKey(char.id, pose.id) in overrides;
+
+              return (
+                <button
+                  key={pose.id}
+                  type="button"
+                  onClick={() =>
+                    onOpen({
+                      charId: char.id,
+                      poseId: pose.id,
+                      title: `${char.title} · ${pose.title}`,
+                      rows,
+                      palette: pose.palette,
+                    })
+                  }
+                  className="flex w-[92px] flex-col items-center gap-1 rounded-lg border border-[color:var(--line)] bg-[color:var(--surface)] p-2"
+                >
+                  <FrameThumb rows={rows} colors={colorsOf(pose.palette)} box={56} />
+                  <span className="text-[10px] leading-tight">{pose.title}</span>
+                  <span className="text-[9px] text-[color:var(--muted)]">
+                    {size.w}×{size.h}
+                  </span>
+                  {edited && (
+                    <span className="text-[9px] text-[color:var(--up)]">코드에 아직 안 붙음</span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </section>
+      ))}
+    </div>
   );
 }
 

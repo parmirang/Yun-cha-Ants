@@ -1,4 +1,5 @@
 import {
+  ANT_BIG_BASIC_POSE_IDS,
   ANT_BIG_POSE_IDS,
   ANT_BIG_ROWS,
   ANT_POSE_IDS,
@@ -100,7 +101,7 @@ export const LIB_CHARS: LibChar[] = [
       title: ANT_TITLES[id] ?? id,
       palette: "bodyBig" as PaletteId,
     })),
-    masters: [...ANT_BIG_POSE_IDS],
+    masters: [...ANT_BIG_BASIC_POSE_IDS],
   },
   /* 유인원은 팔이 따로 그려져 있어 한 캐릭터로 묶는다 (몸이 대표, 팔 둘은 딸린 그림) */
   {

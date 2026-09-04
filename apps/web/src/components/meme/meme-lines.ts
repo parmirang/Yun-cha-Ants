@@ -650,6 +650,13 @@ export const BOARD_DOZE_LINES: readonly string[] = [
 export const BOARD_MOTTO: readonly [string, string] = ["일희일비", "금지"];
 export const BOARD_CLOCK: readonly [string, string, string] = ["8:59", "09:00", "장시작!"];
 
+/**
+ * 세계의 개미들 · 유인원 컷 — 곁 원숭이들이 내는 소리. **주인공 말풍선과 다른 손이다**:
+ * 이건 무대가 그린 작은 판때기에 얹는 글자(`SceneLabel`)라 뽑기 풀에 안 들어간다.
+ * 공백을 뺀 것도 이유가 있다 — 글자 폭 합이 정수여야 픽셀 폰트가 안 흐려진다.
+ */
+export const APE_CHEER = "우끼우끼";
+
 export const MEME_LINES: Readonly<Record<MemeLinePool, readonly string[]>> = {
   dig: DIG_LINES,
   ride: RIDE_LINES,
