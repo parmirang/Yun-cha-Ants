@@ -7092,8 +7092,14 @@ const BOUNCE_LOOP = 9600;
 /** 카메라가 물러나기 시작하는 시각과 물러나는 데 걸리는 시간 */
 const BNC_ZOOM_AT = 6000;
 const BNC_ZOOM_MS = 2000;
-/** 확대했을 때 화면에 남는 봉 수 — 여기까지만 보면 누구라도 상승장으로 읽는다 */
-const BNC_NEAR = 8;
+/**
+ * 확대했을 때 화면에 남는 봉 수 — 여기까지만 보면 누구라도 상승장으로 읽는다.
+ *
+ * **적을수록 봉이 길어진다.** 화면 높이를 몇 개가 나눠 갖느냐가 곧 봉 길이라서, 여덟일
+ * 땐 한 봉이 18칸이었다 — 장대라기엔 짧아 상승이 안 보였다. 다섯으로 줄이고 위아래
+ * 여백도 좁혀 30칸 안팎으로 세운다.
+ */
+const BNC_NEAR = 5;
 
 /**
  * 종가 마흔 개. **마지막 여섯만 오른다** — 확대하면 그 여섯만 보이고, 물러나면 앞의
@@ -7148,8 +7154,9 @@ const bounce: MemeScene = {
     const near = BNC_CHART.slice(n - BNC_NEAR);
     const i0 = lerp(n - BNC_NEAR, 0, view);
     const i1 = n - 1;
-    const lo = lerp(Math.min(...near), Math.min(...BNC_CHART), view) - 5;
-    const hi = lerp(Math.max(...near), Math.max(...BNC_CHART), view) + 7;
+    /* 여백은 확대에서 좁게(봉이 길어진다), 물러나서는 넓게 — 절벽 전체가 들어와야 한다 */
+    const lo = lerp(Math.min(...near) - 2, Math.min(...BNC_CHART) - 5, view);
+    const hi = lerp(Math.max(...near) + 3, Math.max(...BNC_CHART) + 7, view);
 
     const xAt = (i: number) => BNC_LEFT + ((i - i0) / (i1 - i0)) * (BNC_RIGHT - BNC_LEFT);
     const yAt = (v: number) => BNC_BOTTOM - ((v - lo) / (hi - lo)) * (BNC_BOTTOM - BNC_TOP);
@@ -7163,7 +7170,8 @@ const bounce: MemeScene = {
      * 값으로 잡아** 두므로 봉은 빈 위쪽으로 뻗어 올라간다 (자라는 만큼 창이 따라 벌어지면
      * 봉이 제자리인 것처럼 보인다). 카메라가 물러나기 전에 다 자란다.
      */
-    const grow = clamp01(t / (BNC_ZOOM_AT - 600));
+    /* 자라는 속도 — 카메라가 물러나기 한참 전에 끝나야 다 자란 장대를 보고 갈 시간이 있다 */
+    const grow = clamp01(t / ((BNC_ZOOM_AT - 600) / 2));
     const liveClose = lerp(BNC_CHART[n - 2] ?? 0, BNC_CHART[n - 1] ?? 0, grow);
 
     BNC_CHART.forEach((raw, i) => {
@@ -7190,9 +7198,13 @@ const bounce: MemeScene = {
      */
     const k = view < 0.6 ? 2 : 1;
     const grid = ANT_BIG_W * k;
+    /*
+     * **확대에서는 왼쪽에 선다.** 가운데 세웠더니 오르는 봉을 제 몸으로 가려, 정작 관객이
+     * 봐야 할 상승이 안 보였다 — 차트는 오른쪽으로 오르므로 개미는 그 반대쪽이다.
+     */
     const cx = Math.min(
       p.w - grid / 2 - 2,
-      Math.max(grid / 2 + 2, lerp(52, xAt(n - 1) - 6, view)),
+      Math.max(grid / 2 + 2, lerp(26, xAt(n - 1) - 6, view)),
     );
     /*
      * **개미는 늘 바닥에 선다.** 마지막 봉 꼭대기에 올려뒀더니 물러날수록 그 봉이 내려앉아
