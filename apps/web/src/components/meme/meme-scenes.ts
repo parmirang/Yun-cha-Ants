@@ -6803,7 +6803,8 @@ const WORLD_ACT_LIST: readonly WorldAct[] = [
   {
     flag: "br",
     water: true,
-    say: { x: WLD_MID, y: 92 },
+    /* 정어리 머리 바로 위 — 더 띄우면 누가 하는 말인지가 안 붙는다 (국기까지는 아직 여유가 있다) */
+    say: { x: WLD_MID, y: 104 },
     draw(p, t, _frame, enter) {
       /* 고래는 **정어리보다 먼저** 그린다 — 뒤에 있어야 그림자로 읽힌다 */
       const swim = clamp01((t - 700) / 2400);
