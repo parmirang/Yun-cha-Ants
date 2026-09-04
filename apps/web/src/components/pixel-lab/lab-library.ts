@@ -147,6 +147,43 @@ export function writeOverrides(next: Overrides): void {
   } catch {
     // 용량이 찼거나 사생활 모드 — 저장을 못 해도 그리는 건 계속돼야 한다.
   }
+
+  /*
+   * **저장소 안 파일에도 같이 적는다.** 브라우저 저장은 브라우저·프로필·주소마다 따로고
+   * 사이트 데이터를 지우면 날아간다 — 실제로 그렇게 하루치를 잃었다. 개발 서버에서만
+   * 열리는 통로라 배포에는 없다(404가 오면 그냥 지나간다).
+   */
+  void fetch("/api/lab-snapshot", {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ overrides: next }),
+  }).catch(() => {
+    // 서버가 없거나 배포판이면 브라우저 저장만으로 간다 — 그리는 건 안 막는다.
+  });
+}
+
+/**
+ * 저장소 안 파일에 남은 그림. **브라우저가 비어 있을 때 이걸로 되살린다** — 다른
+ * 브라우저로 열었거나 사이트 데이터를 지운 경우가 여기에 걸린다.
+ */
+export async function fetchFileOverrides(): Promise<Overrides> {
+  try {
+    const res = await fetch("/api/lab-snapshot");
+    if (!res.ok) return {};
+
+    const body = (await res.json()) as { overrides?: unknown };
+    const table = body.overrides;
+    if (!table || typeof table !== "object") return {};
+
+    const out: Overrides = {};
+    for (const [key, rows] of Object.entries(table as Record<string, unknown>)) {
+      if (Array.isArray(rows) && rows.every((row) => typeof row === "string")) out[key] = [...rows];
+    }
+
+    return out;
+  } catch {
+    return {};
+  }
 }
 
 /* ── 옛 편집창이 쓰던 저장 칸 ────────────────────────

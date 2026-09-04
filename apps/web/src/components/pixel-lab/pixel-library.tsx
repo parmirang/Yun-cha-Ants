@@ -14,6 +14,7 @@ import {
   currentRows,
   groupOf,
   limbChars,
+  fetchFileOverrides,
   overrideKey,
   parseBackup,
   readLegacyFrames,
@@ -23,7 +24,7 @@ import {
 } from "./lab-library";
 import { labPalette, paletteColors } from "./lab-palette";
 import { FrameThumb, type OpenDoc, PixelLab } from "./pixel-lab";
-import { NO_FIT, bodyFit, framesToCode, recomposeRows } from "./pixel-doc";
+import { NO_FIT, bodyFit, framesToCode, recomposeRows, rowsSize } from "./pixel-doc";
 
 /**
  * 도트 랩의 **서랍(1depth)** — 캐릭터마다 대표 자세와 거기 딸린 동작들을 한눈에 두고,
@@ -60,10 +61,28 @@ export function PixelLibrary() {
   /** 서랍이 생기기 전 편집창에 남아 있던 그림 — 있으면 꺼낼 길을 준다 */
   const [legacy, setLegacy] = useState<LegacyFrame[]>([]);
 
-  // 덮어쓰기는 마운트 뒤에 읽는다 — 서버가 그린 첫 화면과 달라지면 하이드레이션이 깨진다.
+  /*
+   * 덮어쓰기는 마운트 뒤에 읽는다 — 서버가 그린 첫 화면과 달라지면 하이드레이션이 깨진다.
+   *
+   * **브라우저가 비어 있으면 저장소 안 파일에서 되살린다.** 다른 브라우저로 열었거나
+   * 사이트 데이터를 지운 경우가 여기에 걸린다 — 예전엔 그대로 "그림이 사라진" 것으로
+   * 보였다. 브라우저에 뭔가 있으면 그쪽이 최신이므로 파일이 덮지 않는다.
+   */
   useEffect(() => {
-    setOverrides(readOverrides());
+    const local = readOverrides();
+    setOverrides(local);
     setLegacy(readLegacyFrames());
+
+    if (Object.keys(local).length > 0) return;
+
+    void fetchFileOverrides().then((fromFile) => {
+      const count = Object.keys(fromFile).length;
+      if (count === 0) return;
+
+      setOverrides(fromFile);
+      writeOverrides(fromFile);
+      setNote(`저장소에 남아 있던 그림 ${count}장을 되살렸어.`);
+    });
   }, []);
 
   const char = LIB_CHARS.find((item) => item.id === charId) ?? LIB_CHARS[0];
@@ -341,6 +360,16 @@ function MasterSection({
   const edited = overrideKey(char.id, masterId) in overrides;
 
   /*
+   * **격자가 원본과 달라지면 그 그림은 코드로 돌아갈 수 없다.** 도트 쪼개기로 16칸 서기를
+   * 32칸까지 올려 그려도 `POSES.stand`는 16칸이라 안 들어간다 — 예전엔 아무도 안 알려줘서
+   * 하루를 그리고 나서야 갈 곳이 없다는 걸 알았다. 32칸 몸을 담는 자리는 따로 있다
+   * (`ANT_BIG` = 서랍의 "개미 몸 (32칸)").
+   */
+  const sourceSize = rowsSize(sourceRows(char.id, masterId));
+  const masterSize = rowsSize(masterRows);
+  const gridMismatch = masterSize.w !== sourceSize.w || masterSize.h !== sourceSize.h;
+
+  /*
    * 대표에 **팔·다리 색으로 찍은 칸이 몇이나 되는가.** 0이면 그린 팔이 전부 몸통으로
    * 취급돼, 동작마다 제 팔다리가 그 위에 또 얹혀 **팔이 두 벌**로 흩어진다 — 화면에서
    * 제일 흔히 "팔이 날아다닌다"로 보이는 원인이라 미리 알린다.
@@ -382,6 +411,11 @@ function MasterSection({
 
           <span className="text-xs font-bold">{master.title}</span>
           {edited && <span className="text-[10px] text-[color:var(--up)]">코드에 아직 안 붙음</span>}
+          {gridMismatch && (
+            <span className="text-[10px] font-bold text-[color:var(--down)]">
+              격자 {masterSize.w}×{masterSize.h} · 원본 {sourceSize.w}×{sourceSize.h}
+            </span>
+          )}
           <span className="text-[10px] text-[color:var(--muted)]">
             팔·다리 색 {masterLimbCells}칸
           </span>
@@ -394,7 +428,16 @@ function MasterSection({
               : "이 캐릭터는 아직 동작이 하나야 — 반영할 데가 없어."}
           </p>
 
-          {edited && masterLimbCells === 0 && group.members.length > 0 && (
+          {gridMismatch && (
+            <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--down)]">
+              <b>격자가 원본과 달라 이 그림은 코드로 돌아갈 수 없어.</b> {sourceSize.w}칸짜리
+              자리에 {masterSize.w}칸 그림은 안 들어가 — 32칸으로 그리는 개미는{" "}
+              <b>&quot;개미 몸 (32칸)&quot;</b>에서 그려야 갈 곳이 있어. 지금 것은 백업으로
+              내려받아 두고, 그쪽을 열어 이어 그려.
+            </p>
+          )}
+
+          {edited && masterLimbCells === 0 && !gridMismatch && group.members.length > 0 && (
             <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--up)]">
               대표에 <b>팔·다리 색으로 찍은 칸이 없어.</b> 그러면 그린 팔이 전부 몸통으로
               취급돼서, 동작이 원래 갖고 있던 팔다리가 그 위에 또 얹혀 <b>팔이 두 벌</b>로
