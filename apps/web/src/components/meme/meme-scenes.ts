@@ -13,6 +13,7 @@ import {
   ANT_EYE,
   ANT_FACE_EYES,
   ANT_BIG_W,
+  ANT_GRID,
   antBigKey,
   antBigPoseRows,
   antPalette,
@@ -2887,13 +2888,16 @@ function drawBurst(
   alpha: number,
   seed: number,
   index: number,
+  /** 조각이 퍼지는 크기. **줌아웃하는 판만 1이 아니다** — 개미가 작아지는데 폭죽만
+   *  그대로면 조각이 주인공이 된다 */
+  size = 1,
 ) {
   const random = seededRandom(seed);
   const colors = ["#ff3b3b", "#ff9f1c", "#2ec27e", "#3b82f6", "#a855f7"] as const;
   /* 색은 순서로 돌린다 — 뽑으면 한 씨앗에서 같은 색이 연달아 터져 한 판이 통째로 붉다 */
   const color = colors[(index + Math.floor(seed)) % colors.length] ?? "#ff3b3b";
   /* 처음부터 한 뼘 벌어진 채 시작한다 — 0에서 퍼지면 터진 순간이 색 덩어리 하나로 보인다 */
-  const spread = (0.28 + 0.72 * easeOut(clamp01(age))) * 16;
+  const spread = (0.28 + 0.72 * easeOut(clamp01(age))) * 16 * size;
   /* 끝에서만 사그라든다 — 처음부터 옅어지면 흰 바탕에서 조각이 통째로 안 보인다 */
   const fade = alpha * clamp01((1 - age) * 2.2);
 
@@ -2901,8 +2905,8 @@ function drawBurst(
    * 두 겹으로 터뜨린다 — 한 겹이면 조각이 성겨서 흰 바탕에 점 몇 개로 흩어진다.
    * 안쪽 겹은 늦게 퍼지고 작아서 터진 자리에 심이 남는다.
    */
-  for (const [count, radius, size] of [
-    [16, 1, 2],
+  for (const [count, radius, dot] of [
+    [16, 1, Math.max(1, Math.round(2 * size))],
     [10, 0.62, 1],
   ] as const) {
     for (let i = 0; i < count; i += 1) {
@@ -2910,8 +2914,8 @@ function drawBurst(
       const distance = spread * radius * (0.78 + random() * 0.3);
       const x = cx + Math.cos(angle) * distance;
       /* 끝으로 갈수록 아래로 처져야 터진 것으로 읽힌다 — 동그란 고리는 굴렁쇠가 된다 */
-      const y = cy + Math.sin(angle) * distance + age * age * 8;
-      p.faded(fade, () => p.rect(x, y, size, size, color));
+      const y = cy + Math.sin(angle) * distance + age * age * 8 * size;
+      p.faded(fade, () => p.rect(x, y, dot, dot, color));
     }
   }
 
@@ -2920,8 +2924,9 @@ function drawBurst(
    * 전까지 색공 하나가 떠 있는 것처럼 보였다.
    */
   p.faded(alpha * clamp01(1 - age * 6), () => {
-    p.rect(cx - 4, cy, 9, 1, color);
-    p.rect(cx, cy - 4, 1, 9, color);
+    const arm = Math.max(1, Math.round(4 * size));
+    p.rect(cx - arm, cy, arm * 2 + 1, 1, color);
+    p.rect(cx, cy - arm, 1, arm * 2 + 1, color);
   });
 }
 
@@ -7106,9 +7111,9 @@ const BNC_NEAR = 5;
  * 서른넷이 절벽으로 드러난다. 못박은 배열이라 다시 뽑아도 안 바뀐다: 이 판에서 차트는
  * 배경이 아니라 **농담의 몸통**이라, 뽑을 때마다 절벽 모양이 달라지면 안 된다.
  *
- * **장대봉과 짧은 봉을 섞는다.** 고르게 흘러내리면 차트가 아니라 비스듬한 줄 하나가 되고,
- * 장대만 있으면 톱니가 된다 — 크게 한 번 빠지고 며칠 기어가다 또 빠지는 계단이라야 실제
- * 하락장으로 읽힌다 (열두 개가 장대, 스물일곱이 짧은 봉이다). 반등 구간에도 장대 하나와
+ * **낙폭을 네 단으로 흩는다** — 한 번에 크게 빠지는 것(넷) · 큰 것(여섯) · 잔잔한 것 ·
+ * 그 사이의 되돌림. 고르게 흘러내리면 차트가 아니라 비스듬한 줄 하나가 되고, 장대만 있으면
+ * 톱니가 된다 — **물러났을 때 봉 높이가 1칸에서 27칸까지 벌어져야** 절벽이 살아 움직인다. 반등 구간에도 장대 하나와
  * 짧은 것들을 섞어 두는데, **확대하면 그 여덟만 보이므로 거기도 차트여야** 하기 때문이다.
  *
  * **반등 구간은 짧게 시작해 마지막 셋만 길다.** 처음부터 장대만 쭉 세우면 어디가 절정인지
@@ -7123,8 +7128,10 @@ const BNC_NEAR = 5;
  * 화면을 가득 채우는 상승으로 보인다. 그게 이 판의 속임수다.
  */
 const BNC_CHART: readonly number[] = [
-  102, 93, 92, 94, 84, 82, 83, 75, 74, 73, 76, 65, 63, 64, 57, 55, 57, 48, 47, 46, 48, 40, 37, 38,
-  28, 27, 29, 22, 20, 19, 21, 12, 11, 12, 14, 16, 19, 24, 29, 49,
+  113, 99, 101, 100, 91, 94, 92, 76, 80, 79, 78, 71,
+  73, 62, 61, 64, 59, 57, 44, 49, 48, 40, 38, 40,
+  25, 28, 27, 21, 19, 23, 14, 13, 10, 11, 13, 15,
+  18, 23, 28, 48,
 ];
 
 /** 차트가 앉는 자리 */
@@ -7221,16 +7228,24 @@ const bounce: MemeScene = {
     /*
      * **시작 배율이 2다.** 3으로 두면 개미가 화면을 다 먹어 뒤의 차트가 안 보인다 — 앞
      * 6초에 관객이 봐야 하는 건 오르는 차트고, 개미는 그 앞에서 뛰는 사람이다.
+     *
+     * **다 물러나면 16칸 몸으로 갈아탄다.** 32칸 몸은 배율 1이 끝이라 더 줄일 수가 없는데,
+     * 여기서는 개미가 조그맣게 신나 있는 게 곧 농담이다 — **도트 크기를 유지한 채 비율만
+     * 줄인다는 건 도트 수를 줄인다는 뜻**이라(0.3배로 그리면 도트가 뭉개진다) 같은 개미의
+     * 16칸 몸을 쓴다. 배율이 둘 다 1이라 도트 크기는 그대로고 키만 절반이 된다.
      */
+    const tiny = view > 0.62;
     const k = view < 0.6 ? 2 : 1;
-    const grid = ANT_BIG_W * k;
+    const grid = (tiny ? ANT_GRID : ANT_BIG_W) * k;
     /*
      * **확대에서는 왼쪽에 선다.** 가운데 세웠더니 오르는 봉을 제 몸으로 가려, 정작 관객이
      * 봐야 할 상승이 안 보였다 — 차트는 오른쪽으로 오르므로 개미는 그 반대쪽이다.
      */
+    /* 물러나면 가운데에서 오른쪽으로 70% 자리 — 마지막 봉 언저리이자 화면 안이다 */
+    const home = 54 + 0.7 * 54;
     const cx = Math.min(
       p.w - grid / 2 - 2,
-      Math.max(grid / 2 + 2, lerp(26, xAt(n - 1) - 6, view)),
+      Math.max(grid / 2 + 2, lerp(26, home, view)),
     );
     /*
      * **개미는 늘 바닥에 선다.** 마지막 봉 꼭대기에 올려뒀더니 물러날수록 그 봉이 내려앉아
@@ -7244,34 +7259,32 @@ const bounce: MemeScene = {
     const lift = Math.round(hop * 20 * (1 - view * 0.6));
     const pose = hop > 0.22 ? "jump" : "stand";
 
-    drawRows(
-      p,
-      antBigPoseRows(pose),
-      antBigKey(46),
-      Math.round(cx - grid / 2),
-      Math.round(feet - grid - lift),
-      k,
-    );
+    const antX = Math.round(cx - grid / 2);
+    const antY = Math.round(feet - grid - lift);
+
+    if (tiny) p.sprite(antPixels(46, pose), antX, antY, k);
+    else drawRows(p, antBigPoseRows(pose), antBigKey(46), antX, antY, k);
 
     /*
      * 폭죽 — **물러날수록 사그라든다.** 개미가 작아지는데 폭죽만 그대로면 화면이 아니라
      * 조각들이 주인공이 되고, 무엇보다 반전 뒤까지 축포가 터지면 농담이 안 닫힌다.
      */
-    const cheer = 1 - view;
-    if (cheer > 0.02) {
-      for (let i = 0; i < 4; i += 1) {
-        const age = ((t + i * 430) % 1720) / 1720;
-        const angle = (TAU * i) / 4 + 0.6;
-        drawBurst(
-          p,
-          Math.round(cx + Math.cos(angle) * (26 + i * 4)),
-          Math.round(feet - grid - 6 + Math.sin(angle) * 22),
-          age,
-          cheer,
-          frame.seed + i * 13,
-          i,
-        );
-      }
+    const cheer = lerp(1, 0.85, view);
+    /* 개미가 작아지면 폭죽도 같이 작아지고 그만큼 몸 가까이 붙는다 — 안 그러면 조각만 남는다 */
+    const burst = lerp(1, 0.4, view);
+    for (let i = 0; i < 4; i += 1) {
+      const age = ((t + i * 430) % 1720) / 1720;
+      const angle = (TAU * i) / 4 + 0.6;
+      drawBurst(
+        p,
+        Math.round(cx + Math.cos(angle) * (26 + i * 4) * burst),
+        Math.round(feet - grid - 6 * burst + Math.sin(angle) * 22 * burst),
+        age,
+        cheer,
+        frame.seed + i * 13,
+        i,
+        burst,
+      );
     }
 
     /*
