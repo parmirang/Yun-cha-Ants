@@ -63,6 +63,9 @@ import {
 
 const STORE_KEY = "yca:pixel-lab:v1";
 
+/** 칸에 글자를 겹쳐 찍기 시작하는 배율. 이 아래는 글자가 도트를 통째로 덮는다. */
+const CHAR_ZOOM = 12;
+
 const POSE_TITLES: Record<string, string> = {
   crawl1: "기어가기 1",
   crawl2: "기어가기 2",
@@ -176,8 +179,12 @@ export function PixelLab({
   const [mirror, setMirror] = useState(false);
   const [zoom, setZoom] = useState(24);
   const [showGrid, setShowGrid] = useState(true);
-  /** 칸마다 글자를 겹쳐 보여준다 — 비슷한 갈색끼리 구별이 안 될 때 켠다 */
-  const [showChars, setShowChars] = useState(false);
+  /*
+   * 칸마다 글자를 겹쳐 보여준다. **켠 채로 시작한다** — 개미 색은 머리·가슴·배·다리가 전부
+   * 비슷한 갈색이라 끄고 그리면 팔(`w`)을 몸통 색으로 잘못 찍어도 그리는 동안에는 안 보이고,
+   * 반영할 때 가서야 팔이 두 벌로 흩어진다. 도트가 가려 답답하면 그때 끈다.
+   */
+  const [showChars, setShowChars] = useState(true);
   const [onion, setOnion] = useState(true);
   const [diagonal, setDiagonal] = useState(false);
 
@@ -715,6 +722,16 @@ export function PixelLab({
               </Chip>
             </div>
 
+            {/*
+              **켜져 있는데 안 보이면 그 까닭을 적는다.** 칸이 좁으면 글자가 도트를 통째로
+              덮어서 안 찍는데, 그걸 안 알려주면 켠 사람에게는 토글이 고장 난 것으로 보인다.
+            */}
+            {showChars && zoom < CHAR_ZOOM && (
+              <p className="mt-1.5 text-[11px] text-[color:var(--muted)]">
+                지금 배율({zoom}배)에서는 글자가 도트를 덮어 안 찍어 — {CHAR_ZOOM}배부터 보여.
+              </p>
+            )}
+
             <div className="mt-2 grid grid-cols-2 gap-1.5">
               <Chip onClick={undo}>되돌리기</Chip>
               <Chip onClick={redo}>다시하기</Chip>
@@ -729,14 +746,22 @@ export function PixelLab({
                   type="button"
                   title={`${swatch.label} · ${swatch.char}${i < 9 ? ` · ${i + 1}` : ""}`}
                   onClick={() => setChar(swatch.char)}
-                  className="flex h-11 w-11 flex-col items-center justify-center rounded-md border text-[10px] font-bold"
+                  className="flex h-14 w-14 flex-col items-center justify-center gap-0.5 overflow-hidden rounded-md border px-0.5"
                   style={{
                     background: swatch.color,
                     borderColor: char === swatch.char ? "var(--fg)" : "transparent",
                     color: readable(swatch.color),
                   }}
                 >
-                  {swatch.char}
+                  <span className="text-[11px] font-bold leading-none">{swatch.char}</span>
+                  {/*
+                    **이름표를 칸 안에 같이 적는다.** 개미 색은 전부 비슷한 갈색이라 칩만
+                    봐서는 어느 게 가슴이고 어느 게 배인지 안 갈리고, 글자(`h`·`t`·`g`)도
+                    그 자체로는 뜻을 안 알려준다 — 예전엔 마우스를 올려야 나왔다.
+                  */}
+                  <span className="text-[8px] leading-[1.15] font-normal opacity-90">
+                    {swatch.label}
+                  </span>
                 </button>
               ))}
             </div>
@@ -1179,7 +1204,7 @@ function GridCanvas({
      * 칸이 좁으면 글자가 도트를 덮으므로 **넉넉할 때만** 찍고, 바탕색의 밝기를 보고
      * 글자색을 뒤집어 어느 색 위에서도 읽히게 한다.
      */
-    if (showChars && zoom >= 12) {
+    if (showChars && zoom >= CHAR_ZOOM) {
       ctx.globalAlpha = 1;
       ctx.font = `bold ${Math.floor(zoom * 0.5)}px ui-monospace, monospace`;
       ctx.textAlign = "center";

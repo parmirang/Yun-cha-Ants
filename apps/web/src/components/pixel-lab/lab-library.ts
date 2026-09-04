@@ -84,24 +84,6 @@ export const ANT32_CHAR_ID = "ant32";
 export const ANT32_TITLE = "개미 (32칸)";
 
 export const LIB_CHARS: LibChar[] = [
-  {
-    id: "ant",
-    /*
-     * **"옛 16칸"이라고 적어둔다.** 앱과 기존 짤이 여전히 쓰는 그림이라 손대면 화면이
-     * 바뀐다 — 새로 그리는 건 아래 32칸 쪽이라는 걸 목록에서 바로 보여야 한다.
-     */
-    title: "개미 (옛 16칸)",
-    poses: [
-      ...ANT_POSE_IDS.map((id) => ({ id, title: ANT_TITLES[id] ?? id, palette: "body" as PaletteId })),
-      { id: ANT_BIG_ID, title: "개미 몸 (32칸 · 세계의 개미들)", palette: "bodyBig" as PaletteId },
-    ],
-    /*
-     * 서기가 수직 몸을, 엎드리기가 수평 몸을 거느린다 (아래 `groupOf`가 실제로 재서 정한다).
-     * 큰 개미는 거느릴 동작이 없지만 **여기 적어야 열린다** — 대표가 아닌 그림은 "따로 그린
-     * 자세"에 이름만 적히고 눌리지 않아서, 예전엔 열 길이 아예 없었다.
-     */
-    masters: ["stand", "prone", ANT_BIG_ID],
-  },
   /*
    * **32칸 개미** — 앱 서기를 2×2로 늘린 데서 출발해 사람이 다듬는 자리다. 16칸 표와
    * 한 목록에 섞지 않는 건, 마흔 개가 한 줄에 서면 어느 쪽을 고치는 중인지가 안 보여서다.
@@ -146,6 +128,28 @@ export const LIB_CHARS: LibChar[] = [
       palette: id as PaletteId,
     })),
     masters: CAST_IDS.filter((id) => id.startsWith("flag")),
+  },
+  /*
+   * **옛 16칸은 목록 맨 아래다.** 새로 그리는 건 32칸 쪽이고 이쪽은 앱과 기존 짤이
+   * 그대로 쓰는 그림이라, 무심코 먼저 열어 손대는 일이 없게 끝으로 물린다.
+   */
+  {
+    id: "ant",
+    /*
+     * **"옛 16칸"이라고 적어둔다.** 앱과 기존 짤이 여전히 쓰는 그림이라 손대면 화면이
+     * 바뀐다 — 새로 그리는 건 아래 32칸 쪽이라는 걸 목록에서 바로 보여야 한다.
+     */
+    title: "개미 (옛 16칸)",
+    poses: [
+      ...ANT_POSE_IDS.map((id) => ({ id, title: ANT_TITLES[id] ?? id, palette: "body" as PaletteId })),
+      { id: ANT_BIG_ID, title: "개미 몸 (32칸 · 세계의 개미들)", palette: "bodyBig" as PaletteId },
+    ],
+    /*
+     * 서기가 수직 몸을, 엎드리기가 수평 몸을 거느린다 (아래 `groupOf`가 실제로 재서 정한다).
+     * 큰 개미는 거느릴 동작이 없지만 **여기 적어야 열린다** — 대표가 아닌 그림은 "따로 그린
+     * 자세"에 이름만 적히고 눌리지 않아서, 예전엔 열 길이 아예 없었다.
+     */
+    masters: ["stand", "prone", ANT_BIG_ID],
   },
 ];
 
@@ -250,6 +254,26 @@ export function parseBackup(text: string): Overrides | null {
   } catch {
     return null;
   }
+}
+
+/**
+ * **코드와 같아진 덮어쓰기를 걷어낸다.** 그린 걸 코드에 붙이고 나면 덮어쓰기와 원본이
+ * 같은 그림인데, 그걸 안 지우면 "코드에 아직 안 붙음"이 계속 붙어 있어 **붙였는지 아닌지를
+ * 화면이 거짓으로 말한다.** 편집창은 획을 그을 때마다 이 판정을 하지만, 붙이는 일은 랩
+ * 밖(코드 파일)에서 일어나므로 **열 때 한 번 더 재야** 한다.
+ */
+export function pruneApplied(overrides: Overrides): Overrides {
+  const out: Overrides = {};
+
+  for (const [key, rows] of Object.entries(overrides)) {
+    const [charId, poseId] = key.split(":");
+    const source = sourceRows(charId ?? "", poseId ?? "");
+    const same = rows.length === source.length && rows.every((row, y) => row === source[y]);
+
+    if (!same) out[key] = rows;
+  }
+
+  return out;
 }
 
 /** 지금 화면에 보여야 할 그림 — 고친 게 있으면 그것, 없으면 코드의 원본 */

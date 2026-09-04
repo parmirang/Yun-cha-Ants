@@ -17,6 +17,7 @@ import {
   fetchFileOverrides,
   overrideKey,
   parseBackup,
+  pruneApplied,
   readOverrides,
   sourceRows,
   writeOverrides,
@@ -65,17 +66,22 @@ export function PixelLibrary() {
    * 보였다. 브라우저에 뭔가 있으면 그쪽이 최신이므로 파일이 덮지 않는다.
    */
   useEffect(() => {
-    const local = readOverrides();
+    const stored = readOverrides();
+    const local = pruneApplied(stored);
     setOverrides(local);
+
+    // 걷어낸 게 있으면 저장한 것도 줄여 둔다 — 안 그러면 열 때마다 같은 걸 다시 걷는다.
+    if (Object.keys(local).length !== Object.keys(stored).length) writeOverrides(local);
 
     if (Object.keys(local).length > 0) return;
 
     void fetchFileOverrides().then((fromFile) => {
-      const count = Object.keys(fromFile).length;
+      const pruned = pruneApplied(fromFile);
+      const count = Object.keys(pruned).length;
       if (count === 0) return;
 
-      setOverrides(fromFile);
-      writeOverrides(fromFile);
+      setOverrides(pruned);
+      writeOverrides(pruned);
       setNote(`저장소에 남아 있던 그림 ${count}장을 되살렸어.`);
     });
   }, []);
@@ -386,6 +392,17 @@ function MasterSection({
             </p>
           )}
 
+          {/*
+            **코드로 꺼내는 버튼은 늘 있어야 한다.** 예전엔 딸린 동작이 있을 때만 떠서, 동작이
+            없는 대표(32칸 개미의 기본 자세 여덟)는 다 그려놓고도 코드에 붙일 길이 없었다 —
+            브라우저에만 남은 그림은 언젠가 잃는 그림이다.
+          */}
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <button type="button" className="btn-outline px-3 py-1.5 text-xs" onClick={copyGroup}>
+              {group.members.length > 0 ? "묶음 코드 복사" : "코드 복사"}
+            </button>
+          </div>
+
           {group.members.length > 0 && (
             <div className="mt-2 flex flex-wrap items-center gap-2">
               {/*
@@ -425,10 +442,6 @@ function MasterSection({
                   반영 취소
                 </button>
               )}
-
-              <button type="button" className="btn-outline px-3 py-1.5 text-xs" onClick={copyGroup}>
-                묶음 코드 복사
-              </button>
 
               {/* 팔다리를 어떻게 할지는 **고르는 사람 몫이다** — 그림을 어떻게 고쳤는지에 달렸다 */}
               <select
