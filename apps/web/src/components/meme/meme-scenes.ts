@@ -7158,11 +7158,18 @@ const bounce: MemeScene = {
     const lo = lerp(Math.min(...near) - 2, Math.min(...BNC_CHART) - 5, view);
     const hi = lerp(Math.max(...near) + 3, Math.max(...BNC_CHART) + 7, view);
 
-    const xAt = (i: number) => BNC_LEFT + ((i - i0) / (i1 - i0)) * (BNC_RIGHT - BNC_LEFT);
-    const yAt = (v: number) => BNC_BOTTOM - ((v - lo) / (hi - lo)) * (BNC_BOTTOM - BNC_TOP);
-
+    /*
+     * **봉은 점이 아니라 칸을 차지한다.** 예전엔 값 하나를 x 한 점에 앉히고 거기서
+     * 오른쪽으로 몸통을 그려서, 마지막 봉의 왼쪽 끝이 화면 경계에 놓이며 몸통 폭만큼
+     * 잘렸다 — 칸(`step`)을 먼저 나누고 그 안에서 가운데 정렬하면 양끝이 다 들어온다.
+     */
     const step = (BNC_RIGHT - BNC_LEFT) / (i1 - i0 + 1);
     const body = Math.max(1, Math.round(step * 0.62));
+    /** 봉 하나가 앉는 칸의 왼쪽 끝 */
+    const slotAt = (i: number) => BNC_LEFT + (i - i0) * step;
+    /** 칸 한가운데 — 꼬리와 개미가 여기에 맞춘다 */
+    const xAt = (i: number) => slotAt(i) + step / 2;
+    const yAt = (v: number) => BNC_BOTTOM - ((v - lo) / (hi - lo)) * (BNC_BOTTOM - BNC_TOP);
 
     /*
      * **마지막 봉은 자라는 중이다.** 다 그려진 차트를 켜놓으면 시간이 안 흐른다 — 지금
@@ -7176,8 +7183,10 @@ const bounce: MemeScene = {
 
     BNC_CHART.forEach((raw, i) => {
       const close = i === n - 1 ? liveClose : raw;
-      const x = Math.round(xAt(i));
-      if (x < BNC_LEFT - step || x > BNC_RIGHT + step) return;
+      const mid = xAt(i);
+      if (mid < BNC_LEFT - step || mid > BNC_RIGHT + step) return;
+
+      const x = Math.round(mid - body / 2);
 
       const open = BNC_CHART[i - 1] ?? close - 4;
       const up = close >= open;
@@ -7186,7 +7195,7 @@ const bounce: MemeScene = {
       /* 몸통은 한 줄을 보장한다 — 물러나면 값 차이가 눌려 아예 안 그려진다 */
       const h = Math.max(1, Math.round(yAt(Math.min(open, close))) - top);
 
-      p.rect(x + Math.floor(body / 2), top - 2, 1, h + 4, color);
+      p.rect(Math.round(mid), top - 2, 1, h + 4, color);
       p.rect(x, top, body, h, color);
     });
 
