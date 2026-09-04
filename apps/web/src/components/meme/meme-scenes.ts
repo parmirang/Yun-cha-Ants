@@ -7164,7 +7164,13 @@ const bounce: MemeScene = {
      * 잘렸다 — 칸(`step`)을 먼저 나누고 그 안에서 가운데 정렬하면 양끝이 다 들어온다.
      */
     const step = (BNC_RIGHT - BNC_LEFT) / (i1 - i0 + 1);
-    const body = Math.max(1, Math.round(step * 0.62));
+    /*
+     * **몸통 폭은 홀수로 잡는다.** 꼬리가 한 칸이라 짝수 폭에서는 가운데 칸이 아예 없어
+     * 늘 반 칸 어긋난다 — 도트 그림에서 반 칸은 없으므로 폭 쪽을 홀수로 맞춘다.
+     */
+    const raw = Math.max(1, Math.round(step * 0.62));
+    /* 홀수로 **올려** 잡는다 — 내리면 물러났을 때 폭이 한 칸이 되어 몸통이 실선으로 가늘어진다 */
+    const body = raw % 2 === 0 ? raw + 1 : raw;
     /** 봉 하나가 앉는 칸의 왼쪽 끝 */
     const slotAt = (i: number) => BNC_LEFT + (i - i0) * step;
     /** 칸 한가운데 — 꼬리와 개미가 여기에 맞춘다 */
@@ -7186,7 +7192,12 @@ const bounce: MemeScene = {
       const mid = xAt(i);
       if (mid < BNC_LEFT - step || mid > BNC_RIGHT + step) return;
 
+      /*
+       * **꼬리 자리는 몸통에서 뽑는다.** 둘을 각자 반올림하면 한 칸씩 어긋나 꼬리가
+       * 몸통 가운데를 벗어난다 (`round(mid)`와 `round(mid - body/2)`는 같이 안 움직인다).
+       */
       const x = Math.round(mid - body / 2);
+      const wick = x + (body - 1) / 2;
 
       const open = BNC_CHART[i - 1] ?? close - 4;
       const up = close >= open;
@@ -7195,7 +7206,7 @@ const bounce: MemeScene = {
       /* 몸통은 한 줄을 보장한다 — 물러나면 값 차이가 눌려 아예 안 그려진다 */
       const h = Math.max(1, Math.round(yAt(Math.min(open, close))) - top);
 
-      p.rect(Math.round(mid), top - 2, 1, h + 4, color);
+      p.rect(wick, top - 2, 1, h + 4, color);
       p.rect(x, top, body, h, color);
     });
 
