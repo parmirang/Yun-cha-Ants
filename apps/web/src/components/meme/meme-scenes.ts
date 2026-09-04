@@ -6677,9 +6677,40 @@ const WORLD_ACT_LIST: readonly WorldAct[] = [
        */
       const left = WLD_LEFT;
       const top = WLD_TOP + Math.round((1 - enter) * 40);
+      const key = antBigKey(44);
+
+      /*
+       * **뒤에서도 다른 개미들이 판다** — 혼자 파면 굴이 아니라 마당이다.
+       *
+       * 크기는 **배율 1**이다(주인공의 절반). 스프라이트 배율은 정수뿐이라 0.6배 같은 값은
+       * 없고, 소수로 그리면 도트가 정수 픽셀에 안 떨어져 뒷개미만 흐려진다 — 도트 그림에서
+       * "조금 작게"는 없다.
+       *
+       * **주인공보다 먼저 그린다** (뒤에 서야 한다). 곡괭이질도 박자를 어긋나게 줘야 셋이
+       * 한 몸처럼 안 움직인다.
+       */
+      for (const [bx, phase] of [
+        [-4, 70],
+        [80, 130],
+      ] as const) {
+        const small = WLD_GROUND - 32;
+        drawRows(p, antBigPoseRows(flip2(t + phase, 200) ? "dig1" : "dig2"), key, bx, small, 1);
+
+        /* 튀는 흙은 뒤에서도 조금 — 동전은 안 준다 (그건 주인공 몫이다) */
+        for (let i = 0; i < 2; i += 1) {
+          const age = ((t + phase + i * 260) % 700) / 700;
+          p.rect(
+            bx + 28 + Math.round(age * 6),
+            WLD_GROUND - 3 - Math.round(Math.sin(age * Math.PI) * 6),
+            2,
+            2,
+            "#a98b5f",
+          );
+        }
+      }
 
       /* 파는 건 팔뿐이다 — 몸통을 좌표까지 물려받은 두 프레임을 갈아끼운다 */
-      drawRows(p, antBigPoseRows(flip2(t, 200) ? "dig1" : "dig2"), antBigKey(44), left, top, WLD_SCALE);
+      drawRows(p, antBigPoseRows(flip2(t, 200) ? "dig1" : "dig2"), key, left, top, WLD_SCALE);
 
       /*
        * 튀는 흙 — 곡괭이 끝(오른쪽)에서만 튄다. **셋에 하나는 동전이다**: 파는 게 헛수고가
