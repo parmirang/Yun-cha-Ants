@@ -7127,6 +7127,9 @@ const bounce: MemeScene = {
     /* ── 시세창 ── */
     p.rect(0, 0, p.w, p.h, "#10141f");
     for (let y = BNC_TOP; y < BNC_BOTTOM; y += 26) p.rect(BNC_LEFT, y, BNC_RIGHT - BNC_LEFT, 1, "#1b2333");
+    /* 바닥 — 개미가 딛는 자리가 보여야 "떠 있지 않다"가 읽힌다 */
+    p.rect(0, BNC_BOTTOM, p.w, p.h - BNC_BOTTOM, "#1a2231");
+    p.rect(0, BNC_BOTTOM, p.w, 1, "#2c3a52");
 
     /*
      * 보는 창. 확대는 마지막 여덟 개와 그 값폭만, 물러나면 전부다 — **오른쪽 끝은 안
@@ -7160,13 +7163,19 @@ const bounce: MemeScene = {
     });
 
     /* ── 개미 ── */
-    const last = BNC_CHART[n - 1] ?? 0;
     /* 배율이 뛰는 자리를 폭죽 박자에 겹쳐 감춘다 */
     const k = view < 0.34 ? 3 : view < 0.78 ? 2 : 1;
     const grid = ANT_BIG_W * k;
-    /* 확대에선 화면 가운데, 물러나면 마지막 봉 위 — 카메라가 아니라 자리가 옮겨간다 */
-    const cx = lerp(52, xAt(n - 1) - 4, view);
-    const feet = lerp(BNC_BOTTOM - 16, yAt(last) - 2, view);
+    const cx = Math.min(
+      p.w - grid / 2 - 2,
+      Math.max(grid / 2 + 2, lerp(52, xAt(n - 1) - 6, view)),
+    );
+    /*
+     * **개미는 늘 바닥에 선다.** 마지막 봉 꼭대기에 올려뒀더니 물러날수록 그 봉이 내려앉아
+     * 개미만 허공에 떠 있었다 — 이 판에서 카메라가 물러나는 건 **차트**지 바닥이 아니다.
+     * 좌우로만 마지막 봉 쪽으로 옮겨가고, 화면 밖으로 나가지 않게 양끝을 물린다.
+     */
+    const feet = BNC_BOTTOM - 1;
 
     /* 뛴다 — 공중에서만 `jump`, 발이 닿으면 `stand` */
     const hop = Math.abs(Math.sin((t / 620) * Math.PI));
