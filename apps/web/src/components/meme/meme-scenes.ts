@@ -6532,7 +6532,7 @@ const board: MemeScene = {
  * 고래 그림자 · 바닥에 널린 봉). 정어리 컷만 배경을 물빛으로 물들이는데, 고래가 무섭다는
  * 말이 물속이라야 서기 때문이다 — 색만 갈아끼우는 거라 무대를 새로 짓는 건 아니다.
  */
-const WORLD_CUT_MS = 4000;
+const WORLD_CUT_MS = 5000;
 const WORLD_ACTS = 6;
 /** 800의 배수라 두 프레임을 갈아끼우는 주기(100·200·400)가 짝수 번 들어간다 */
 const WORLD_LOOP = WORLD_CUT_MS * WORLD_ACTS;
@@ -6541,7 +6541,7 @@ const WLD_IN_MS = 400;
 const WLD_OUT_AT = WORLD_CUT_MS - 600;
 /** 말풍선이 뜨는 창 — 양끝에서 알파가 0이라 컷 전환에서 안 튄다 */
 const WLD_SAY_FROM = 600;
-const WLD_SAY_TO = 3300;
+const WLD_SAY_TO = 4300;
 
 /**
  * **바닥선.** 아래 흙 띠가 화면(192칸)의 나머지라, 이 값을 내리면 띠가 얇아지고 하늘이
@@ -6784,7 +6784,8 @@ const WORLD_ACT_LIST: readonly WorldAct[] = [
     say: { x: WLD_MID, y: 100 },
     draw(p, t, _frame, enter) {
       /* 한 번 뛰고 내려앉기까지가 한 돌 — 뛰는 쪽이 양봉(빨강), 두고 온 쪽이 음봉(파랑) */
-      const swing = Math.max(0, t - WLD_IN_MS) / 2000;
+      /* 컷 안에서 정확히 두 번 건너뛴다 — 남는 시간(컷 − 등장)을 반으로 나눈 값이다 */
+      const swing = Math.max(0, t - WLD_IN_MS) / ((WORLD_CUT_MS - WLD_IN_MS) / 2);
       const toRight = Math.floor(swing) % 2 === 1;
       const at = easeInOut(clamp01((swing % 1) * 1.5));
 
@@ -6838,7 +6839,7 @@ const WORLD_ACT_LIST: readonly WorldAct[] = [
     say: { x: WLD_MID, y: 104 },
     draw(p, t, _frame, enter) {
       /* 고래는 **정어리보다 먼저** 그린다 — 뒤에 있어야 그림자로 읽힌다 */
-      const swim = clamp01((t - 700) / 2400);
+      const swim = clamp01((t - 700) / (WORLD_CUT_MS - 1100));
       const wx = Math.round(lerp(108, -100, swim));
       /*
        * **배율 2다.** 도트 그림이라 배율은 정수뿐이라서 2.5배는 못 넣는다 — 48칸 몸이
