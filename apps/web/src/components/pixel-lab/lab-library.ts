@@ -1,4 +1,11 @@
-import { ANT_BIG_ROWS, ANT_POSE_IDS, antPoseRows } from "@/components/ant-sprite";
+import {
+  ANT_BIG_POSE_IDS,
+  ANT_BIG_ROWS,
+  ANT_POSE_IDS,
+  type AntBigPose,
+  antBigPoseRows,
+  antPoseRows,
+} from "@/components/ant-sprite";
 import { CAST_ART, CAST_IDS } from "@/components/meme/world-cast";
 
 import { type PaletteId, labPalette } from "./lab-palette";
@@ -72,16 +79,46 @@ const ANT_TITLES: Record<string, string> = {
 
 const ANT_BIG_ID = "antBig";
 
+/** 32칸 표를 담은 캐릭터의 id. 덮어쓰기 키(`ant32:stand`)가 16칸(`ant:stand`)과 안 겹친다. */
+export const ANT32_CHAR_ID = "ant32";
+export const ANT32_TITLE = "개미 (32칸)";
+
 export const LIB_CHARS: LibChar[] = [
   {
     id: "ant",
-    title: "개미",
+    /*
+     * **"옛 16칸"이라고 적어둔다.** 앱과 기존 짤이 여전히 쓰는 그림이라 손대면 화면이
+     * 바뀐다 — 새로 그리는 건 아래 32칸 쪽이라는 걸 목록에서 바로 보여야 한다.
+     */
+    title: "개미 (옛 16칸)",
     poses: [
       ...ANT_POSE_IDS.map((id) => ({ id, title: ANT_TITLES[id] ?? id, palette: "body" as PaletteId })),
-      { id: ANT_BIG_ID, title: "개미 몸 (32칸)", palette: "bodyBig" as PaletteId },
+      { id: ANT_BIG_ID, title: "개미 몸 (32칸 · 세계의 개미들)", palette: "bodyBig" as PaletteId },
     ],
-    /* 서기가 수직 몸을, 엎드리기가 수평 몸을 거느린다 (아래 `groupOf`가 실제로 재서 정한다) */
-    masters: ["stand", "prone"],
+    /*
+     * 서기가 수직 몸을, 엎드리기가 수평 몸을 거느린다 (아래 `groupOf`가 실제로 재서 정한다).
+     * 큰 개미는 거느릴 동작이 없지만 **여기 적어야 열린다** — 대표가 아닌 그림은 "따로 그린
+     * 자세"에 이름만 적히고 눌리지 않아서, 예전엔 열 길이 아예 없었다.
+     */
+    masters: ["stand", "prone", ANT_BIG_ID],
+  },
+  /*
+   * **32칸 개미** — 앱 서기를 2×2로 늘린 데서 출발해 사람이 다듬는 자리다. 16칸 표와
+   * 한 목록에 섞지 않는 건, 마흔 개가 한 줄에 서면 어느 쪽을 고치는 중인지가 안 보여서다.
+   *
+   * **여덟이 전부 대표다.** 이 여덟이 곧 "기본 자세"고 서로 몸이 달라 자동 반영으로 못
+   * 만든다 — 하나씩 열어 다듬어야 하므로 전부 제 칸을 갖는다. 팔다리만 다른 파생 자세는
+   * 여기서 갈라져 나오고, 그때 이 목록에 딸린 동작으로 붙는다.
+   */
+  {
+    id: ANT32_CHAR_ID,
+    title: ANT32_TITLE,
+    poses: ANT_BIG_POSE_IDS.map((id) => ({
+      id,
+      title: ANT_TITLES[id] ?? id,
+      palette: "bodyBig" as PaletteId,
+    })),
+    masters: [...ANT_BIG_POSE_IDS],
   },
   /* 유인원은 팔이 따로 그려져 있어 한 캐릭터로 묶는다 (몸이 대표, 팔 둘은 딸린 그림) */
   {
@@ -114,6 +151,8 @@ export const LIB_CHARS: LibChar[] = [
 
 /** 코드에 적힌 그대로의 그림. 덮어쓰기를 거치지 않은 원본이다. */
 export function sourceRows(charId: string, poseId: string): readonly string[] {
+  if (charId === ANT32_CHAR_ID) return antBigPoseRows(poseId as AntBigPose);
+
   if (charId === "ant") {
     if (poseId === ANT_BIG_ID) return ANT_BIG_ROWS;
     return antPoseRows(poseId as Parameters<typeof antPoseRows>[0]);
@@ -183,39 +222,6 @@ export async function fetchFileOverrides(): Promise<Overrides> {
     return out;
   } catch {
     return {};
-  }
-}
-
-/* ── 옛 편집창이 쓰던 저장 칸 ────────────────────────
-   서랍이 생기기 전, 편집창은 **문서 한 벌**을 이 칸에 쌓았다. 서랍은 이 칸을 안 쓰지만
-   **지우지도 않는다** — 그때 그리던 그림이 아직 남아 있고, 화면에서 꺼낼 길이 없으면
-   사람에게는 "리셋됐다"로 보인다.
-   ────────────────────────────────────────────────────── */
-
-const LEGACY_KEY = "yca:pixel-lab:v1";
-
-export interface LegacyFrame {
-  name: string;
-  rows: string[];
-}
-
-/** 옛 칸에 남아 있는 그림들. 없으면 빈 배열. */
-export function readLegacyFrames(): LegacyFrame[] {
-  try {
-    const raw = window.localStorage.getItem(LEGACY_KEY);
-    if (!raw) return [];
-
-    const parsed = JSON.parse(raw) as { frames?: unknown };
-    if (!Array.isArray(parsed.frames)) return [];
-
-    return parsed.frames
-      .filter(
-        (item): item is LegacyFrame =>
-          !!item && Array.isArray((item as LegacyFrame).rows) && (item as LegacyFrame).rows.length > 0,
-      )
-      .map((item) => ({ name: String(item.name ?? "pose"), rows: [...item.rows] }));
-  } catch {
-    return [];
   }
 }
 

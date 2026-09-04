@@ -301,6 +301,40 @@ export function drawLocust(p: Painter, left: number, top: number, k: number, fli
   drawRows(p, LOCUST, LOCUST_KEY, left, top, k, flipX);
 }
 
+/**
+ * **도트를 2배로 쪼갠 메뚜기** (32×20). 몸은 손대지 않고 칸만 네 배로 잘아진 출발점이라,
+ * 여기서 사람이 다듬는다 — 처음부터 다시 그리면 같은 메뚜기가 두 벌이 된다.
+ *
+ * **아직 어느 판도 안 쓴다.** 쓰려면 크기 문제를 먼저 풀어야 하는데, 지금 메뚜기는 배율 1로
+ * 찍혀 몸 도트가 곧 무대 도트다 — 32칸을 같은 크기로 앉히려면 배율 0.5가 필요하고 배율은
+ * 정수뿐이라, 이대로 갈아끼우면 떼가 두 배로 커진다. 떼는 작아야 떼로 읽힌다.
+ */
+const LOCUST_BIG: readonly string[] = [
+  "........................nnnn....",
+  "........................nnnn....",
+  "....................nnnn........",
+  "....................nnnn........",
+  "........bbbbbbbbbbbbbb..........",
+  "........bbbbbbbbbbbbbb..........",
+  "......bbbbbbbbbbbbbbbbeeEE......",
+  "......bbbbbbbbbbbbbbbbeeEE......",
+  "....bbbbbbbbbbbbbbbbbbeeeebb....",
+  "....bbbbbbbbbbbbbbbbbbeeeebb....",
+  "....LLLLbbbbbbbbbbbbbbbbbb......",
+  "....LLLLbbbbbbbbbbbbbbbbbb......",
+  "..LLLL..bbbbbbbbbbbbbb..........",
+  "..LLLL..bbbbbbbbbbbbbb..........",
+  "LLLL....ll....ll................",
+  "LLLL....ll....ll................",
+  "........ll....ll................",
+  "........ll....ll................",
+  "................................",
+  "................................",
+];
+
+export const LOCUST_BIG_W = 32;
+export const LOCUST_BIG_H = 20;
+
 /* ── 정어리 (브라질) ───────────────────────────────────
    물빛 위에 뜨므로 **은빛으로 밝게** 잡는다 — 푸른 몸으로 그리면 물에 묻힌다.
    지느러미와 눈이 들어가도록 격자를 22칸으로 넓혔다.
@@ -338,6 +372,42 @@ export const SARDINE_H = 12;
 export function drawSardine(p: Painter, left: number, top: number, k: number, flipX = false): void {
   drawRows(p, SARDINE, SARDINE_KEY, left, top, k, flipX);
 }
+
+/**
+ * **도트를 2배로 쪼갠 정어리** (44×24). 늘리기만 한 출발점이고 다듬는 건 사람 몫이다.
+ *
+ * **아직 어느 판도 안 쓴다.** 다만 정어리는 배율 2로 찍히므로 배율만 1로 낮추면 화면에
+ * 찍히는 크기가 그대로다 — 메뚜기와 달리 갈아끼울 때 크기 문제가 없다.
+ */
+const SARDINE_BIG: readonly string[] = [
+  "............................................",
+  "............................................",
+  "..................dddddd....................",
+  "..................dddddd....................",
+  "tttt............dddddddddd..................",
+  "tttt............dddddddddd..................",
+  "tttttt......ssssssssssssssssssssssss........",
+  "tttttt......ssssssssssssssssssssssss........",
+  "tttttttt..ssssssssssssssssssssssssssssss....",
+  "tttttttt..ssssssssssssssssssssssssssssss....",
+  "ttttttttsssssssssssssssssssssssssseeEEss....",
+  "ttttttttsssssssssssssssssssssssssseeEEss....",
+  "ttttttsssssssssssssssssssssssssssseeeess....",
+  "ttttttsssssssssssssssssssssssssssseeeess....",
+  "ttttttttssssssssssssssssssssssssssssss......",
+  "ttttttttssssssssssssssssssssssssssssss......",
+  "tttttttt..SSSSSSSSSSSSSSSSSSSSSSSSSSSS......",
+  "tttttttt..SSSSSSSSSSSSSSSSSSSSSSSSSSSS......",
+  "tttttt......SSSSSSSSSSSSSSSSSSSSSSSS........",
+  "tttttt......SSSSSSSSSSSSSSSSSSSSSSSS........",
+  "tttt............ffffffffff..................",
+  "tttt............ffffffffff..................",
+  "..................ffffff....................",
+  "..................ffffff....................",
+];
+
+export const SARDINE_BIG_W = 44;
+export const SARDINE_BIG_H = 24;
 
 /* ── 유인원 (미국) ─────────────────────────────────────
    **팔은 문자맵에 없다.** "여기로 모여"라 팔을 들었다 내렸다 하는데, 몸에 붙여두면 자세마다
@@ -531,7 +601,9 @@ export function drawHamster(p: Painter, left: number, top: number, k: number, pu
 export type CastId =
   | "chive"
   | "locust"
+  | "locustBig"
   | "sardine"
+  | "sardineBig"
   | "ape"
   | "apeArmOut"
   | "apeArmUp"
@@ -551,6 +623,24 @@ export interface CastArt {
 }
 
 const EYE_LABELS = { e: "흰자", E: "눈동자", K: "검정" } as const;
+
+/* 원본과 도트를 쪼갠 판이 **같은 이름표를 나눠 쓴다** (색표도 마찬가지 — 아래 CAST_ART) */
+const LOCUST_LABELS: Readonly<Record<string, string>> = {
+  b: "몸",
+  L: "뒷다리",
+  l: "다리",
+  n: "더듬이",
+  ...EYE_LABELS,
+};
+
+const SARDINE_LABELS: Readonly<Record<string, string>> = {
+  s: "몸",
+  S: "배",
+  t: "꼬리",
+  d: "등지느러미",
+  f: "배지느러미",
+  ...EYE_LABELS,
+};
 
 const FLAG_LABELS: Readonly<Record<string, string>> = {
   w: "흰색",
@@ -580,13 +670,29 @@ export const CAST_ART: Readonly<Record<CastId, CastArt>> = {
     title: "메뚜기 (일본)",
     rows: LOCUST,
     key: LOCUST_KEY,
-    labels: { b: "몸", L: "뒷다리", l: "다리", n: "더듬이", ...EYE_LABELS },
+    labels: LOCUST_LABELS,
+  },
+  /*
+   * 도트를 쪼갠 판은 **색표와 이름표를 원본과 같은 걸 쓴다** — 두 벌로 두면 잎 색 하나를
+   * 고쳤을 때 잘아진 쪽만 옛 색으로 남는다. 그림만 갈라지고 색은 한 벌이다.
+   */
+  locustBig: {
+    title: "메뚜기 (32칸)",
+    rows: LOCUST_BIG,
+    key: LOCUST_KEY,
+    labels: LOCUST_LABELS,
   },
   sardine: {
     title: "정어리 (브라질)",
     rows: SARDINE,
     key: SARDINE_KEY,
-    labels: { s: "몸", S: "배", t: "꼬리", d: "등지느러미", f: "배지느러미", ...EYE_LABELS },
+    labels: SARDINE_LABELS,
+  },
+  sardineBig: {
+    title: "정어리 (44칸)",
+    rows: SARDINE_BIG,
+    key: SARDINE_KEY,
+    labels: SARDINE_LABELS,
   },
   ape: {
     title: "유인원 (미국)",

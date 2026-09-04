@@ -6,8 +6,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { copyText } from "@/lib/clipboard";
 
 import {
+  ANT32_TITLE,
   LIB_CHARS,
-  type LegacyFrame,
   type LibChar,
   type Overrides,
   backupJson,
@@ -17,7 +17,6 @@ import {
   fetchFileOverrides,
   overrideKey,
   parseBackup,
-  readLegacyFrames,
   readOverrides,
   sourceRows,
   writeOverrides,
@@ -58,9 +57,6 @@ export function PixelLibrary() {
    */
   const [limbMode, setLimbMode] = useState<"keep" | "master" | "fit">("keep");
 
-  /** 서랍이 생기기 전 편집창에 남아 있던 그림 — 있으면 꺼낼 길을 준다 */
-  const [legacy, setLegacy] = useState<LegacyFrame[]>([]);
-
   /*
    * 덮어쓰기는 마운트 뒤에 읽는다 — 서버가 그린 첫 화면과 달라지면 하이드레이션이 깨진다.
    *
@@ -71,7 +67,6 @@ export function PixelLibrary() {
   useEffect(() => {
     const local = readOverrides();
     setOverrides(local);
-    setLegacy(readLegacyFrames());
 
     if (Object.keys(local).length > 0) return;
 
@@ -91,9 +86,6 @@ export function PixelLibrary() {
     setOverrides(next);
     writeOverrides(next);
   }, []);
-
-  /** 옛 그림 썸네일은 개미 팔레트로 그린다 — 어느 캐릭터 것인지 저장본이 안 들고 있다 */
-  const legacyColors = useMemo(() => paletteColors(labPalette("body", stage, [])), [stage]);
 
   const saveBackup = () => {
     const blob = new Blob([backupJson(overrides)], { type: "application/json" });
@@ -194,63 +186,6 @@ export function PixelLibrary() {
 
         <span className="ml-auto text-xs text-[color:var(--muted)]">{note}</span>
       </header>
-
-      {/*
-        서랍이 생기기 전에 그리던 그림이 옛 저장 칸에 남아 있으면 **꺼낼 길을 준다.**
-        화면에서 안 보이면 사람에게는 "리셋됐다"로 보이는데, 실제로는 지워진 적이 없다.
-      */}
-      {legacy.length > 0 && (
-        <div className="mt-4 rounded-xl border border-[color:var(--up)] p-3">
-          <p className="text-xs">
-            <b>서랍이 생기기 전에 그리던 그림 {legacy.length}장이 남아 있어.</b> 화면에서 안
-            보였을 뿐 지워진 적은 없어 — 코드로 뽑아 두거나 백업으로 내려받아.
-          </p>
-
-          <div className="mt-2 flex flex-wrap items-center gap-2">
-            {legacy.map((item, i) => (
-              <div
-                key={`${item.name}-${i}`}
-                className="flex flex-col items-center gap-1 rounded-lg border border-[color:var(--line)] bg-[color:var(--surface)] p-2"
-              >
-                <FrameThumb rows={item.rows} colors={legacyColors} box={44} />
-                <span className="text-[10px] text-[color:var(--muted)]">{item.name}</span>
-              </div>
-            ))}
-
-            <button
-              type="button"
-              className="btn-primary px-3 py-1.5 text-xs"
-              onClick={async () => {
-                const code = framesToCode(
-                  legacy.map((item, i) => ({ id: i, name: item.name, rows: [...item.rows] })),
-                  "pose",
-                );
-                setNote((await copyText(code)) ? "옛 그림을 코드로 복사했어." : "복사가 막혔어.");
-              }}
-            >
-              코드로 복사
-            </button>
-
-            <button
-              type="button"
-              className="btn-outline px-3 py-1.5 text-xs"
-              onClick={() => {
-                const blob = new Blob([JSON.stringify({ frames: legacy }, null, 2)], {
-                  type: "application/json",
-                });
-                const url = URL.createObjectURL(blob);
-                const link = document.createElement("a");
-                link.href = url;
-                link.download = "pixel-lab-옛작업.json";
-                link.click();
-                URL.revokeObjectURL(url);
-              }}
-            >
-              파일로 내려받기
-            </button>
-          </div>
-        </div>
-      )}
 
       {char.masters.map((masterId) => (
         <MasterSection
@@ -362,8 +297,8 @@ function MasterSection({
   /*
    * **격자가 원본과 달라지면 그 그림은 코드로 돌아갈 수 없다.** 도트 쪼개기로 16칸 서기를
    * 32칸까지 올려 그려도 `POSES.stand`는 16칸이라 안 들어간다 — 예전엔 아무도 안 알려줘서
-   * 하루를 그리고 나서야 갈 곳이 없다는 걸 알았다. 32칸 몸을 담는 자리는 따로 있다
-   * (`ANT_BIG` = 서랍의 "개미 몸 (32칸)").
+   * 하루를 그리고 나서야 갈 곳이 없다는 걸 알았다. 32칸 자세를 담는 표는 따로 있다
+   * (`BIG_POSES` = 서랍의 "개미 (32칸)").
    */
   const sourceSize = rowsSize(sourceRows(char.id, masterId));
   const masterSize = rowsSize(masterRows);
@@ -425,14 +360,20 @@ function MasterSection({
           <p className="text-xs text-[color:var(--muted)]">
             {group.members.length > 0
               ? `이 대표의 몸을 쓰는 동작 ${group.members.length}개`
-              : "이 캐릭터는 아직 동작이 하나야 — 반영할 데가 없어."}
+              : /*
+                 * 대표가 여럿인 캐릭터(32칸 개미)에서 "동작이 하나야"는 거짓말이다 —
+                 * 그림은 여덟인데 이 몸에서 갈라져 나온 동작이 아직 없을 뿐이다.
+                 */
+                char.masters.length > 1
+                ? "이 몸에서 갈라져 나온 동작이 아직 없어."
+                : "이 캐릭터는 아직 동작이 하나야 — 반영할 데가 없어."}
           </p>
 
           {gridMismatch && (
             <p className="mt-1 text-[11px] leading-relaxed text-[color:var(--down)]">
               <b>격자가 원본과 달라 이 그림은 코드로 돌아갈 수 없어.</b> {sourceSize.w}칸짜리
-              자리에 {masterSize.w}칸 그림은 안 들어가 — 32칸으로 그리는 개미는{" "}
-              <b>&quot;개미 몸 (32칸)&quot;</b>에서 그려야 갈 곳이 있어. 지금 것은 백업으로
+              자리에 {masterSize.w}칸 그림은 안 들어가 — 32칸으로 그리는 개미는 목록 위쪽에서{" "}
+              <b>&quot;{ANT32_TITLE}&quot;</b>을 골라야 갈 곳이 있어. 지금 것은 백업으로
               내려받아 두고, 그쪽을 열어 이어 그려.
             </p>
           )}
