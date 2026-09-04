@@ -6594,7 +6594,7 @@ interface WorldAct {
  * 높이는 **못박은 배열**이다. 다시 뽑을 때마다 지형이 바뀌면 배경이 아니라 사건이 된다
  * (코인 상자의 캔들 스카이라인과 같은 대우).
  */
-const WLD_BACK_CHART: readonly number[] = [14, 22, 18, 30, 24, 38, 32, 46, 40, 34, 44, 52];
+const WLD_BACK_CHART: readonly number[] = [30, 44, 38, 56, 48, 68, 60, 78, 70, 62, 74, 88];
 
 /**
  * 배경 차트의 색. **투명도로 뒤에 놓지 않는다** — 반투명은 앞의 것이 지나갈 때마다 색이
@@ -6610,18 +6610,36 @@ const WLD_BACK_TONES = {
   water: { up: "#245f8f", down: "#1b5079" },
 } as const;
 
-function drawWorldBackChart(p: Painter, water: boolean): void {
+function drawWorldBackChart(p: Painter, t: number, water: boolean): void {
   const tone = water ? WLD_BACK_TONES.water : WLD_BACK_TONES.land;
+  /** 값 하나가 앉는 화면 높이 */
+  const at = (level: number) => WLD_GROUND - 6 - level;
 
-  WLD_BACK_CHART.forEach((h, i) => {
+  WLD_BACK_CHART.forEach((close, i) => {
+    /*
+     * **봉마다 시작하는 높이가 다르다.** 예전엔 전부 땅에서 올라와 밑동이 한 줄로 늘어서,
+     * 차트가 아니라 울타리로 보였다 — 실제 차트는 앞 봉이 끝난 값에서 다음 봉이 시작하므로,
+     * 여기서도 **앞 값이 시가, 지금 값이 종가**다. 그러면 밑동도 꼭대기도 저마다 달라진다.
+     */
+    const open = WLD_BACK_CHART[i - 1] ?? close - 10;
+    const up = close >= open;
+    const color = up ? tone.up : tone.down;
+
+    /*
+     * **은은하게 숨쉰다.** 봉마다 위상을 어긋나게 줘서 차트 전체가 한 덩이로 오르내리지
+     * 않게 하고, 흔들림은 **도트 단위로 끊는다** (소수로 두면 봉 가장자리가 프레임마다
+     * 흐려진다). 한 컷에 **정수 번** 돌아야 컷이 바뀌는 자리에서 안 튄다.
+     */
+    const breathe = Math.round(Math.sin((t / WORLD_CUT_MS) * TAU * 2 + i * 0.55) * 2);
+
     const x = 2 + i * 9;
-    const prev = WLD_BACK_CHART[i - 1] ?? h;
-    const color = h >= prev ? tone.up : tone.down;
-    const bottom = WLD_GROUND - 6;
+    const top = at(Math.max(open, close)) + breathe;
+    /* 몸통은 한 줄을 보장한다 — 시가와 종가가 같으면 아예 안 그려진다 */
+    const body = Math.max(2, Math.abs(close - open));
 
     /* 꼬리 — 몸통 위아래로 삐져나와야 봉으로 읽힌다 */
-    p.rect(x + 3, bottom - h - 4, 1, h + 8, color);
-    p.rect(x, bottom - h, 7, h, color);
+    p.rect(x + 3, top - 4, 1, body + 8, color);
+    p.rect(x, top, 7, body, color);
   });
 }
 
@@ -6789,14 +6807,21 @@ const WORLD_ACT_LIST: readonly WorldAct[] = [
     draw(p, t, _frame, enter) {
       /* 고래는 **정어리보다 먼저** 그린다 — 뒤에 있어야 그림자로 읽힌다 */
       const swim = clamp01((t - 700) / 2400);
-      const wx = Math.round(lerp(112, -56, swim));
-      const whaleTop = 66;
-      drawWhale(p, wx, whaleTop, 1);
+      const wx = Math.round(lerp(108, -100, swim));
+      /*
+       * **배율 2다.** 도트 그림이라 배율은 정수뿐이라서 2.5배는 못 넣는다 — 48칸 몸이
+       * 96칸이 되어 화면 폭(108칸)을 거의 채우므로, 여기가 이 판에서 키울 수 있는 끝이다.
+       */
+      const whaleK = 2;
+      const whaleTop = 58;
+      drawWhale(p, wx, whaleTop, whaleK);
 
       /* 눈빛 — 반짝이는 건 시간 위에서만 성립해 문자맵에 못 넣는다 (눈물·하트와 같은 자리) */
       if (flip2(t, 260)) {
-        p.dot(wx + WHALE_EYE.x, whaleTop + WHALE_EYE.y - 1, "#eaf4ff");
-        p.dot(wx + WHALE_EYE.x + 1, whaleTop + WHALE_EYE.y, "#ffffff");
+        const ex = wx + WHALE_EYE.x * whaleK;
+        const ey = whaleTop + WHALE_EYE.y * whaleK;
+        p.rect(ex, ey - whaleK, whaleK, whaleK, "#eaf4ff");
+        p.rect(ex + whaleK, ey, whaleK, whaleK, "#ffffff");
       }
 
       const drop = Math.round((1 - enter) * 50);
@@ -6953,7 +6978,7 @@ const world: MemeScene = {
       p.rect(0, WLD_GROUND, p.w, 2, "#a98b5f");
     }
 
-    drawWorldBackChart(p, !!act.water);
+    drawWorldBackChart(p, t, !!act.water);
 
     const extra = act.draw(p, t, frame, enter) ?? [];
 
