@@ -6589,27 +6589,39 @@ interface WorldAct {
  * 이 한 줄이 여섯 컷을 한 판으로 묶는다 — 컷마다 배경을 새로 지으면 로테이션이 아니라
  * 슬라이드쇼가 된다.
  *
- * **캐릭터보다 먼저, 옅게 그린다.** 진하면 주인공과 다투고, 물속에서는 물빛이 이미 한 겹
- * 덮여 있어 같은 농도로 두면 차트가 물 위에 떠 있는 것으로 보인다 — 그래서 더 옅다.
+ * **캐릭터보다 먼저 그리고, 투명도가 아니라 색으로 뒤에 놓는다** (아래 `WLD_BACK_TONES`).
  *
  * 높이는 **못박은 배열**이다. 다시 뽑을 때마다 지형이 바뀌면 배경이 아니라 사건이 된다
  * (코인 상자의 캔들 스카이라인과 같은 대우).
  */
 const WLD_BACK_CHART: readonly number[] = [14, 22, 18, 30, 24, 38, 32, 46, 40, 34, 44, 52];
 
-function drawWorldBackChart(p: Painter, water: boolean): void {
-  p.faded(water ? 0.1 : 0.2, () => {
-    WLD_BACK_CHART.forEach((h, i) => {
-      const x = 2 + i * 9;
-      const prev = WLD_BACK_CHART[i - 1] ?? h;
-      const up = h >= prev;
-      const color = up ? "#ff5c5c" : "#5c9dff";
-      const bottom = WLD_GROUND - 6;
+/**
+ * 배경 차트의 색. **투명도로 뒤에 놓지 않는다** — 반투명은 앞의 것이 지나갈 때마다 색이
+ * 섞여, 배경이 아니라 앞 오브젝트에 얹힌 무늬처럼 보인다. 대신 **하늘빛에 가까운 색을
+ * 그대로 칠해** 배경으로만 서게 한다: 앞의 봉이 쓰는 선명한 빨강·파랑(`#ff5c5c`/`#5c9dff`)과
+ * 한눈에 갈리는 흐린 색이라, 겹쳐 서도 무엇이 앞인지가 안 헷갈린다.
+ *
+ * 물속은 바탕이 어두우므로 **더 어두운 쪽으로** 흐린다 — 밝게 하면 물 위에 뜬 것으로 보이고,
+ * 그 밝기대는 고래가 이미 쓰고 있다.
+ */
+const WLD_BACK_TONES = {
+  land: { up: "#e2c6cc", down: "#c6d3e8" },
+  water: { up: "#245f8f", down: "#1b5079" },
+} as const;
 
-      /* 꼬리 — 몸통 위아래로 삐져나와야 봉으로 읽힌다 */
-      p.rect(x + 3, bottom - h - 4, 1, h + 8, color);
-      p.rect(x, bottom - h, 7, h, color);
-    });
+function drawWorldBackChart(p: Painter, water: boolean): void {
+  const tone = water ? WLD_BACK_TONES.water : WLD_BACK_TONES.land;
+
+  WLD_BACK_CHART.forEach((h, i) => {
+    const x = 2 + i * 9;
+    const prev = WLD_BACK_CHART[i - 1] ?? h;
+    const color = h >= prev ? tone.up : tone.down;
+    const bottom = WLD_GROUND - 6;
+
+    /* 꼬리 — 몸통 위아래로 삐져나와야 봉으로 읽힌다 */
+    p.rect(x + 3, bottom - h - 4, 1, h + 8, color);
+    p.rect(x, bottom - h, 7, h, color);
   });
 }
 
@@ -6858,18 +6870,21 @@ const WORLD_ACT_LIST: readonly WorldAct[] = [
   {
     flag: "ru",
     say: { x: WLD_MID, y: WLD_TOP + 2 },
-    draw(p, t, _frame, enter) {
+    draw(p, t, frame, enter) {
       const drop = Math.round((1 - enter) * 40);
       const top = WLD_TOP + drop;
 
       /*
-       * 발밑에 작은 양봉을 깔아둔다 — **볼에 쟁여둔 것들**이라 이 컷에서만 바닥에 쌓인다.
-       * 높이를 조금씩 달리해야 차트로 읽히고, 다시 뽑아도 안 흔들리게 못박은 배열을 쓴다.
+       * 발밑에 작은 봉을 깔아둔다 — **볼에 쟁여둔 것들**이라 이 컷에서만 바닥에 쌓인다.
+       * 양봉·음봉을 섞어야 쟁여둔 게 차트로 읽힌다 (다 빨가면 전리품 더미로만 보인다).
+       *
+       * **`seededRandom`으로 뽑는다** — `Math.random()`을 그리는 중에 부르면 1초에 60번
+       * 자리가 바뀌어 발밑이 지글거리고, 미리보기와 녹화본이 달라진다.
        */
-      const stash = [5, 8, 4, 9, 6, 10, 5, 7];
-      stash.forEach((h, i) => {
-        drawWorldCandle(p, 4 + i * 13, WLD_GROUND + 3, h, true);
-      });
+      const stash = seededRandom(frame.seed + 29);
+      for (let i = 0; i < 8; i += 1) {
+        drawWorldCandle(p, 4 + i * 13, WLD_GROUND + 3, 4 + Math.round(stash() * 7), stash() > 0.45);
+      }
 
       /* 씹는 박자 — 루프를 짝수로 나누는 주기라야 한 바퀴 끝에서 자세가 안 튄다 */
       const chew = flip2(t, 200);
